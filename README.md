@@ -22,5 +22,7 @@ http://<UNRAID-IP>:8080
 
 Upload a SEA DUTY CERTIFICATION SHEET PDF and download the generated
 `pg13_output.zip`.
+PG13 image build test
 # Trigger GHCR build
 
+PG13 image build test
