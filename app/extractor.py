@@ -1,6 +1,8 @@
 import pdfplumber
+import re
 from datetime import datetime
 from app.config import NAME_PREFIX, SIGNATURE_MARKER, SKIP_KEYWORD
+
 
 def parse_date(date_str):
     """Parse M/D/YYYY or M/D/YY from SEA DUTY CERT sheet."""
@@ -11,11 +13,31 @@ def parse_date(date_str):
             continue
     return None
 
+
 def clean_event_name(name: str) -> str:
-    """Remove parentheses from event like 'CHOSIN (ASW AS-2*1)' -> 'CHOSIN'."""
-    if "(" in name:
-        return name.split("(", 1)[0].strip()
-    return name.strip()
+    """
+    Extract ONLY the ship name from the Event column.
+
+    Removes:
+    - Parentheses, e.g. (ASW C-1)
+    - Time ranges, e.g. 0830, 1600, 0000, 2359
+    - Extra numbers or garbage after ship name
+    """
+    # Remove parentheses: (ASW C-1)
+    name = re.sub(r"\(.*?\)", "", name)
+
+    # Remove 3-4 digit time blocks (0830, 1600, 0000, 2359)
+    name = re.sub(r"\b\d{3,4}\b", "", name)
+
+    # Remove stray asterisks or weird characters
+    name = name.replace("*", " ")
+
+    # Collapse multiple spaces
+    name = re.sub(r"\s+", " ", name)
+
+    # Final clean + uppercase
+    return name.strip().upper()
+
 
 def group_events_by_ship(events):
     """
@@ -25,6 +47,8 @@ def group_events_by_ship(events):
     grouped = {}
     for dt, name in events:
         ship = clean_event_name(name)
+        if not ship:
+            continue
         grouped.setdefault(ship, []).append(dt)
 
     result = []
@@ -32,6 +56,7 @@ def group_events_by_ship(events):
         dates = sorted(dates)
         result.append((ship, dates[0], dates[-1]))
     return result
+
 
 def extract_sailors_and_events(pdf_path):
     """
@@ -49,7 +74,6 @@ def extract_sailors_and_events(pdf_path):
     ]
     """
     sailors = []
-
     current_name = None
     current_events = []
 
@@ -62,44 +86,45 @@ def extract_sailors_and_events(pdf_path):
             for raw_line in text.split("\n"):
                 line = raw_line.strip()
 
-                # 1. Detect name line
+                # 1. Detect NAME line
                 if line.startswith(NAME_PREFIX):
-                    # Example: "Name: BRANDON ANDERSEN SSN/DOD #: ..."
                     after = line[len(NAME_PREFIX):].strip()
                     if "SSN" in after:
                         name_part = after.split("SSN", 1)[0].strip()
                     else:
                         name_part = after
-                    # Save previous sailor if we had one
+
+                    # Save previous sailor (if exists)
                     if current_name and current_events:
-                        events_grouped = group_events_by_ship(current_events)
                         sailors.append({
                             "name": current_name,
-                            "events": events_grouped
+                            "events": group_events_by_ship(current_events)
                         })
+
                     current_name = name_part
                     current_events = []
                     continue
 
-                # 2. Detect event line: M/D/YY + text
+                # 2. Detect event lines: "8/11/2025 CHOSIN (ASW C-1)"
                 parts = line.split(" ", 1)
                 if len(parts) == 2:
                     date_candidate, rest = parts
                     dt = parse_date(date_candidate)
                     if dt and current_name:
                         event_raw = rest.strip()
+
                         # Skip MITE events
                         if SKIP_KEYWORD in event_raw.upper():
                             continue
+
                         current_events.append((dt, event_raw))
                         continue
 
-                # 3. End-of-sailor marker
+                # 3. Detect end of sailor block
                 if SIGNATURE_MARKER in line and current_name:
-                    events_grouped = group_events_by_ship(current_events)
                     sailors.append({
                         "name": current_name,
-                        "events": events_grouped
+                        "events": group_events_by_ship(current_events)
                     })
                     current_name = None
                     current_events = []
