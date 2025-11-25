@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  pg13-generator:
+    build: .
+    container_name: pg13-generator
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
