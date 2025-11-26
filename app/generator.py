@@ -1,67 +1,49 @@
 import os
-import tempfile
+import zipfile
 from datetime import datetime
 from PyPDF2 import PdfReader, PdfWriter
+from app.config import PG13_TEMPLATE_PATH
 
-def format_navy_date(d):
-    return d.strftime("%d %b %Y").upper()
 
 def generate_pg13_zip(sailor, output_dir):
-    """
-    sailor = {
-        "name": "LAST FIRST",
-        "events": [
-            ("PAUL HAMILTON", date_start, date_end),
-            ("STERETT", date_start, date_end),
-            ...
-        ]
-    }
-    """
-    import zipfile
+    last = sailor["name"].split()[-1].upper()
+    zip_path = os.path.join(output_dir, f"{last}_PG13.zip")
 
-    zip_path = os.path.join(output_dir, f"{sailor['name'].replace(' ', '_')}.zip")
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for ship, d_start, d_end in sailor["events"]:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for ship, start, end in sailor["events"]:
             pdf_path = generate_single_pg13(
-                sailor_name=sailor["name"],
-                ship_name=ship,
-                start_date=d_start,
-                end_date=d_end,
-                output_dir=output_dir
+                sailor["name"],
+                ship,
+                start,
+                end,
+                output_dir
             )
-            zipf.write(pdf_path, os.path.basename(pdf_path))
+            zf.write(pdf_path, os.path.basename(pdf_path))
 
     return zip_path
 
 
-def generate_single_pg13(sailor_name, ship_name, start_date, end_date, output_dir):
-    template_path = "/app/app/templates_pdf/NAVPERS_1070_613_TEMPLATE.pdf"
-
-    reader = PdfReader(template_path)
+def generate_single_pg13(name, ship, start_date, end_date, outdir):
+    reader = PdfReader(PG13_TEMPLATE_PATH)
     writer = PdfWriter()
 
     page = reader.pages[0]
     writer.add_page(page)
 
-    # ----------- FIELD DATA -----------
-    start_fm = format_navy_date(start_date)
-    end_fm = format_navy_date(end_date)
+    # Prepare clean ship name
+    clean_ship = ship.replace("(", "").replace(")", "").strip()
 
-    date_line = f"REPORT CAREER SEA PAY FROM {start_fm} TO {end_fm}"
-    remarks_line = f"Member performed eight continuous hours per day on-board: {ship_name}"
-
-    data = {
-        "Subject": "ENTITLEMENT",
-        "Date": date_line,
-        "SHIP": remarks_line,
-        "NAME": sailor_name.upper()
+    # Form fields from your template
+    fields = {
+        "NAME": name.upper(),
+        "SHIP": clean_ship.upper(),
+        "Date": f"{start_date} to {end_date}",
+        "Subject": "ENTITLEMENT"
     }
 
-    writer.update_page_form_field_values(writer.pages[0], data)
+    writer.update_page_form_field_values(writer.pages[0], fields)
 
-    out_name = f"{ship_name}.pdf".replace("/", "-").replace("  ", " ").strip()
-    out_path = os.path.join(output_dir, out_name)
+    out_path = os.path.join(outdir, f"{clean_ship}.pdf")
     with open(out_path, "wb") as f:
         writer.write(f)
 
