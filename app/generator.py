@@ -1,6 +1,7 @@
 import os
 import zipfile
 from datetime import datetime
+
 from PyPDF2 import PdfReader, PdfWriter
 from app.config import PG13_TEMPLATE_PATH
 
@@ -11,7 +12,11 @@ def format_mmddyy(date_obj):
 
 
 def generate_pg13_zip(sailor, output_dir):
-    # Use LAST name for zip filename
+    """
+    Create a ZIP of PG-13 PDFs for a single sailor.
+    Each event tuple: (ship, start_date, end_date)
+    """
+    # Use LAST name (first token) for zip name
     last = sailor["name"].split()[0].upper()
     zip_path = os.path.join(output_dir, f"{last}.zip")
 
@@ -24,45 +29,40 @@ def generate_pg13_zip(sailor, output_dir):
 
 
 def make_pg13_pdf(name, ship, start, end, root_dir):
+    """
+    Fill the NAVPERS 1070/613 PG-13 template with:
+      - NAME  -> NAME (LAST, FIRST, MIDDLE) field
+      - Date  -> 'MM/DD/YY TO MM/DD/YY. REPORT CAREER SEA PAY FROM'
+      - SHIP  -> 'Member performed eight continuous hours per day
+                  on-board: <SHIP> Category A vessel'
+    """
+
     output_path = os.path.join(root_dir, f"{ship}.pdf")
 
-    # Load template
+    # 1) Load the PG-13 template
     reader = PdfReader(PG13_TEMPLATE_PATH)
-    writer = PdfWriter()
 
-    # Copy pages first
-    for page in reader.pages:
-        writer.add_page(page)
+    # 2) Clone the full document into a writer
+    #    This is the safe way: it carries over AcroForm and fields
+    writer = PdfWriter(clone_from=reader)
 
-    # COPY ACROFORM EXACTLY or fields will NOT exist
-    if "/AcroForm" in reader.trailer["/Root"]:
-        writer._root_object.update({
-            "/AcroForm": reader.trailer["/Root"]["/AcroForm"]
-        })
+    # 3) Build the exact strings you wanted
+    date_value = f"{format_mmddyy(start)} TO {format_mmddyy(end)}. REPORT CAREER SEA PAY FROM"
+    ship_value = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel"
+    name_value = name
 
-    # Get form fields from READER (NOT writer)
-    fields = reader.get_fields()
-
-    # --- Required PG-13 formatting ---
-    date_from_to = f"{format_mmddyy(start)} TO {format_mmddyy(end)}"
-    ship_text = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel"
-    name_text = name
-
-    # Set field values
+    # 4) Update form fields on the first page
+    #    We do NOT call writer.get_fields() – only the reader has that.
     writer.update_page_form_field_values(
         writer.pages[0],
         {
-            "NAME": name_text,
-            "Date": date_from_to,
-            "SHIP": ship_text
-        }
+            "NAME": name_value,
+            "Date": date_value,
+            "SHIP": ship_value,
+        },
     )
 
-    # Must set NeedAppearances for fields to display properly
-    if "/AcroForm" in writer._root_object:
-        writer._root_object["/AcroForm"].update({"/NeedAppearances": True})
-
-    # Save output
+    # 5) Write out the finished PG-13 PDF
     with open(output_path, "wb") as f:
         writer.write(f)
 
