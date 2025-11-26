@@ -1,9 +1,11 @@
-version: "3.8"
+version: "3.9"
 
 services:
-  pg13-generator:
+  sea-pay-processor:
     build: .
-    container_name: pg13-generator
+    container_name: sea-pay-processor
     ports:
-      - "8080:8080"
+      - "8092:8080"        # host:container
+    environment:
+      - SECRET_KEY=change-me
     restart: unless-stopped
