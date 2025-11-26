@@ -29,9 +29,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile         # <── FIXED (not dockerfile:)
+          file: Dockerfile
           push: true
-          no-cache: true           # <── FORCE REAL REBUILD
+          no-cache: true
           provenance: false
           sbom: false
           tags: |
