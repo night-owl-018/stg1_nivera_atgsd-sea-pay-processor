@@ -43,41 +43,42 @@ def generate_pg13_zip(sailor, output_dir):
     return zip_path
 
 
+
 def make_pg13_pdf(name, ship_raw, start, end, root_dir):
     output_path = os.path.join(root_dir, f"{ship_raw}.pdf")
 
-    # Clean & match proper ship name
+    # Clean/match proper ship name
     ship = match_ship(ship_raw)
 
-    # Build strings
+    # Build text lines
     line1 = f"REPORT CAREER SEA PAY FROM {format_mmddyy(start)} TO {format_mmddyy(end)}."
     line2 = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel."
 
-    # Page coordinates in inches (given by you)
-    X = 0.91
-    Y1 = 8.43       # Top line
-    Y2 = 8.08       # Second line
-    X_NAME = 0.26
-    Y_NAME = 0.63
+    # === FINAL FIXED COORDINATES ===
+    X = 0.90
+    Y1 = 6.95   # REPORT CAREER SEA PAY FROM ...
+    Y2 = 6.65   # Member performed eight continuous hours ...
+    X_NAME = 0.30
+    Y_NAME = 1.10
 
-    # Load PG-13 template
+    # Load template
     template_reader = PdfReader(PG13_TEMPLATE_PATH)
     template_page = template_reader.pages[0]
 
-    # Build transparent overlay
+    # Create overlay
     overlay_path = os.path.join(root_dir, "overlay.pdf")
     c = canvas.Canvas(overlay_path, pagesize=letter)
 
     c.setFont("TimesNewRoman", 10)
 
-    # Draw lines with perfect alignment
+    # Draw text
     c.drawString(inches_to_points(X), page_y_from_inches(Y1), line1)
     c.drawString(inches_to_points(X), page_y_from_inches(Y2), line2)
     c.drawString(inches_to_points(X_NAME), page_y_from_inches(Y_NAME), name)
 
     c.save()
 
-    # Merge overlay with template
+    # Merge overlay + template
     overlay_reader = PdfReader(overlay_path)
     overlay_page = overlay_reader.pages[0]
 
@@ -85,7 +86,6 @@ def make_pg13_pdf(name, ship_raw, start, end, root_dir):
         width=template_page.mediabox.width,
         height=template_page.mediabox.height
     )
-
     merged.merge_page(template_page)
     merged.merge_page(overlay_page)
 
