@@ -41,9 +41,9 @@ def make_pg13_pdf(name, ship_raw, start, end, root_dir):
     Overlay sea-pay text on the NAVPERS 1070/613 template using page coordinates.
 
     Anchors (inches from bottom-left):
-      - 'R' in REPORT:  X=0.533, Y=4.192
-      - 'M' in Member:  X=0.533, Y=4.526
-      - 'R' in RYAN (name box): X=0.318, Y=10.997
+      - 'R' in REPORT:  X=0.783, Y=2.192
+      - 'M' in Member:  X=0.533, Y=2.526
+      - 'R' in RYAN (name box): X=0.218, Y=9.997
     """
     def inches(v: float) -> float:
         return v * 72.0
