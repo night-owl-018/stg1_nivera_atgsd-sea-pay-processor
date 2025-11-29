@@ -1,1 +1,18 @@
 
+<Container>
+  <Name>Sea Pay Processor</Name>
+  <Repository>ghcr.io/night-owl-018/stg1_nivera_atgsd-sea-pay-processor:latest</Repository>
+  <Network>bridge</Network>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <Icon></Icon>
+
+  <!-- Port: Container 8080 → Host 8092 -->
+  <Config Name="Web Port" Target="8080" Default="8092" Mode="tcp" Type="Port" Description="Sea Pay Processor Web UI" Display="always" Required="true" Mask="false"/>
+
+  <!-- Volume mappings -->
+  <Config Name="Data" Target="/data" Default="/mnt/user/seapay/data" Mode="rw" Type="Path" Description="Input PDFs" Display="always" Required="true" Mask="false"/>
+  <Config Name="Templates" Target="/templates" Default="/mnt/user/seapay/templates" Mode="rw" Type="Path" Description="NAVPERS template PDF" Display="always" Required="true" Mask="false"/>
+  <Config Name="Config" Target="/config" Default="/mnt/user/seapay/config" Mode="rw" Type="Path" Description="Rate CSV (atgsd_n811.csv)" Display="always" Required="true" Mask="false"/>
+  <Config Name="Output" Target="/output" Default="/mnt/user/seapay/output" Mode="rw" Type="Path" Description="Generated PDFs" Display="always" Required="true" Mask="false"/>
+
+</Container>
