@@ -1,1 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Sea Pay Processor</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      h1 { margin-bottom: 5px; }
+      label { display: block; margin-top: 12px; font-weight: bold; }
+      input[type=text] { width: 100%; padding: 6px; box-sizing: border-box; }
+      button { margin-top: 15px; padding: 8px 16px; cursor: pointer; }
+      .path { font-size: 0.85em; color: #555; }
+      pre {
+        background: #111;
+        color: #0f0;
+        padding: 10px;
+        max-height: 400px;
+        overflow: auto;
+        border-radius: 4px;
+      }
+      .card {
+        border: 1px solid #ccc;
+        padding: 15px;
+        border-radius: 4px;
+        max-width: 800px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sea Pay Processor</h1>
+    <p>Fill in the paths (inside the container) and click <strong>Run Processor</strong>.</p>
+
+    <div class="card">
+      <form method="post">
+        <label>Data directory (input PDFs)</label>
+        <input type="text" name="data_dir" value="{{ data_dir }}">
+        <span class="path">Example (with Unraid volume): <code>/data</code></span>
+
+        <label>Template PDF (NAVPERS 1070/613)</label>
+        <input type="text" name="template_pdf" value="{{ template_pdf }}">
+        <span class="path">Example: <code>/templates/NAVPERS_1070_613_TEMPLATE.pdf</code></span>
+
+        <label>Rate CSV (atgsd_n811.csv)</label>
+        <input type="text" name="rate_file" value="{{ rate_file }}">
+        <span class="path">Example: <code>/config/atgsd_n811.csv</code></span>
+
+        <label>Output directory</label>
+        <input type="text" name="output_dir" value="{{ output_dir }}">
+        <span class="path">Example: <code>/output</code></span>
+
+        <button type="submit">Run Processor</button>
+      </form>
+    </div>
+
+    <h2>Run log</h2>
+    <pre>{{ logs }}</pre>
+  </body>
+</html>
 
