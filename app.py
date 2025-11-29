@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import letter
 import pytesseract
 from pdf2image import convert_from_path
 
+
 # ------------------------------------------------
 # FLASK APP
 # ------------------------------------------------
@@ -20,23 +21,23 @@ app = Flask(__name__)
 
 # ------------------------------------------------
 # DEFAULT PATHS INSIDE CONTAINER
-# (You can override these in the Web GUI)
+# (override in Web UI form)
 # ------------------------------------------------
 DEFAULT_DATA_DIR = "/data"
 DEFAULT_TEMPLATE_PDF = "/templates/NAVPERS_1070_613_TEMPLATE.pdf"
 DEFAULT_RATE_FILE = "/config/atgsd_n811.csv"
 DEFAULT_OUTPUT_DIR = "/output"
 
-# Use built-in Times family font in reportlab (no extra font install needed)
+# In container, tesseract is on PATH
+pytesseract.pytesseract.tesseract_cmd = "tesseract"
+
+# Use built-in Times font in reportlab
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
-# Tesseract binary (inside the container it will be in PATH)
-pytesseract.pytesseract.tesseract_cmd = "tesseract"
-
 
 # ------------------------------------------------
-# SHIP LIST  (same as your working script)
+# SHIP LIST (same as your working script)
 # ------------------------------------------------
 SHIP_LIST = [
     "America","Anchorage","Arleigh Burke","Arlington","Ashland","Augusta",
@@ -68,17 +69,19 @@ SHIP_LIST = [
     "William P. Lawrence","Winston S. Churchill","Wichita","Zumwalt"
 ]
 
+
 def normalize(text: str) -> str:
     text = re.sub(r"\(.*?\)", "", text)
     text = re.sub(r"[^A-Z ]", "", text.upper())
     return " ".join(text.split())
+
 
 NORMALIZED_SHIPS = {normalize(s): s.upper() for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 
 
 # ------------------------------------------------
-# CORE HELPERS (no filesystem in here)
+# CORE HELPERS
 # ------------------------------------------------
 def strip_times(text: str) -> str:
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
@@ -87,7 +90,7 @@ def strip_times(text: str) -> str:
 def extract_member_name(text: str) -> str:
     m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
     if not m:
-        raise RuntimeError("NAME not found in OCR text.")
+        raise RuntimeError("NAME not found.")
     return " ".join(m.group(1).split())
 
 
@@ -97,12 +100,14 @@ def match_ship(raw_text: str):
         return None
 
     words = candidate.split()
+
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
             chunk = " ".join(words[i:i+size])
             match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
             if match:
                 return NORMALIZED_SHIPS[match[0]]
+
     return None
 
 
@@ -133,10 +138,9 @@ def parse_rows(text: str, year: str):
         if not ship:
             continue
 
-        key = (date, ship)
-        if key not in seen:
+        if (date, ship) not in seen:
             rows.append({"date": date, "ship": ship})
-            seen.add(key)
+            seen.add((date, ship))
 
     return rows
 
@@ -148,6 +152,7 @@ def group_by_ship(rows):
         groups.setdefault(r["ship"], []).append(dt)
 
     results = []
+
     for ship, dates in groups.items():
         dates = sorted(set(dates))
 
@@ -183,6 +188,7 @@ def load_rates(rate_file: str, log):
 
     with open(rate_file, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
+
         if not reader.fieldnames:
             log("[RATES] No header row detected.")
             return rates
@@ -236,7 +242,8 @@ def get_rate(name: str, rates: dict) -> str:
 
 def ocr_pdf(path: str, log) -> str:
     log(f"[OCR] Reading {path}")
-    images = convert_from_path(path)  # poppler-utils is installed in container
+    # poppler-utils is in PATH inside container
+    images = convert_from_path(path)
     out = ""
     for img in images:
         out += pytesseract.image_to_string(img)
@@ -276,26 +283,32 @@ def make_pdf(group, name, rate, template_pdf: str, output_dir: str, log):
     # OPNAV INST
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
-    # Back to normal font size
+    # Restore default font
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    # NAME WITH RATE
+    # ---------------- NAME ----------------
     if rate:
         c.drawString(39, 41, f"{rate} {last}, {first}")
     else:
         c.drawString(39, 41, f"{last}, {first}")
 
-    # REPORT CAREER LINE
+    # ---------------- REMARKS ----------------
     c.drawString(38.84, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
-
-    # MEMBER LINE
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
-    # CERTIFYING OFFICIAL BLOCK
+    # ---------------- CERTIFYING OFFICIAL BLOCK ----------------
     c.setFont(FONT_NAME, 10)
+
+    # Signature line
     c.drawString(356.26, 499.5, "_________________________")
+
+    # Label under it
     c.drawString(363.8, 487.5, "Certifying Official & Date")
+
+    # Secondary signature line
     c.drawString(356.26, 427.5, "_________________________")
+
+    # Name label
     c.drawString(384.1, 415.2, "FI MI Last Name")
 
     # SEA PAY CERTIFIER LABEL
@@ -442,6 +455,5 @@ def index():
 
 
 if __name__ == "__main__":
-    # For local testing; in Docker this also works.
-    app.run(host="0.0.0.0", port=5000)
-
+    # In Docker we will map container port 8080 → host 8092
+    app.run(host="0.0.0.0", port=8080)
