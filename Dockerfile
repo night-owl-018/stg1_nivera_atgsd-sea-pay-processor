@@ -1,6 +1,5 @@
 FROM python:3.11-slim
 
-# Install system dependencies: tesseract + poppler for pdf2image
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         tesseract-ocr \
@@ -14,6 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 5000
+EXPOSE 8080
 
 CMD ["python", "app.py"]
