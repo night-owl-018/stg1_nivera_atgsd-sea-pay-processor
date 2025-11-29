@@ -1,59 +1,58 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Sea Pay Processor</title>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ATGSD Sea Pay Processor</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      h1 { margin-bottom: 5px; }
-      label { display: block; margin-top: 12px; font-weight: bold; }
-      input[type=text] { width: 100%; padding: 6px; box-sizing: border-box; }
-      button { margin-top: 15px; padding: 8px 16px; cursor: pointer; }
-      .path { font-size: 0.85em; color: #555; }
-      pre {
-        background: #111;
-        color: #0f0;
-        padding: 10px;
-        max-height: 400px;
-        overflow: auto;
-        border-radius: 4px;
-      }
-      .card {
-        border: 1px solid #ccc;
-        padding: 15px;
-        border-radius: 4px;
-        max-width: 800px;
-      }
+        body {
+            background: #101010;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        input {
+            width: 80%;
+            padding: 6px;
+            margin: 5px;
+        }
+        button {
+            padding: 12px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        pre {
+            background: black;
+            color: lime;
+            padding: 10px;
+            height: 350px;
+            overflow: auto;
+            text-align: left;
+            width: 90%;
+            margin: auto;
+        }
     </style>
-  </head>
-  <body>
-    <h1>Sea Pay Processor</h1>
-    <p>Fill in the paths (inside the container) and click <strong>Run Processor</strong>.</p>
+</head>
+<body>
 
-    <div class="card">
-      <form method="post">
-        <label>Data directory (input PDFs)</label>
-        <input type="text" name="data_dir" value="{{ data_dir }}">
-        <span class="path">Example (with Unraid volume): <code>/data</code></span>
+<h2>ATGSD Sea Pay Processor</h2>
 
-        <label>Template PDF (NAVPERS 1070/613)</label>
-        <input type="text" name="template_pdf" value="{{ template_pdf }}">
-        <span class="path">Example: <code>/templates/NAVPERS_1070_613_TEMPLATE.pdf</code></span>
+<form method="POST">
+    <label>Data Folder</label><br>
+    <input name="data_dir" value="{{ data_dir }}"><br>
 
-        <label>Rate CSV (atgsd_n811.csv)</label>
-        <input type="text" name="rate_file" value="{{ rate_file }}">
-        <span class="path">Example: <code>/config/atgsd_n811.csv</code></span>
+    <label>Template PDF</label><br>
+    <input name="template_pdf" value="{{ template_pdf }}"><br>
 
-        <label>Output directory</label>
-        <input type="text" name="output_dir" value="{{ output_dir }}">
-        <span class="path">Example: <code>/output</code></span>
+    <label>Rates CSV</label><br>
+    <input name="rate_file" value="{{ rate_file }}"><br>
 
-        <button type="submit">Run Processor</button>
-      </form>
-    </div>
+    <label>Output Folder</label><br>
+    <input name="output_dir" value="{{ output_dir }}"><br><br>
 
-    <h2>Run log</h2>
-    <pre>{{ logs }}</pre>
-  </body>
+    <button type="submit">RUN PROCESSOR</button>
+</form>
+
+<pre>{{ logs }}</pre>
+
+</body>
 </html>
-
