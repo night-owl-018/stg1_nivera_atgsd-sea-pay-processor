@@ -12,7 +12,6 @@ from reportlab.lib.pagesizes import letter
 import pytesseract
 from pdf2image import convert_from_path
 
-
 # ------------------------------------------------
 # PATH CONFIG
 # ------------------------------------------------
@@ -27,29 +26,25 @@ SHIP_FILE = "/app/ships.txt"
 
 FONT_NAME = "Times-Roman"
 
-# Ensure mount folders exist
 for p in [DATA_DIR, OUTPUT_DIR, TEMPLATE_DIR, CONFIG_DIR]:
     os.makedirs(p, exist_ok=True)
 
 pytesseract.pytesseract.tesseract_cmd = "tesseract"
 
-
 # ------------------------------------------------
 # LOAD SHIPS
 # ------------------------------------------------
-with open(SHIP_FILE, "r", encoding="utf-8") as f:
-    SHIP_LIST = [line.strip() for line in f if line.strip()]
+if not os.path.exists(SHIP_FILE):
+    raise RuntimeError("ships.txt not found in container")
 
+with open(SHIP_FILE, "r", encoding="utf-8") as f:
+    SHIP_LIST = [s.strip().upper() for s in f if s.strip()]
 
 def normalize(text):
-    text = re.sub(r"\(.*?\)", "", text.upper())
-    text = re.sub(r"[^A-Z ]", "", text)
-    return " ".join(text.split())
+    return re.sub(r"[^A-Z ]", "", text.upper()).strip()
 
-
-NORMALIZED = {normalize(s): s.upper() for s in SHIP_LIST}
+NORMALIZED = {normalize(s): s for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED.keys())
-
 
 # ------------------------------------------------
 # HELPERS
@@ -57,36 +52,22 @@ NORMAL_KEYS = list(NORMALIZED.keys())
 def strip_times(text):
     return re.sub(r"\b\d{3,4}\b", "", text)
 
-
 def extract_name(text):
-    m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
+    m = re.search(r"NAME[:\s]+([A-Z ]+?)\s+SSN", text)
     if not m:
-        raise RuntimeError("NAME not found")
-    return m.group(1).strip()
-
+        raise RuntimeError("NAME field not found")
+    return normalize(m.group(1))
 
 def match_ship(text):
     text = normalize(text)
-    words = text.split()
-
-    for size in range(len(words), 0, -1):
-        for i in range(len(words) - size + 1):
-            chunk = " ".join(words[i:i + size])
-            match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
-            if match:
-                return NORMALIZED[match[0]]
-    return "UNKNOWN"
-
+    matches = get_close_matches(text, NORMAL_KEYS, n=1, cutoff=0.85)
+    if not matches:
+        return None
+    return NORMALIZED[matches[0]]
 
 def year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
-
-
-def safe_date(s):
-    """Convert MM/DD/YYYY → YYYY-MM-DD for filenames"""
-    return s.replace("/", "-")
-
 
 def parse_rows(text, year):
     rows = []
@@ -101,15 +82,12 @@ def parse_rows(text, year):
         y = ("20" + yy) if yy and len(yy) == 2 else yy if yy else year
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
-        raw = line[m.end():]
-        ship = match_ship(raw)
-
+        ship = match_ship(line)
         if ship and (date, ship) not in seen:
             rows.append({"date": date, "ship": ship})
             seen.add((date, ship))
 
     return rows
-
 
 def group_manifests(rows):
     groups = {}
@@ -132,85 +110,63 @@ def group_manifests(rows):
         out.append({"ship": ship, "start": start, "end": prev})
     return out
 
-
 # ------------------------------------------------
 # RATE FILE
 # ------------------------------------------------
 def load_rates():
     rates = {}
-
     if not os.path.exists(RATES_FILE):
         return rates
 
     with open(RATES_FILE, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            last = row.get("last", "").upper()
-            first = row.get("first", "").upper()
-            rate = row.get("rate", "").upper()
-
+        for row in csv.DictReader(f):
+            last = normalize(row.get("last", ""))
+            first = normalize(row.get("first", ""))
+            rate = normalize(row.get("rate", ""))
             if last and rate:
                 rates[f"{last},{first}"] = rate
     return rates
 
-
 def get_rate(name, rates):
-    parts = normalize(name).split()
+    parts = name.split()
     if len(parts) < 2:
         return ""
-
-    key = f"{parts[-1]},{parts[0]}"
-    return rates.get(key, "")
-
+    return rates.get(f"{parts[-1]},{parts[0]}", "")
 
 # ------------------------------------------------
 # PDF GENERATION
 # ------------------------------------------------
+def sanitize_filename(text):
+    return re.sub(r"[^A-Z0-9_]", "_", text)
+
 def make_pdf(group, name, rate):
-    start = group["start"].strftime("%m/%d/%Y")
-    end = group["end"].strftime("%m/%d/%Y")
-    ship = group["ship"]
-
-    last = name.split()[-1]
-    first = " ".join(name.split()[:-1])
-
-    prefix = f"{rate}_" if rate else ""
-
-    filename = f"{prefix}{last}_{first}_{ship}_{safe_date(start)}_TO_{safe_date(end)}.pdf"
-    filename = filename.replace(" ", "_")
-
-    outpath = os.path.join(OUTPUT_DIR, filename)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    start_str = group["start"].strftime("%Y-%m-%d")
+    end_str = group["end"].strftime("%Y-%m-%d")
+    ship = sanitize_filename(group["ship"])
+    last = name.split()[-1]
+    first = name.split()[0]
+
+    rate = rate or "UNKNOWN"
+    filename = f"{rate}_{last}_{first}_{ship}_{start_str}_TO_{end_str}.pdf"
+    outpath = os.path.join(OUTPUT_DIR, filename)
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, 10)
 
-    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC 49365)")
-    c.drawString(373, 671, "X")
-
-    c.setFont(FONT_NAME, 8)
-    c.drawString(39, 650, "ENTITLEMENT")
-    c.drawString(345, 641, "OPNAVINST 7220.14")
-
-    c.setFont(FONT_NAME, 10)
-    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
-    c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
-    c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
-
-    c.drawString(356, 499, "_________________________")
-    c.drawString(364, 487, "Certifying Official & Date")
-    c.drawString(356, 427, "_________________________")
-    c.drawString(385, 415, "FI MI Last Name")
-    c.drawString(39, 83, "SEA PAY CERTIFIER")
-    c.drawString(504, 41, "USN AD")
+    # PLACEHOLDER LOCATIONS — WILL ALIGN IMMEDIATELY WHEN YOU GIVE COORDS
+    c.drawString(60, 720, name)
+    c.drawString(60, 700, rate)
+    c.drawString(60, 680, ship)
+    c.drawString(60, 660, f"{start_str} TO {end_str}")
 
     c.save()
     buf.seek(0)
 
-    overlay = PdfReader(buf)
     template = PdfReader(TEMPLATE_PDF)
+    overlay = PdfReader(buf)
 
     base = template.pages[0]
     base.merge_page(overlay.pages[0])
@@ -218,30 +174,26 @@ def make_pdf(group, name, rate):
     writer = PdfWriter()
     writer.add_page(base)
 
-    for i in range(1, len(template.pages)):
-        writer.add_page(template.pages[i])
-
     with open(outpath, "wb") as f:
         writer.write(f)
 
     return filename
 
-
 # ------------------------------------------------
-# MASTER PROCESSOR
+# PROCESSOR
 # ------------------------------------------------
 def process_all():
     logs = []
     rates = load_rates()
 
     if not os.path.exists(TEMPLATE_PDF):
-        return "[ERROR] Template PDF missing."
+        return "[ERROR] NAVPERS template missing"
 
-    pdfs = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
-    if not pdfs:
-        return "[INFO] No input PDFs found."
+    input_files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+    if not input_files:
+        return "[INFO] No PDFs uploaded"
 
-    for file in pdfs:
+    for file in input_files:
         path = os.path.join(DATA_DIR, file)
         logs.append(f"[OCR] {file}")
 
@@ -252,27 +204,28 @@ def process_all():
 
         try:
             name = extract_name(text)
-            logs.append(f"[NAME] {name}")
         except:
-            logs.append("[ERROR] Name not found.")
+            logs.append("[ERROR] NAME not found")
             continue
 
         rows = parse_rows(text, year_from_filename(file))
         groups = group_manifests(rows)
+        if not groups:
+            logs.append("[ERROR] No ship match found")
+            continue
+
         rate = get_rate(name, rates)
 
         for g in groups:
-            out = make_pdf(g, name, rate)
-            logs.append(f"[PDF] {out}")
+            fname = make_pdf(g, name, rate)
+            logs.append(f"[OK] {fname}")
 
     return "\n".join(logs)
 
-
 # ------------------------------------------------
-# FLASK APP
+# FLASK
 # ------------------------------------------------
 app = Flask(__name__, template_folder="web/frontend")
-
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -283,13 +236,11 @@ def index():
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
 
-        tpl = request.files.get("template_file")
-        if tpl and tpl.filename:
-            tpl.save(TEMPLATE_PDF)
+        if request.files.get("template_file"):
+            request.files["template_file"].save(TEMPLATE_PDF)
 
-        csvf = request.files.get("rate_file")
-        if csvf and csvf.filename:
-            csvf.save(RATES_FILE)
+        if request.files.get("rate_file"):
+            request.files["rate_file"].save(RATES_FILE)
 
         logs = process_all()
 
@@ -299,32 +250,22 @@ def index():
         outputs=os.listdir(OUTPUT_DIR),
         logs=logs,
         template_path=TEMPLATE_PDF,
-        rate_path=RATES_FILE
+        rate_path=RATES_FILE,
+        output_path=OUTPUT_DIR
     )
-
 
 @app.route("/download/<name>")
 def download(name):
     return send_from_directory(OUTPUT_DIR, name, as_attachment=True)
 
-
 @app.route("/delete/<folder>/<name>")
-def delete_file(folder, name):
-    base = DATA_DIR if folder == "data" else OUTPUT_DIR if folder == "output" else None
-
-    if base:
-        path = os.path.join(base, name)
-        if os.path.exists(path):
-            os.remove(path)
-
+def delete(folder, name):
+    base = DATA_DIR if folder == "data" else OUTPUT_DIR
+    try:
+        os.remove(os.path.join(base, name))
+    except:
+        pass
     return redirect("/")
-
-
-@app.route("/browse_output")
-def browse_output():
-    files = os.listdir(OUTPUT_DIR)
-    return render_template("browse.html", files=files)
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
