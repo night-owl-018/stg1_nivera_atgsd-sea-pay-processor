@@ -4,8 +4,10 @@
 <title>ATGSD Sea Pay Processor</title>
 <style>
 body { background:black; color:#0f0; font-family:monospace }
+label { display:block; margin-top:10px }
 input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
 pre { background:#000; padding:10px; height:250px; overflow:auto }
+.small { font-size:12px; color:#6f6 }
 </style>
 </head>
 <body>
@@ -14,25 +16,23 @@ pre { background:#000; padding:10px; height:250px; overflow:auto }
 
 <form method="POST" enctype="multipart/form-data">
 
-  <label>DATA DIR (input PDFs)</label>
-  <input type="file" name="data_files" multiple accept=".pdf" required>
+  <label>DATA FILES (input PDFs)</label>
+  <input type="file" name="files" multiple accept=".pdf" required>
 
   <label>TEMPLATE PDF (NAVPERS)</label>
   <input type="file" name="template_file" accept=".pdf">
+  <div class="small">Current: {{template_path}}</div>
 
   <label>RATE CSV (atgsd_n811.csv)</label>
   <input type="file" name="rate_file" accept=".csv">
+  <div class="small">Current: {{rate_path}}</div>
 
   <label>OUTPUT DIR (generated PDFs)</label>
-  <input type="text" value="/output" disabled>
+  <div class="small">{{output_path}}</div>
 
+  <br>
   <button type="submit">RUN PROCESSOR</button>
 
-</form>
-
-
-<form method="POST">
-<button>RUN PROCESSOR</button>
 </form>
 
 <h3>INPUT FILES</h3>
