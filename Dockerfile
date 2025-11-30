@@ -9,12 +9,17 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir pycryptodome
 
 COPY . .
 
+# ✅ ADD THIS PART — DO NOT REMOVE ANYTHING ABOVE
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8080
 
-CMD ["python", "app.py"]
+# ✅ REPLACE CMD LINE ONLY
+CMD ["/entrypoint.sh"]
+
