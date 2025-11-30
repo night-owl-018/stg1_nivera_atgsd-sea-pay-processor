@@ -4,7 +4,6 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     poppler-utils \
     fonts-liberation \
-    ttf-mscorefonts-installer \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
