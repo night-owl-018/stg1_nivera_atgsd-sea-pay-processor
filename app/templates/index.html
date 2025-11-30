@@ -1,1 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+<style>
+body { background:black; color:#0f0; font-family:monospace }
+label { display:block; margin-top:12px }
+input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
+pre { background:#000; padding:10px; height:250px; overflow:auto }
+.small { font-size:12px; color:#6f6 }
+</style>
+</head>
 
+<body>
+
+<h2>ATGSD Sea Pay Processor</h2>
+
+<form method="POST" enctype="multipart/form-data">
+
+  <label>DATA DIR (input PDFs)</label>
+  <input type="file" name="files" multiple accept=".pdf">
+
+  <label>TEMPLATE PDF (NAVPERS)</label>
+  <input type="file" name="template_file" accept=".pdf">
+
+  <label>RATE CSV (atgsd_n811.csv)</label>
+  <input type="file" name="rate_file" accept=".csv">
+
+  <br><br>
+  <button type="submit">RUN PROCESSOR</button>
+
+</form>
+
+<p class="small">
+Files are read from <b>/data</b><br>
+Template is used from <b>/templates</b><br>
+Rates are read from <b>/config</b><br>
+Output is written to <b>/output</b>
+</p>
+
+</body>
+</html>
