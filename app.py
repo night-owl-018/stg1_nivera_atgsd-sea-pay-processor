@@ -36,7 +36,7 @@ OUTDIR = os.environ.get("SEA_PAY_OUTPUT", os.path.join(ROOT, "OUTPUT"))
 os.makedirs(OUTDIR, exist_ok=True)
 
 # Font (Linux path installed in container)
-FONT_PATH = "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf"
+FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"
 pdfmetrics.registerFont(TTFont("TimesNewRoman", FONT_PATH))
 FONT_NAME = "TimesNewRoman"
 FONT_SIZE = 10
