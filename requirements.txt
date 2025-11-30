@@ -1,6 +1,7 @@
-Flask
+flask
 pytesseract
 pdf2image
 PyPDF2
 reportlab
+
 
