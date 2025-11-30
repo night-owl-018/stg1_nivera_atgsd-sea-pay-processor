@@ -29,15 +29,24 @@ a { color:#6f6 }
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
 
-<br>
+<br><br>
 <button type="submit">RUN PROCESSOR</button>
 
 </form>
 
+<br>
+
+<!-- ✅ OUTPUT FOLDER BROWSER -->
+<a href="/browse">
+  <button type="button">📂 BROWSE OUTPUT FOLDER</button>
+</a>
+
+<hr>
+
 <h3>INPUT FILES</h3>
 <ul>
 {% for f in data_files %}
-<li>{{f}} <a href="/delete/data/{{f}}">DELETE</a></li>
+<li>{{ f }} <a href="/delete/data/{{ f }}">DELETE</a></li>
 {% else %}
 <li>No files uploaded.</li>
 {% endfor %}
@@ -46,7 +55,7 @@ a { color:#6f6 }
 <h3>OUTPUT FILES</h3>
 <ul>
 {% for f in outputs %}
-<li><a href="/download/{{f}}">{{f}}</a> <a href="/delete/output/{{f}}">DELETE</a></li>
+<li><a href="/download/{{ f }}">{{ f }}</a> <a href="/delete/output/{{ f }}">DELETE</a></li>
 {% else %}
 <li>No PDFs generated yet.</li>
 {% endfor %}
