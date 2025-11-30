@@ -10,8 +10,6 @@ RATE_PATH = "/config/atgsd_n811.csv"
 for p in [DATA_DIR, OUTPUT_DIR, "/templates", "/config"]:
     os.makedirs(p, exist_ok=True)
 
-from process import process_all
-
 # ✅ IMPORTANT FIX — Point to the correct folder
 app = Flask(__name__, template_folder="web/frontend")
 
