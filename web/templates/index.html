@@ -1,44 +1,262 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>ATGSD Sea Pay Processor</title>
-<style>
-body { background:#000; color:#0f0; font-family: monospace; }
-input, button { background:black; color:#0f0; border:1px solid #0f0; padding:6px; }
-.drop {
-  border:2px dashed #0f0;
-  padding:20px;
-  margin:10px 0;
-  text-align:center;
-}
-.log { background:#000; height:280px; overflow:auto; border:1px solid #0f0; padding:10px; }
-</style>
+  <meta charset="UTF-8" />
+  <title>ATGSD Sea Pay Processor</title>
+  <style>
+    body {
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+      margin: 0;
+      padding: 20px;
+    }
+    h2, h3 {
+      color: #0f0;
+    }
+    input, button, select {
+      background: #000;
+      color: #0f0;
+      border: 1px solid #0f0;
+      padding: 4px 6px;
+      margin: 2px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    th, td {
+      border: 1px solid #0f0;
+      padding: 4px;
+      font-size: 12px;
+    }
+    a {
+      color: #0af;
+    }
+    .section {
+      border: 1px solid #0f0;
+      padding: 10px;
+      margin-bottom: 15px;
+    }
+    .log {
+      background: #000;
+      border: 1px solid #0f0;
+      height: 260px;
+      overflow: auto;
+      padding: 8px;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+    .progress-container {
+      display: none;
+      border: 1px solid #0f0;
+      margin: 6px 0;
+      height: 12px;
+      width: 100%;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #0f0;
+      animation: progressAnim 1.5s linear infinite;
+    }
+    @keyframes progressAnim {
+      0% { width: 0%; }
+      50% { width: 75%; }
+      100% { width: 10%; }
+    }
+    .status-ok { color: #0f0; }
+    .status-error { color: #f33; }
+  </style>
 </head>
 <body>
 
 <h2>ATGSD Sea Pay Processor</h2>
 
-<div class="drop" ondrop="uploadFiles(event,'data')" ondragover="event.preventDefault();">
-📂 DROP INPUT PDF FILES HERE
+<!-- RUN BUTTON + PROGRESS -->
+<div class="section">
+  <h3>Run Processor</h3>
+  <button id="runBtn" onclick="runProcessor()">RUN PROCESSOR</button>
+  <div class="progress-container" id="progress">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <div class="log" id="logBox"></div>
 </div>
 
-<div class="drop" ondrop="uploadFiles(event,'template')" ondragover="event.preventDefault();">
-📄 DROP NAVPERS TEMPLATE HERE
+<!-- DATA PDFs -->
+<div class="section">
+  <h3>DATA PDFs (/data)</h3>
+  <form action="/upload-data" method="post" enctype="multipart/form-data">
+    <input type="file" name="files" multiple accept="application/pdf">
+    <button type="submit">Upload PDFs</button>
+  </form>
+  <form action="/upload-zip-data" method="post" enctype="multipart/form-data">
+    <input type="file" name="zipfile" accept=".zip">
+    <button type="submit">Upload ZIP of PDFs</button>
+  </form>
+
+  <table>
+    <tr><th>File</th><th>Actions</th></tr>
+    {% for f in data_files %}
+    <tr>
+      <td>{{ f }}</td>
+      <td>
+        <form action="/rename/data/{{ f }}" method="post" style="display:inline;">
+          <input type="text" name="new_name" value="{{ f }}" size="30">
+          <button type="submit">Rename</button>
+        </form>
+        <form action="/delete/data/{{ f }}" method="post" style="display:inline;">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 
-<div class="drop" ondrop="uploadFiles(event,'rate')" ondragover="event.preventDefault();">
-📊 DROP RATE CSV HERE
+<!-- TEMPLATE PDF -->
+<div class="section">
+  <h3>TEMPLATE PDFs (/templates)</h3>
+  <form action="/upload-template" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept="application/pdf">
+    <button type="submit">Upload Template</button>
+  </form>
+
+  <table>
+    <tr><th>File</th><th>Actions</th></tr>
+    {% for f in template_files %}
+    <tr>
+      <td>{{ f }}</td>
+      <td>
+        <a href="/preview-template/{{ f }}" target="_blank">Preview</a>
+        <form action="/rename/templates/{{ f }}" method="post" style="display:inline;">
+          <input type="text" name="new_name" value="{{ f }}" size="30">
+          <button type="submit">Rename</button>
+        </form>
+        <form action="/delete/templates/{{ f }}" method="post" style="display:inline;">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 
-<button onclick="run()">▶ RUN PROCESSOR</button>
+<!-- RATE CSV -->
+<div class="section">
+  <h3>RATE CSVs (/config)</h3>
+  <form action="/upload-rate" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".csv,text/csv">
+    <button type="submit">Upload CSV</button>
+  </form>
 
-<h3>Logs:</h3>
-<div id="log" class="log"></div>
+  <table>
+    <tr><th>File</th><th>Actions</th></tr>
+    {% for f in rate_files %}
+    <tr>
+      <td>{{ f }}</td>
+      <td>
+        <a href="/?inspect_rate={{ f }}">Inspect</a>
+        <form action="/rename/config/{{ f }}" method="post" style="display:inline;">
+          <input type="text" name="new_name" value="{{ f }}" size="30">
+          <button type="submit">Rename</button>
+        </form>
+        <form action="/delete/config/{{ f }}" method="post" style="display:inline;">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
 
-<h3>Output Files:</h3>
-<div id="out"></div>
+  {% if rate_preview %}
+  <h4>CSV inspector: {{ inspected_file }}</h4>
+  <table>
+    {% for row in rate_preview %}
+    <tr>
+      {% for cell in row %}
+      <td>{{ cell }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
 
-<script src="/static/app.js"></script>
+<!-- OUTPUT PDFs -->
+<div class="section">
+  <h3>OUTPUT PDFs (/output)</h3>
+  <table>
+    <tr><th>File</th><th>Actions</th></tr>
+    {% for f in output_files %}
+    <tr>
+      <td>{{ f }}</td>
+      <td>
+        <a href="/download-output/{{ f }}" target="_blank">Download</a>
+        <form action="/rename/output/{{ f }}" method="post" style="display:inline;">
+          <input type="text" name="new_name" value="{{ f }}" size="30">
+          <button type="submit">Rename</button>
+        </form>
+        <form action="/delete/output/{{ f }}" method="post" style="display:inline;">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<!-- JOB HISTORY -->
+<div class="section">
+  <h3>Job History</h3>
+  <table>
+    <tr><th>ID</th><th>Time</th><th>Status</th><th>Actions</th></tr>
+    {% for job in job_history %}
+    <tr>
+      <td>{{ job.id }}</td>
+      <td>{{ job.time }}</td>
+      <td>
+        {% if job.status == "OK" %}
+          <span class="status-ok">{{ job.status }}</span>
+        {% else %}
+          <span class="status-error">{{ job.status }}</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="/download-log/{{ job.id }}">Download Log</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<script>
+function runProcessor() {
+  const btn = document.getElementById("runBtn");
+  const progress = document.getElementById("progress");
+  const logBox = document.getElementById("logBox");
+
+  btn.disabled = true;
+  progress.style.display = "block";
+  logBox.textContent = "Running job...\n";
+
+  fetch("/run", { method: "POST" })
+    .then(r => r.json())
+    .then(data => {
+      logBox.textContent = (data.logs || []).join("\\n");
+      btn.disabled = false;
+      progress.style.display = "none";
+      // Optional: refresh page to show new outputs + job history
+      // location.reload();
+    })
+    .catch(err => {
+      logBox.textContent = "Error: " + err;
+      btn.disabled = false;
+      progress.style.display = "none";
+    });
+}
+</script>
 
 </body>
 </html>
