@@ -1,6 +1,1 @@
-__pycache__
-*.pyc
-.git
-.gitignore
-output/
-*.log
+seapay.db
