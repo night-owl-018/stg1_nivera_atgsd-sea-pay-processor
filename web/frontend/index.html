@@ -1,1 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+<style>
+body { background:black; color:#0f0; font-family:monospace }
+label { display:block; margin-top:10px }
+input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
+pre { background:#000; padding:10px; height:250px; overflow:auto }
+.small { font-size:12px; color:#6f6 }
+a { color:#0ff }
+</style>
+</head>
+
+<body>
+
+<h2>ATGSD Sea Pay Processor</h2>
+
+<form method="POST" enctype="multipart/form-data">
+
+<label>DATA FILES (input PDFs)</label>
+<input type="file" name="files" multiple accept=".pdf">
+
+<label>TEMPLATE PDF</label>
+<input type="file" name="template_file">
+<div class="small">Current: {{ template_path }}</div>
+
+<label>RATE CSV</label>
+<input type="file" name="rate_file">
+<div class="small">Current: {{ rate_path }}</div>
+
+<div class="small">OUTPUT DIR: {{ output_path }}</div>
+
+<br>
+<button type="submit">RUN PROCESSOR</button>
+</form>
+
+<h3>INPUT FILES</h3>
+<ul>
+{% for f in data_files %}
+<li>{{f}} <a href="/delete/data/{{f}}">delete</a></li>
+{% endfor %}
+</ul>
+
+<h3>OUTPUT FILES</h3>
+<ul>
+{% for f in outputs %}
+<li><a href="/download/{{f}}">{{f}}</a> <a href="/delete/output/{{f}}">delete</a></li>
+{% endfor %}
+</ul>
+
+<h3>LOGS</h3>
+<pre>{{ logs }}</pre>
+
+</body>
+</html>
 
