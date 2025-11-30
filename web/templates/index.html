@@ -3,74 +3,63 @@
 <head>
 <title>ATGSD Sea Pay Processor</title>
 <style>
-body { background:black; color:#00ff66; font-family:monospace; padding:20px; }
-input, button { width:100%; padding:8px; margin-top:5px; background:#111; color:#00ff66; border:1px solid #00ff66; }
-h2 { margin-top:30px; }
-.file-list { margin-top:10px; }
-a { color:#00ffff; }
-.delete { color:red; }
-pre { background:#000; border:1px solid #00ff66; padding:10px; height:300px; overflow:auto; }
+body { background:#000; color:#00ff66; font-family:monospace }
+section { border:1px solid #00ff66; padding:10px; margin:10px }
+button { font-size:16px }
 </style>
 </head>
 <body>
 
-<h1>ATGSD Sea Pay Processor</h1>
+<h2>ATGSD Sea Pay Processor</h2>
 
 <form method="POST">
 <button>RUN PROCESSOR</button>
 </form>
 
-<h2>TEMPLATE PDF</h2>
+<section>
+<h3>Upload Files</h3>
+
 <form action="/upload-template" method="POST" enctype="multipart/form-data">
-<input type="file" name="file">
-<button>Upload Template</button>
+Template PDF <input type="file" name="file"><button>Upload</button>
 </form>
-<div class="file-list">
-{% for f in template_files %}
-  {{f}} <a href="/delete-template/{{f}}" class="delete">[DELETE]</a><br>
-{% endfor %}
-</div>
 
-<h2>RATE CSV</h2>
 <form action="/upload-rate" method="POST" enctype="multipart/form-data">
-<input type="file" name="file">
-<button>Upload CSV</button>
+Rate CSV <input type="file" name="file"><button>Upload</button>
 </form>
-<div class="file-list">
-{% for f in rate_files %}
-  {{f}} <a href="/delete-rate/{{f}}" class="delete">[DELETE]</a><br>
-{% endfor %}
-</div>
 
-<h2>INPUT PDFs</h2>
 <form action="/upload-data" method="POST" enctype="multipart/form-data">
-<input type="file" name="files" multiple>
-<button>Upload PDFs</button>
+Input PDFs <input type="file" name="files" multiple><button>Upload</button>
 </form>
-<div class="file-list">
+</section>
+
+<section>
+<h3>Current Files</h3>
+
+<h4>Templates</h4>
+{% for f in template_files %}
+{{ f }} <a href="/delete/templates/{{f}}">Delete</a><br>
+{% endfor %}
+
+<h4>Rate CSV</h4>
+{% for f in rate_files %}
+{{ f }} <a href="/delete/config/{{f}}">Delete</a><br>
+{% endfor %}
+
+<h4>Input PDFs</h4>
 {% for f in data_files %}
-  {{f}} <a href="/delete-data/{{f}}" class="delete">[DELETE]</a><br>
+{{ f }} <a href="/delete/data/{{f}}">Delete</a><br>
 {% endfor %}
-</div>
 
-<h2>OUTPUT FILES</h2>
-<div class="file-list">
+<h4>Output PDFs</h4>
 {% for f in output_files %}
-  <a href="/download/{{f}}">{{f}}</a>
-  <a href="/delete-output/{{f}}" class="delete">[DELETE]</a><br>
+{{ f }} <a href="/download-output/{{f}}">Download</a>
+<a href="/delete/output/{{f}}">Delete</a><br>
 {% endfor %}
-</div>
+</section>
 
-<h3>Stored Files</h3>
-
-<a href="/files/data">Input PDFs</a> |
-<a href="/files/templates">Templates</a> |
-<a href="/files/config">Rate CSV</a> |
-<a href="/files/output">Generated PDFs</a>
-  
-<h2>LIVE LOG</h2>
-<pre>{{logs}}</pre>
+<section>
+<pre>{{ logs }}</pre>
+</section>
 
 </body>
 </html>
-
