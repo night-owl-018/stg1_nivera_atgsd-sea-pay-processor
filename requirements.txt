@@ -1,4 +1,6 @@
-fastapi
-uvicorn
-jinja2
-python-multipart
+Flask
+pytesseract
+pdf2image
+PyPDF2
+reportlab
+
