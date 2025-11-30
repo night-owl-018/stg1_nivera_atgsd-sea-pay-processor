@@ -1,40 +1,43 @@
 <!DOCTYPE html>
 <html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+<style>
+body { background:black; color:#0f0; font-family:monospace }
+input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
+pre { background:#000; padding:10px; height:250px; overflow:auto }
+</style>
+</head>
 <body>
 
-<h2>Sea Pay Processor</h2>
+<h2>ATGSD Sea Pay Processor</h2>
 
-<h3>Upload</h3>
-<form action="/upload" method="post" enctype="multipart/form-data">
-<select name="type">
-<option value="data">Input PDF</option>
-<option value="template">Template PDF</option>
-</select>
-<input type="file" name="file" required>
+<form method="POST" enctype="multipart/form-data" action="/upload">
+Upload PDFs:
+<input type="file" name="files" multiple webkitdirectory directory>
 <button>Upload</button>
 </form>
 
-<h3>Run Processor</h3>
-<form method="post">
-<button>GENERATE</button>
+<form method="POST">
+<button>RUN PROCESSOR</button>
 </form>
 
-<h3>Data</h3>
-{% for f in data %}
-{{ f }} | <a href="/delete/data/{{f}}">Delete</a><br>
+<h3>INPUT FILES</h3>
+<ul>
+{% for f in data_files %}
+<li>{{f}} <a href="/delete/data/{{f}}">delete</a></li>
 {% endfor %}
+</ul>
 
-<h3>Template</h3>
-{% for f in template %}
-{{ f }} | <a href="/delete/templates/{{f}}">Delete</a><br>
+<h3>OUTPUT FILES</h3>
+<ul>
+{% for f in outputs %}
+<li><a href="/download/{{f}}">{{f}}</a> <a href="/delete/output/{{f}}">delete</a></li>
 {% endfor %}
+</ul>
 
-<h3>Output</h3>
-{% for f in output %}
-<a href="/download/{{f}}">{{f}}</a> | <a href="/delete/output/{{f}}">Delete</a><br>
-{% endfor %}
-
-<pre style="background:#000;color:#0f0;padding:10px;">{{logs}}</pre>
+<h3>LOGS</h3>
+<pre>{{logs}}</pre>
 
 </body>
 </html>
