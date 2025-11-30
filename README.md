@@ -13,3 +13,6 @@ docker run --rm \
   -v /mnt/user/SeaPayOutput:/outputs \
   -v /mnt/user/SeaPayTemplates:/templates \
   seapay-processor
+
+Rebuild trigger
+Force container rebuild
