@@ -3,14 +3,16 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     poppler-utils \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . /app
 
-RUN pip install --no-cache-dir pytesseract pdf2image reportlab PyPDF2 pillow
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8092
+COPY . /app
+
+EXPOSE 8080
 
 CMD ["python", "app.py"]
