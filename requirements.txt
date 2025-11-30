@@ -1,8 +1,8 @@
 flask
-pytesseract
-pdf2image
 PyPDF2
 reportlab
+pytesseract
+pdf2image
 pycryptodome
 
 
