@@ -4,7 +4,7 @@
 <title>ATGSD Sea Pay Processor</title>
 <style>
 body { background:black; color:#0f0; font-family:monospace }
-label { display:block; margin-top:10px }
+label { display:block; margin-top:12px }
 input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
 pre { background:#000; padding:10px; height:250px; overflow:auto }
 .small { font-size:12px; color:#6f6 }
@@ -16,21 +16,21 @@ pre { background:#000; padding:10px; height:250px; overflow:auto }
 
 <form method="POST" enctype="multipart/form-data">
 
-  <label>DATA FILES (input PDFs)</label>
-  <input type="file" name="files" multiple accept=".pdf" required>
+  <label>DATA DIR (input PDFs)</label>
+  <input type="file" name="files" multiple accept=".pdf">
 
   <label>TEMPLATE PDF (NAVPERS)</label>
   <input type="file" name="template_file" accept=".pdf">
-  <div class="small">Current: {{template_path}}</div>
+  <div class="small">Current: {{ template_path }}</div>
 
   <label>RATE CSV (atgsd_n811.csv)</label>
   <input type="file" name="rate_file" accept=".csv">
-  <div class="small">Current: {{rate_path}}</div>
+  <div class="small">Current: {{ rate_path }}</div>
 
   <label>OUTPUT DIR (generated PDFs)</label>
-  <div class="small">{{output_path}}</div>
+  <div class="small">{{ output_path }}</div>
 
-  <br>
+  <br><br>
   <button type="submit">RUN PROCESSOR</button>
 
 </form>
@@ -50,7 +50,7 @@ pre { background:#000; padding:10px; height:250px; overflow:auto }
 </ul>
 
 <h3>LOGS</h3>
-<pre>{{logs}}</pre>
+<pre>{{ logs }}</pre>
 
 </body>
 </html>
