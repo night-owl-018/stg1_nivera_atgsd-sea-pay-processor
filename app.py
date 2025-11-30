@@ -13,9 +13,13 @@ import pytesseract
 from pdf2image import convert_from_path
 
 # ------------------------------------------------
-# PATH CONFIG
+# FLASK APP (✅ CRITICAL: POINT TO CORRECT TEMPLATE FOLDER)
 # ------------------------------------------------
-ROOT = "/app"
+app = Flask(__name__, template_folder="/app/web/templates")
+
+# ------------------------------------------------
+# PATH CONFIG (DOCKER VOLUMES)
+# ------------------------------------------------
 DATA_DIR = "/data"
 OUTPUT_DIR = "/output"
 TEMPLATE_DIR = "/templates"
@@ -23,7 +27,7 @@ CONFIG_DIR = "/config"
 
 TEMPLATE_PDF = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
 RATES_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
-SHIP_FILE = os.path.join(ROOT, "ships.txt")
+SHIP_FILE = "/app/ships.txt"
 
 FONT_NAME = "Times-Roman"
 
@@ -35,15 +39,17 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 pytesseract.pytesseract.tesseract_cmd = "tesseract"
 
 # ------------------------------------------------
-# SHIPS FILE LOAD
+# LOAD SHIP LIST
 # ------------------------------------------------
 with open(SHIP_FILE, "r", encoding="utf-8") as f:
     SHIP_LIST = [line.strip() for line in f if line.strip()]
+
 
 def normalize(text):
     text = re.sub(r"\(.*?\)", "", text.upper())
     text = re.sub(r"[^A-Z ]", "", text)
     return " ".join(text.split())
+
 
 NORMALIZED = {normalize(s): s.upper() for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED.keys())
@@ -54,26 +60,30 @@ NORMAL_KEYS = list(NORMALIZED.keys())
 def strip_times(text):
     return re.sub(r"\b\d{3,4}\b", "", text)
 
+
 def extract_name(text):
     m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
     if not m:
         raise RuntimeError("NAME not found")
     return m.group(1).strip()
 
+
 def match_ship(text):
     text = normalize(text)
     words = text.split()
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
-            chunk = " ".join(words[i:i+size])
+            chunk = " ".join(words[i:i + size])
             match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
             if match:
                 return NORMALIZED[match[0]]
     return None
 
+
 def year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
+
 
 def parse_rows(text, year):
     rows = []
@@ -90,19 +100,23 @@ def parse_rows(text, year):
 
         raw = line[m.end():]
         ship = match_ship(raw)
+
         if ship and (date, ship) not in seen:
             rows.append({"date": date, "ship": ship})
             seen.add((date, ship))
 
     return rows
 
+
 def group_manifests(rows):
     groups = {}
+
     for r in rows:
         dt = datetime.strptime(r["date"], "%m/%d/%Y")
         groups.setdefault(r["ship"], []).append(dt)
 
     out = []
+
     for ship, dates in groups.items():
         dates = sorted(set(dates))
         start = prev = dates[0]
@@ -115,18 +129,21 @@ def group_manifests(rows):
                 start = prev = day
 
         out.append({"ship": ship, "start": start, "end": prev})
+
     return out
 
 # ------------------------------------------------
-# RATES
+# RATE CSV
 # ------------------------------------------------
 def load_rates():
     rates = {}
+
     if not os.path.exists(RATES_FILE):
         return rates
 
     with open(RATES_FILE, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
+
         for row in reader:
             last = row.get("last", "").upper()
             first = row.get("first", "").upper()
@@ -134,17 +151,21 @@ def load_rates():
 
             if last and rate:
                 rates[f"{last},{first}"] = rate
+
     return rates
+
 
 def get_rate(name, rates):
     parts = normalize(name).split()
+
     if len(parts) < 2:
         return ""
+
     key = f"{parts[-1]},{parts[0]}"
     return rates.get(key, "")
 
 # ------------------------------------------------
-# PDF GENERATION
+# PDF CREATION
 # ------------------------------------------------
 def make_pdf(group, name, rate):
     start = group["start"].strftime("%m/%d/%Y")
@@ -184,11 +205,13 @@ def make_pdf(group, name, rate):
     buf.seek(0)
 
     overlay = PdfReader(buf)
-    template = PdfReader(TEMPLATE_PDF).pages[0]
-    template.merge_page(overlay.pages[0])
+
+    template_reader = PdfReader(TEMPLATE_PDF)
+    base = template_reader.pages[0]
+    base.merge_page(overlay.pages[0])
 
     writer = PdfWriter()
-    writer.add_page(template)
+    writer.add_page(base)
 
     with open(outpath, "wb") as f:
         writer.write(f)
@@ -201,6 +224,7 @@ def process_all():
     rates = load_rates()
 
     for file in os.listdir(DATA_DIR):
+
         if not file.lower().endswith(".pdf"):
             continue
 
@@ -208,13 +232,16 @@ def process_all():
         logs.append(f"[OCR] {file}")
 
         text = strip_times(
-            "".join(pytesseract.image_to_string(img) for img in convert_from_path(path))
+            "".join(
+                pytesseract.image_to_string(img)
+                for img in convert_from_path(path)
+            )
         ).upper()
 
         try:
             name = extract_name(text)
             logs.append(f"[NAME] {name}")
-        except Exception:
+        except:
             logs.append("[ERROR] Name not found")
             continue
 
@@ -229,17 +256,15 @@ def process_all():
     return logs
 
 # ------------------------------------------------
-# FLASK
+# ROUTES
 # ------------------------------------------------
-app = Flask(__name__)
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     logs = []
 
     if request.method == "POST":
 
-        # upload input PDFs
+        # upload PDFs
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
@@ -269,15 +294,20 @@ def index():
 @app.route("/delete/<folder>/<name>")
 def delete(folder, name):
     base = DATA_DIR if folder == "data" else OUTPUT_DIR if folder == "output" else None
+
     if base:
         path = os.path.join(base, name)
         if os.path.exists(path):
             os.remove(path)
+
     return redirect("/")
 
 @app.route("/download/<name>")
 def download(name):
     return send_from_directory(OUTPUT_DIR, name, as_attachment=True)
 
+# ------------------------------------------------
+# ENTRY
+# ------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
