@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# System deps
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     poppler-utils \
@@ -8,13 +9,20 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Copy requirements first for layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install flask PyPDF2 reportlab pycryptodome
 
+# Install Python deps (single source of truth)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Safety net: enforce AES support
+RUN pip install --no-cache-dir pycryptodome
+
+# Copy project files
 COPY . .
 
 EXPOSE 8080
 
 CMD ["python", "app.py"]
+
 
