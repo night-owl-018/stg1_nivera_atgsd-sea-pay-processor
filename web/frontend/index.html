@@ -8,6 +8,7 @@ label { display:block; margin-top:12px }
 button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
 pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
+hr { border:1px solid #0f0; margin:15px 0 }
 </style>
 </head>
 
@@ -35,14 +36,18 @@ pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px sol
 
 <hr>
 
-<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
+<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED PDFs</button>
 
 <hr>
 
-<button onclick="generateTextReport()">📝 GENERATE TEXT REPORT</button>
+<button onclick="downloadText()">📝 DOWNLOAD TEXT REPORT</button>
 
 <script>
-function generateTextReport() {
+function downloadAll() {
+    window.location.href = "/download_all";
+}
+
+function downloadText() {
     window.location.href = "/generate_text_report";
 }
 </script>
@@ -64,10 +69,6 @@ function pollLogs() {
             document.getElementById("logBox").innerText = txt;
             setTimeout(pollLogs, 1000);
         });
-}
-
-function downloadAll() {
-    window.location.href = "/download_all";
 }
 </script>
 
