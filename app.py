@@ -34,6 +34,9 @@ pytesseract.pytesseract.tesseract_cmd = "tesseract"
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
+# ✅ Keep last logs in memory so they don't disappear
+LAST_LOGS = ""
+
 # ------------------------------------------------
 # OUTPUT SUBFOLDER CREATOR
 # ------------------------------------------------
@@ -76,6 +79,7 @@ def load_rates():
             rate = row.get("rate", "").upper()
 
             if last and rate:
+                # Store exactly "LAST,FIRST"
                 rates[f"{last},{first}"] = rate
 
     return rates
@@ -112,7 +116,7 @@ def ocr_pdf(path):
     return out.upper()
 
 # ------------------------------------------------
-# NAME EXTRACTION
+# NAME
 # ------------------------------------------------
 
 def extract_member_name(text):
@@ -129,8 +133,8 @@ def match_ship(raw_text):
     candidate = normalize(raw_text)
     if not candidate:
         return None
-
     words = candidate.split()
+
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
             chunk = " ".join(words[i:i+size])
@@ -140,7 +144,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATE PARSING
+# PARSE DATES
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -176,7 +180,7 @@ def parse_rows(text, year):
     return rows
 
 # ------------------------------------------------
-# GROUP CONTINUOUS DAYS
+# GROUP DAYS
 # ------------------------------------------------
 
 def group_by_ship(rows):
@@ -202,24 +206,43 @@ def group_by_ship(rows):
     return results
 
 # ------------------------------------------------
-# RATE LOOKUP
+# RATE (FIXED NAME ORDER + FUZZY MATCH)
 # ------------------------------------------------
 
 def get_rate(name):
+    """
+    Use LAST,FIRST order to match atgsd_n811.csv,
+    then fall back to closest key if there is no exact match.
+    """
     parts = normalize(name).split()
     if len(parts) < 2:
         return ""
 
-    first = parts[0]
-    last = parts[-1]
-    key = f"{last},{first}"
+    # NAVPERS prints NAME as "LAST FIRST [MI]" – treat first token as LAST
+    last = parts[0]
+    first = " ".join(parts[1:])
+    target = f"{last},{first}"
 
-    if key in RATES:
-        return RATES[key]
+    # exact match
+    if target in RATES:
+        return RATES[target]
 
-    for k in RATES:
-        if k.startswith(last + ","):
-            return RATES[k]
+    # if that fails, try any key with same last name
+    same_last = [k for k in RATES if k.startswith(last + ",")]
+    if same_last:
+        # if only one with this last name, use it
+        if len(same_last) == 1:
+            return RATES[same_last[0]]
+        # otherwise fuzzy match on full "LAST,FIRST"
+        close = get_close_matches(target, same_last, n=1, cutoff=0.6)
+        if close:
+            return RATES[close[0]]
+
+    # final fallback: fuzzy against all keys
+    all_keys = list(RATES.keys())
+    close_any = get_close_matches(target, all_keys, n=1, cutoff=0.6)
+    if close_any:
+        return RATES[close_any[0]]
 
     return ""
 
@@ -233,8 +256,8 @@ def make_pdf(group, name):
     ship = group["ship"]
 
     parts = name.split()
-    last = parts[-1]
-    first = " ".join(parts[:-1])
+    last = parts[0]                  # LAST
+    first = " ".join(parts[1:])      # FIRST [MI]
 
     rate = get_rate(name)
     prefix = f"{rate}_" if rate else ""
@@ -251,23 +274,27 @@ def make_pdf(group, name):
 
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
-
     c.setFont(FONT_NAME, 8)
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
-
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
+    if rate:
+        c.drawString(39, 41, f"{rate} {last}, {first}")
+    else:
+        c.drawString(39, 41, f"{last}, {first}")
+
     c.drawString(38.84, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
-    c.drawString(64, 571,
-                 f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
+    c.drawString(
+        64,
+        571,
+        f"Member performed eight continuous hours per day on-board: {ship} Category A vessel."
+    )
 
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     c.drawString(384.1, 415.2, "FI MI Last Name")
-
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -331,15 +358,15 @@ def process_all():
     return "\n".join(logs)
 
 # ------------------------------------------------
-# FLASK APP
+# FLASK
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global OUTPUT_DIR
-    logs = ""
+    global OUTPUT_DIR, LAST_LOGS
+    logs = LAST_LOGS  # keep previous logs by default
 
     if request.method == "POST":
 
@@ -355,11 +382,12 @@ def index():
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
-        # Optional subfolder
         folder = request.form.get("output_folder", "").strip()
         OUTPUT_DIR = ensure_subfolder(folder) if folder else OUTPUT_BASE
 
-        logs = process_all()
+        # run and persist logs
+        LAST_LOGS = process_all()
+        logs = LAST_LOGS
 
     return render_template(
         "index.html",
@@ -368,7 +396,6 @@ def index():
         rate_path=RATE_FILE
     )
 
-# ✅ FIX: SERVE /index.html ALSO (PREVENTS 404)
 @app.route("/index.html", methods=["GET", "POST"])
 def index_html():
     return index()
