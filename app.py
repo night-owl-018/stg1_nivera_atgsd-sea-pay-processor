@@ -79,12 +79,9 @@ def load_rates():
 
 RATES = load_rates()
 
-# Build CSV identity list for fuzzy matching
 CSV_IDENTITIES = []
 for key, rate in RATES.items():
     last, first = key.split(",", 1)
-    # normalized "FIRST LAST"
-    full_norm = None
     def normalize_for_id(text):
         t = re.sub(r"\(.*?\)", "", text.upper())
         t = re.sub(r"[^A-Z ]", "", t)
@@ -112,7 +109,6 @@ NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 # ------------------------------------------------
 
 def strip_times(text):
-    # remove time-like 4-digit blocks (e.g. 0000 2359)
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
 
 def ocr_pdf(path):
@@ -207,15 +203,10 @@ def group_by_ship(rows):
     return output
 
 # ------------------------------------------------
-# RATE / NAME LOOKUP (CSV AUTHORITY)
+# CSV AUTHORITY RESOLUTION
 # ------------------------------------------------
 
 def lookup_csv_identity(name):
-    """
-    Match the OCR name against CSV entries using fuzzy logic.
-    Returns (rate, LAST, FIRST) from CSV if a decent match is found,
-    otherwise None.
-    """
     ocr_norm = normalize(name)
     best = None
     best_score = 0.0
@@ -226,7 +217,6 @@ def lookup_csv_identity(name):
             best_score = score
             best = (rate, last, first)
 
-    # Require at least moderate similarity
     if best and best_score >= 0.60:
         rate, last, first = best
         log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
@@ -236,9 +226,6 @@ def lookup_csv_identity(name):
     return None
 
 def get_rate(name):
-    """
-    Fallback direct lookup (kept for safety).
-    """
     parts = normalize(name).split()
     if len(parts) < 2:
         return ""
@@ -250,12 +237,11 @@ def get_rate(name):
 # ------------------------------------------------
 
 def make_pdf(group, name):
-    # Resolve identity using CSV first
+
     csv_id = lookup_csv_identity(name)
     if csv_id:
         rate, last, first = csv_id
     else:
-        # fallback to OCR name + simple rate lookup
         parts = name.split()
         last = parts[-1]
         first = " ".join(parts[:-1])
@@ -275,7 +261,6 @@ def make_pdf(group, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    # Header
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -283,19 +268,15 @@ def make_pdf(group, name):
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
     c.setFont(FONT_NAME, FONT_SIZE)
-    # Name line (with rate if present)
     c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
-    # Remarks
     c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
-    # Signature blocks
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     c.drawString(384.1, 415.2, "FI MI Last Name")
 
-    # Footer
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -321,13 +302,14 @@ def make_pdf(group, name):
 # ------------------------------------------------
 
 def process_all():
-    LIVE_LOGS.clear()
 
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
     if not files:
         log("NO INPUT FILES")
         return
+
+    log("=== PROCESS STARTED ===")
 
     for file in files:
         log(f"OCR → {file}")
@@ -359,7 +341,9 @@ def process_all():
         for g in groups:
             make_pdf(g, name)
 
-    log("PROCESS COMPLETE")
+    log("======================================")
+    log("✅ GENERATION COMPLETE — READY TO DOWNLOAD")
+    log("======================================")
 
 # ------------------------------------------------
 # FLASK APP
@@ -369,27 +353,24 @@ app = Flask(__name__, template_folder="web/frontend")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+
     if request.method == "POST":
 
-        # Input PDFs
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
 
-        # Template
         tpl = request.files.get("template_file")
         if tpl and tpl.filename:
             tpl.save(TEMPLATE)
 
-        # Rate CSV
         csvf = request.files.get("rate_file")
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
-        # Re-load rates if CSV changed
         global RATES, CSV_IDENTITIES
         RATES = load_rates()
-        CSV_IDENTITIES = []
+        CSV_IDENTITIES.clear()
         for key, rate in RATES.items():
             last, first = key.split(",", 1)
             def normalize_for_id(text):
@@ -401,7 +382,6 @@ def index():
 
         process_all()
 
-    # logs as plain text lines (waterfall)
     return render_template(
         "index.html",
         logs="\n".join(LIVE_LOGS),
@@ -411,13 +391,11 @@ def index():
 
 @app.route("/logs")
 def get_logs():
-    # If you later add JS polling, this route is ready
     return "\n".join(LIVE_LOGS)
 
 @app.route("/download_all")
 def download_all():
     zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
-
     with zipfile.ZipFile(zip_path, "w") as z:
         for f in os.listdir(OUTPUT_DIR):
             full = os.path.join(OUTPUT_DIR, f)
