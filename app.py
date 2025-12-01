@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from difflib import get_close_matches, SequenceMatcher
 
 from flask import Flask, render_template, request, send_from_directory
-from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
@@ -298,6 +298,42 @@ def make_pdf(group, name):
     log(f"CREATED → {filename}")
 
 # ------------------------------------------------
+# MERGE ALL PDFs
+# ------------------------------------------------
+
+def merge_all_pdfs():
+    pdf_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.lower().endswith(".pdf")])
+    
+    if not pdf_files:
+        log("NO PDFs TO MERGE")
+        return None
+    
+    log(f"MERGING {len(pdf_files)} PDFs...")
+    
+    merger = PdfMerger()
+    
+    for pdf_file in pdf_files:
+        pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
+        try:
+            merger.append(pdf_path)
+            log(f"ADDED → {pdf_file}")
+        except Exception as e:
+            log(f"ERROR ADDING {pdf_file}: {e}")
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
+    merged_path = os.path.join(OUTPUT_DIR, merged_filename)
+    
+    try:
+        merger.write(merged_path)
+        merger.close()
+        log(f"✅ MERGED PDF CREATED → {merged_filename}")
+        return merged_filename
+    except Exception as e:
+        log(f"❌ MERGE FAILED: {e}")
+        return None
+
+# ------------------------------------------------
 # PROCESS
 # ------------------------------------------------
 
@@ -342,7 +378,14 @@ def process_all():
             make_pdf(g, name)
 
     log("======================================")
-    log("✅ GENERATION COMPLETE — READY TO DOWNLOAD")
+    log("✅ GENERATION COMPLETE")
+    log("======================================")
+    
+    # Auto-merge after generation
+    log("=== STARTING AUTO-MERGE ===")
+    merge_all_pdfs()
+    log("======================================")
+    log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
     log("======================================")
 
 # ------------------------------------------------
@@ -405,6 +448,23 @@ def download_all():
     return send_from_directory(
         os.path.dirname(zip_path),
         os.path.basename(zip_path),
+        as_attachment=True
+    )
+
+@app.route("/download_merged")
+def download_merged():
+    # Find the most recent merged PDF
+    merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) 
+                          if f.startswith("MERGED_SeaPay_Forms_") and f.endswith(".pdf")])
+    
+    if not merged_files:
+        return "No merged PDF found", 404
+    
+    latest_merged = merged_files[-1]  # Get the most recent one
+    
+    return send_from_directory(
+        OUTPUT_DIR,
+        latest_merged,
         as_attachment=True
     )
 
