@@ -10,49 +10,51 @@ pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px sol
 .small { font-size:12px; color:#6f6 }
 </style>
 </head>
-
 <body>
-
 <h2>ATGSD Sea Pay Processor</h2>
-
 <form method="POST" enctype="multipart/form-data">
-
 <label>INPUT PDFs</label>
 <input type="file" name="files" multiple>
-
 <label>REPLACE TEMPLATE PDF</label>
 <input type="file" name="template_file">
 <div class="small">Current: {{ template_path }}</div>
-
 <label>RATE CSV</label>
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
-
 <br><br>
-<button type="submit" onclick="startLogs()">RUN PROCESSOR</button>
-
+<button type="submit">RUN PROCESSOR</button>
 </form>
-
 <hr>
-
 <button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
-
 <hr>
-
 <h3>LIVE LOG CONSOLE</h3>
-<pre id="logBox"></pre>   <!-- CLEANED: no default text -->
-
+<pre id="logBox">{{ logs }}</pre>
 <script>
-function startLogs() {
-    setTimeout(pollLogs, 1000);
-}
+let isPolling = false;
+
+// Start polling immediately when page loads
+pollLogs();
 
 function pollLogs() {
+    if (isPolling) return;  // Prevent duplicate polls
+    isPolling = true;
+    
     fetch("/logs")
         .then(r => r.text())
         .then(txt => {
-            document.getElementById("logBox").innerText = txt;
-            setTimeout(pollLogs, 1000);
+            const logBox = document.getElementById("logBox");
+            logBox.innerText = txt;  // Update with full log content
+            
+            // Auto-scroll to bottom
+            logBox.scrollTop = logBox.scrollHeight;
+            
+            isPolling = false;
+            setTimeout(pollLogs, 1000);  // Poll every second
+        })
+        .catch(err => {
+            console.error("Log poll failed:", err);
+            isPolling = false;
+            setTimeout(pollLogs, 2000);  // Retry after 2 seconds on error
         });
 }
 
@@ -60,6 +62,5 @@ function downloadAll() {
     window.location.href = "/download_all";
 }
 </script>
-
 </body>
 </html>
