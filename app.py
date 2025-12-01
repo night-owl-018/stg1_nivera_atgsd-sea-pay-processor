@@ -2,6 +2,7 @@ import os
 import re
 import io
 import csv
+import zipfile
 from datetime import datetime, timedelta
 from difflib import get_close_matches
 
@@ -14,9 +15,13 @@ import pytesseract
 from pdf2image import convert_from_path
 
 # ------------------------------------------------
+# GLOBAL LIVE LOG BUFFER ✅
+# ------------------------------------------------
+LOG_BUFFER = []
+
+# ------------------------------------------------
 # PATH CONFIG (DOCKER)
 # ------------------------------------------------
-
 DATA_DIR = "/data"
 OUTPUT_BASE = "/output"
 OUTPUT_DIR = OUTPUT_BASE
@@ -37,9 +42,8 @@ FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
 # ------------------------------------------------
-# ✅ OUTPUT FOLDER CREATOR (NEW)
+# OUTPUT SUBFOLDER CREATOR ✅
 # ------------------------------------------------
-
 def ensure_subfolder(name):
     safe = re.sub(r"[^A-Za-z0-9_\-]", "_", name)
     path = os.path.join(OUTPUT_BASE, safe)
@@ -49,11 +53,8 @@ def ensure_subfolder(name):
 # ------------------------------------------------
 # LOAD RATE CSV
 # ------------------------------------------------
-
 def _clean_header(h):
-    if h is None:
-        return ""
-    return h.lstrip("\ufeff").strip().strip('"').lower()
+    return h.lstrip("\ufeff").strip().lower() if h else ""
 
 def load_rates():
     rates = {}
@@ -62,24 +63,14 @@ def load_rates():
 
     with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-        if not reader.fieldnames:
-            return {}
-
         reader.fieldnames = [_clean_header(h) for h in reader.fieldnames]
 
-        for raw in reader:
-            row = {}
-            for k, v in raw.items():
-                key = _clean_header(k)
-                row[key] = (v or "").replace("\t", "").strip()
-
-            last = row.get("last", "").upper()
-            first = row.get("first", "").upper()
-            rate = row.get("rate", "").upper()
-
+        for row in reader:
+            last = row.get("last","").upper()
+            first = row.get("first","").upper()
+            rate = row.get("rate","").upper()
             if last and rate:
                 rates[f"{last},{first}"] = rate
-
     return rates
 
 RATES = load_rates()
@@ -87,7 +78,6 @@ RATES = load_rates()
 # ------------------------------------------------
 # LOAD SHIP LIST
 # ------------------------------------------------
-
 with open(SHIP_FILE, "r", encoding="utf-8") as f:
     SHIP_LIST = [line.strip() for line in f if line.strip()]
 
@@ -102,7 +92,6 @@ NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 # ------------------------------------------------
 # OCR
 # ------------------------------------------------
-
 def strip_times(text):
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
 
@@ -116,7 +105,6 @@ def ocr_pdf(path):
 # ------------------------------------------------
 # NAME
 # ------------------------------------------------
-
 def extract_member_name(text):
     m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
     if not m:
@@ -126,12 +114,9 @@ def extract_member_name(text):
 # ------------------------------------------------
 # SHIP MATCH
 # ------------------------------------------------
-
 def match_ship(raw_text):
-    candidate = normalize(raw_text)
-    if not candidate:
-        return None
-    words = candidate.split()
+    cleaned = normalize(raw_text)
+    words = cleaned.split()
 
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
@@ -142,9 +127,8 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# PARSE DATES
+# DATE PARSING
 # ------------------------------------------------
-
 def extract_year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
@@ -160,27 +144,22 @@ def parse_rows(text, year):
             continue
 
         mm, dd, yy = m.groups()
-        y = ("20" + yy) if yy and len(yy) == 2 else yy if yy else year
+        y = ("20"+yy) if yy and len(yy)==2 else yy if yy else year
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
         raw = line[m.end():]
         if i + 1 < len(lines):
-            raw += " " + lines[i + 1]
+            raw += " " + lines[i+1]
 
         ship = match_ship(raw)
-        if not ship:
-            continue
-
-        if (date, ship) not in seen:
-            rows.append({"date": date, "ship": ship})
-            seen.add((date, ship))
-
+        if ship and (date, ship) not in seen:
+            rows.append({"date":date,"ship":ship})
+            seen.add((date,ship))
     return rows
 
 # ------------------------------------------------
 # GROUP DAYS
 # ------------------------------------------------
-
 def group_by_ship(rows):
     groups = {}
     for r in rows:
@@ -196,40 +175,28 @@ def group_by_ship(rows):
             if d == prev + timedelta(days=1):
                 prev = d
             else:
-                results.append({"ship": ship, "start": start, "end": prev})
+                results.append({"ship":ship,"start":start,"end":prev})
                 start = prev = d
 
-        results.append({"ship": ship, "start": start, "end": prev})
-
+        results.append({"ship":ship,"start":start,"end":prev})
     return results
 
 # ------------------------------------------------
-# RATE
+# RATE LOOKUP
 # ------------------------------------------------
-
 def get_rate(name):
     parts = normalize(name).split()
     if len(parts) < 2:
         return ""
-
-    first = parts[0]
-    last = parts[-1]
-    key = f"{last},{first}"
-
-    if key in RATES:
-        return RATES[key]
-
-    for k in RATES:
-        if k.startswith(last + ","):
-            return RATES[k]
-
-    return ""
+    key = f"{parts[-1]},{parts[0]}"
+    return RATES.get(key, "")
 
 # ------------------------------------------------
-# PDF CREATION
+# PDF
 # ------------------------------------------------
-
 def make_pdf(group, name):
+    global OUTPUT_DIR
+
     start = group["start"].strftime("%m/%d/%Y")
     end = group["end"].strftime("%m/%d/%Y")
     ship = group["ship"]
@@ -245,6 +212,7 @@ def make_pdf(group, name):
     filename = filename.replace(" ", "_")
 
     path = os.path.join(OUTPUT_DIR, filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
@@ -255,15 +223,18 @@ def make_pdf(group, name):
     c.setFont(FONT_NAME, 8)
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
+
     c.setFont(FONT_NAME, FONT_SIZE)
 
     c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
     c.drawString(38.84, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
+
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     c.drawString(384.1, 415.2, "FI MI Last Name")
+
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -277,7 +248,6 @@ def make_pdf(group, name):
 
     writer = PdfWriter()
     writer.add_page(base)
-
     for i in range(1, len(template.pages)):
         writer.add_page(template.pages[i])
 
@@ -289,58 +259,52 @@ def make_pdf(group, name):
 # ------------------------------------------------
 # PROCESS
 # ------------------------------------------------
-
 def process_all():
-    logs = []
-    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+    global LOG_BUFFER
+    LOG_BUFFER = []
 
+    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
     if not files:
-        return "[INFO] No input PDFs found."
+        LOG_BUFFER.append("[INFO] No input PDFs found.")
+        return
 
     for file in files:
-        logs.append(f"[OCR] {file}")
-        path = os.path.join(DATA_DIR, file)
-
-        raw = strip_times(ocr_pdf(path))
+        LOG_BUFFER.append(f"[OCR] {file}")
+        raw = strip_times(ocr_pdf(os.path.join(DATA_DIR,file)))
         name = extract_member_name(raw)
         year = extract_year_from_filename(file)
 
         rows = parse_rows(raw, year)
-
         if not rows:
-            all_ship = match_ship(raw)
-            if all_ship:
-                logs.append(f"[FALLBACK] Ship found globally: {all_ship}")
-                today = datetime.today()
-                rows = [{"ship": all_ship, "date": today.strftime("%m/%d/%Y")}]
+            ship = match_ship(raw)
+            if ship:
+                LOG_BUFFER.append(f"[FALLBACK] Ship found: {ship}")
+                today = datetime.now()
+                rows = [{"ship":ship,"date":today.strftime("%m/%d/%Y")}]
             else:
-                logs.append("[ERROR] No valid ship entries found from your ship list")
+                LOG_BUFFER.append("[ERROR] No ship detected")
                 continue
 
-        groups = group_by_ship(rows)
-
-        for g in groups:
+        for g in group_by_ship(rows):
             fname = make_pdf(g, name)
-            logs.append(f"[CREATED] {fname}")
+            LOG_BUFFER.append(f"[CREATED] {fname}")
 
-    return "\n".join(logs)
+    LOG_BUFFER.append("===== DONE =====")
 
 # ------------------------------------------------
-# FLASK
+# FLASK ROUTES
 # ------------------------------------------------
-
 app = Flask(__name__, template_folder="web/frontend")
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET","POST"])
 def index():
     global OUTPUT_DIR
-    logs = ""
 
     if request.method == "POST":
 
         for f in request.files.getlist("files"):
             if f.filename:
-                f.save(os.path.join(DATA_DIR, f.filename))
+                f.save(os.path.join(DATA_DIR,f.filename))
 
         tpl = request.files.get("template_file")
         if tpl and tpl.filename:
@@ -350,36 +314,29 @@ def index():
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
-        folder = request.form.get("output_folder", "").strip()
-        if folder:
-            OUTPUT_DIR = ensure_subfolder(folder)
-        else:
-            OUTPUT_DIR = OUTPUT_BASE
+        folder = request.form.get("output_folder","").strip()
+        OUTPUT_DIR = ensure_subfolder(folder) if folder else OUTPUT_BASE
 
-        logs = process_all()
+        process_all()
 
-    return render_template(
-        "index.html",
-        data_files=os.listdir(DATA_DIR),
-        outputs=os.listdir(OUTPUT_DIR),
-        logs=logs,
-        template_path=TEMPLATE,
-        rate_path=RATE_FILE,
-        output_path=OUTPUT_DIR,
-    )
+    return render_template("index.html", logs="\n".join(LOG_BUFFER),
+                           template_path=TEMPLATE,
+                           rate_path=RATE_FILE,
+                           output_path=OUTPUT_DIR)
 
-@app.route("/delete/<folder>/<name>")
-def delete_file(folder, name):
-    base = DATA_DIR if folder == "data" else OUTPUT_DIR if folder == "output" else None
-    if base:
-        path = os.path.join(base, name)
-        if os.path.exists(path):
-            os.remove(path)
-    return redirect("/")
+@app.route("/logs")
+def logs():
+    return "\n".join(LOG_BUFFER)
 
-@app.route("/download/<name>")
-def download(name):
-    return send_from_directory(OUTPUT_DIR, name, as_attachment=True)
+@app.route("/download_all")
+def download_all():
+    zip_path = "/tmp/sea_pay_output.zip"
+    with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as zipf:
+        for f in os.listdir(OUTPUT_DIR):
+            full = os.path.join(OUTPUT_DIR,f)
+            if os.path.isfile(full):
+                zipf.write(full,f)
+    return send_from_directory("/tmp","sea_pay_output.zip",as_attachment=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
