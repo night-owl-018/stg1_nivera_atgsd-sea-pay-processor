@@ -112,12 +112,6 @@ function resetAll() {
         });
     }
 }
-
-// Cleanup when browser closes
-window.addEventListener("beforeunload", function(e) {
-    // Send cleanup request when browser is closing
-    navigator.sendBeacon("/reset");
-});
 </script>
 </body>
 </html>
