@@ -8,7 +8,7 @@ from collections import deque
 from datetime import datetime, timedelta
 from difflib import get_close_matches
 
-from flask import Flask, render_template, request, redirect, send_from_directory
+from flask import Flask, render_template, request, send_from_directory
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -39,7 +39,7 @@ FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
 # ------------------------------------------------
-# LIVE LOG SYSTEM
+# LIVE LOG BUFFER
 # ------------------------------------------------
 
 LIVE_LOGS = deque(maxlen=500)
@@ -47,21 +47,20 @@ LIVE_LOGS = deque(maxlen=500)
 def log(msg):
     ts = datetime.now().strftime("%H:%M:%S")
     line = f"[{ts}] {msg}"
-    LIVE_LOGS.append(line)
     print(line, flush=True)
+    LIVE_LOGS.append(line)
 
 # ------------------------------------------------
-# LOAD RATE CSV
+# LOAD RATES
 # ------------------------------------------------
 
 def _clean_header(h):
-    if not h:
-        return ""
-    return h.lstrip("\ufeff").strip().strip('"').lower()
+    return h.lstrip("\ufeff").strip().strip('"').lower() if h else ""
 
 def load_rates():
     rates = {}
     if not os.path.exists(RATE_FILE):
+        log("RATE FILE MISSING")
         return rates
 
     with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
@@ -72,7 +71,6 @@ def load_rates():
             last = row.get("last", "").upper()
             first = row.get("first", "").upper()
             rate = row.get("rate", "").upper()
-
             if last and rate:
                 rates[f"{last},{first}"] = rate
 
@@ -89,15 +87,15 @@ with open(SHIP_FILE, "r", encoding="utf-8") as f:
     SHIP_LIST = [line.strip() for line in f if line.strip()]
 
 def normalize(text):
-    text = re.sub(r"\(.*?\)", "", text)
-    text = re.sub(r"[^A-Z ]", "", text.upper())
+    text = re.sub(r"\(.*?\)", "", text.upper())
+    text = re.sub(r"[^A-Z ]", "", text)
     return " ".join(text.split())
 
 NORMALIZED_SHIPS = {normalize(s): s.upper() for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 
 # ------------------------------------------------
-# OCR HELPERS
+# OCR FUNCTIONS
 # ------------------------------------------------
 
 def strip_times(text):
@@ -105,10 +103,10 @@ def strip_times(text):
 
 def ocr_pdf(path):
     images = convert_from_path(path)
-    out = ""
+    output = ""
     for img in images:
-        out += pytesseract.image_to_string(img)
-    return out.upper()
+        output += pytesseract.image_to_string(img)
+    return output.upper()
 
 # ------------------------------------------------
 # NAME EXTRACTION
@@ -117,18 +115,15 @@ def ocr_pdf(path):
 def extract_member_name(text):
     m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
     if not m:
-        raise RuntimeError("NAME not found")
+        raise RuntimeError("NAME NOT FOUND")
     return " ".join(m.group(1).split())
 
 # ------------------------------------------------
-# SHIP MATCHING
+# SHIP MATCH
 # ------------------------------------------------
 
 def match_ship(raw_text):
     candidate = normalize(raw_text)
-    if not candidate:
-        return None
-
     words = candidate.split()
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
@@ -139,7 +134,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATE PARSE
+# DATES
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -147,7 +142,8 @@ def extract_year_from_filename(fn):
     return m.group(1) if m else str(datetime.now().year)
 
 def parse_rows(text, year):
-    rows, seen = [], set()
+    rows = []
+    seen = set()
     lines = text.splitlines()
 
     for i, line in enumerate(lines):
@@ -156,12 +152,12 @@ def parse_rows(text, year):
             continue
 
         mm, dd, yy = m.groups()
-        y = ("20"+yy) if yy and len(yy)==2 else yy or year
+        y = ("20" + yy) if yy and len(yy) == 2 else yy or year
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
         raw = line[m.end():]
-        if i+1 < len(lines):
-            raw += " " + lines[i+1]
+        if i + 1 < len(lines):
+            raw += " " + lines[i + 1]
 
         ship = match_ship(raw)
         if ship and (date, ship) not in seen:
@@ -171,17 +167,17 @@ def parse_rows(text, year):
     return rows
 
 # ------------------------------------------------
-# GROUP DAYS
+# GROUPING
 # ------------------------------------------------
 
 def group_by_ship(rows):
-    groups = {}
+    grouped = {}
     for r in rows:
         dt = datetime.strptime(r["date"], "%m/%d/%Y")
-        groups.setdefault(r["ship"], []).append(dt)
+        grouped.setdefault(r["ship"], []).append(dt)
 
-    results = []
-    for ship, dates in groups.items():
+    output = []
+    for ship, dates in grouped.items():
         dates = sorted(set(dates))
         start = prev = dates[0]
 
@@ -189,12 +185,12 @@ def group_by_ship(rows):
             if d == prev + timedelta(days=1):
                 prev = d
             else:
-                results.append({"ship": ship, "start": start, "end": prev})
+                output.append({"ship": ship, "start": start, "end": prev})
                 start = prev = d
 
-        results.append({"ship": ship, "start": start, "end": prev})
+        output.append({"ship": ship, "start": start, "end": prev})
 
-    return results
+    return output
 
 # ------------------------------------------------
 # RATE LOOKUP
@@ -202,14 +198,11 @@ def group_by_ship(rows):
 
 def get_rate(name):
     parts = normalize(name).split()
-    if len(parts) < 2:
-        return ""
-
     key = f"{parts[-1]},{parts[0]}"
     return RATES.get(key, "")
 
 # ------------------------------------------------
-# PDF GENERATION
+# PDF CREATION
 # ------------------------------------------------
 
 def make_pdf(group, name):
@@ -218,7 +211,8 @@ def make_pdf(group, name):
     ship = group["ship"]
 
     parts = name.split()
-    last, first = parts[-1], " ".join(parts[:-1])
+    last = parts[-1]
+    first = " ".join(parts[:-1])
     rate = get_rate(name)
 
     prefix = f"{rate}_" if rate else ""
@@ -242,10 +236,10 @@ def make_pdf(group, name):
     c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
-    c.drawString(356, 499, "_________________________")
-    c.drawString(364, 487, "Certifying Official & Date")
-    c.drawString(356, 427, "_________________________")
-    c.drawString(384, 415, "FI MI Last Name")
+    c.drawString(356.26, 499.5, "_________________________")
+    c.drawString(363.8, 487.5, "Certifying Official & Date")
+    c.drawString(356.26, 427.5, "_________________________")
+    c.drawString(384.1, 415.2, "FI MI Last Name")
 
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
@@ -255,6 +249,7 @@ def make_pdf(group, name):
 
     overlay = PdfReader(buf)
     template = PdfReader(TEMPLATE)
+
     base = template.pages[0]
     base.merge_page(overlay.pages[0])
 
@@ -264,11 +259,10 @@ def make_pdf(group, name):
     with open(outpath, "wb") as f:
         writer.write(f)
 
-    log(f"CREATED → {filename}")
-    return filename
+    log(f"CREATED: {filename}")
 
 # ------------------------------------------------
-# PROCESS CORE
+# PROCESS
 # ------------------------------------------------
 
 def process_all():
@@ -277,7 +271,7 @@ def process_all():
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
     if not files:
-        log("No input PDFs found.")
+        log("NO INPUT FILES")
         return
 
     for file in files:
@@ -286,9 +280,9 @@ def process_all():
 
         raw = strip_times(ocr_pdf(path))
         name = extract_member_name(raw)
-        year = extract_year_from_filename(file)
         log(f"NAME → {name}")
 
+        year = extract_year_from_filename(file)
         rows = parse_rows(raw, year)
 
         if not rows:
@@ -305,10 +299,10 @@ def process_all():
         for g in groups:
             make_pdf(g, name)
 
-    log("✅ PROCESS COMPLETE")
+    log("PROCESS COMPLETE")
 
 # ------------------------------------------------
-# FLASK
+# FLASK APP
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -338,7 +332,7 @@ def index():
     )
 
 @app.route("/logs")
-def logs():
+def get_logs():
     return "<br>".join(LIVE_LOGS)
 
 @app.route("/download_all")
