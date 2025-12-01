@@ -5,113 +5,71 @@
 <style>
 body { background:#000; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
-button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px; margin:5px 5px 5px 0 }
-button:disabled { opacity:0.5; cursor:not-allowed }
-button.reset-btn { color:#f00; border-color:#f00 }
-button.reset-btn:hover { background:#300 }
+button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
 pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
-.download-section { margin-top: 10px }
 </style>
 </head>
+
 <body>
+
 <h2>ATGSD Sea Pay Processor</h2>
-<form id="uploadForm">
-<label>INPUT SEA DUTY CERTIFICATION SHEET FROM TORIS</label>
+
+<form method="POST" enctype="multipart/form-data">
+
+<label>INPUT PDFs</label>
 <input type="file" name="files" multiple>
-<label>NAVPERS_1070_613_TEMPLATE</label>
+
+<label>REPLACE TEMPLATE PDF</label>
 <input type="file" name="template_file">
 <div class="small">Current: {{ template_path }}</div>
-<label>N811 PERSONNEL ROSTER</label>
+
+<label>RATE CSV</label>
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
-<br><br>
-<button type="submit" id="submitBtn">RUN PROCESSOR</button>
-</form>
-<hr>
-<div class="download-section">
-<button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
-<button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
-<button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES</button>
-</div>
-<hr>
-<h3>LIVE LOG CONSOLE</h3>
-<pre id="logBox">{{ logs }}</pre>
-<script>
-let isPolling = false;
 
-// Start polling immediately when page loads
-pollLogs();
+<br><br>
+<button type="submit" onclick="startLogs()">RUN PROCESSOR</button>
+
+</form>
+
+<hr>
+
+<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
+
+<hr>
+
+<button onclick="generateTextReport()">📝 GENERATE TEXT REPORT</button>
+
+<script>
+function generateTextReport() {
+    window.location.href = "/generate_text_report";
+}
+</script>
+
+<hr>
+
+<h3>LIVE LOG CONSOLE</h3>
+<pre id="logBox"></pre>
+
+<script>
+function startLogs() {
+    setTimeout(pollLogs, 1000);
+}
 
 function pollLogs() {
-    if (isPolling) return;
-    isPolling = true;
-    
     fetch("/logs")
         .then(r => r.text())
         .then(txt => {
-            const logBox = document.getElementById("logBox");
-            logBox.innerText = txt;
-            logBox.scrollTop = logBox.scrollHeight;
-            
-            isPolling = false;
+            document.getElementById("logBox").innerText = txt;
             setTimeout(pollLogs, 1000);
-        })
-        .catch(err => {
-            console.error("Log poll failed:", err);
-            isPolling = false;
-            setTimeout(pollLogs, 2000);
         });
-}
-
-// Handle form submission without page reload
-document.getElementById("uploadForm").addEventListener("submit", function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const submitBtn = document.getElementById("submitBtn");
-    
-    submitBtn.disabled = true;
-    submitBtn.innerText = "PROCESSING...";
-    
-    fetch("/", {
-        method: "POST",
-        body: formData
-    })
-    .then(response => {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "RUN PROCESSOR";
-    })
-    .catch(err => {
-        console.error("Upload failed:", err);
-        submitBtn.disabled = false;
-        submitBtn.innerText = "RUN PROCESSOR";
-    });
-});
-
-function downloadMerged() {
-    window.location.href = "/download_merged";
 }
 
 function downloadAll() {
     window.location.href = "/download_all";
 }
-
-function resetAll() {
-    if (confirm("⚠️ Are you sure? This will delete ALL input and output files!")) {
-        fetch("/reset", {
-            method: "POST"
-        })
-        .then(r => r.json())
-        .then(data => {
-            alert("✅ " + data.message);
-        })
-        .catch(err => {
-            console.error("Reset failed:", err);
-            alert("❌ Reset failed. Check console.");
-        });
-    }
-}
 </script>
+
 </body>
 </html>
