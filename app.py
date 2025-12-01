@@ -315,10 +315,21 @@ def process_all():
         year = extract_year_from_filename(file)
 
         rows = parse_rows(raw, year)
-
+        # ✅ FALLBACK: Scan entire document if date-based matching fails
         if not rows:
-            logs.append("[ERROR] No ship match found")
-            continue
+            all_ship = match_ship(raw)
+            if all_ship:
+                logs.append(f"[FALLBACK] Ship found globally: {all_ship}")
+
+                # infer single-day service if dates missing
+                today = datetime.today()
+                rows = [{
+                    "ship": all_ship,
+                    "date": today.strftime("%m/%d/%Y")
+                }]
+            else:
+                logs.append("[ERROR] No valid ship entries found from your ship list")
+                continue
 
         groups = group_by_ship(rows)
 
