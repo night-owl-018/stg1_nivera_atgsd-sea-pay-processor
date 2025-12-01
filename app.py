@@ -265,3 +265,291 @@ def lookup_csv_identity(name):
     ocr_norm = normalize(name)
     best = None
     best_score = 0.0
+
+    for csv_norm, rate, last, first in CSV_IDENTITIES:
+        score = SequenceMatcher(None, ocr_norm, csv_norm).ratio()
+        if score > best_score:
+            best_score = score
+            best = (rate, last, first)
+
+    if best and best_score >= 0.60:
+        rate, last, first = best
+        log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
+        return best
+
+    log(f"CSV NO GOOD MATCH (best={best_score:.2f}) for [{name}]")
+    return None
+
+def get_rate(name):
+    parts = normalize(name).split()
+    if len(parts) < 2:
+        return ""
+    key = f"{parts[-1]},{parts[0]}"
+    return RATES.get(key, "")
+
+# ------------------------------------------------
+# PDF CREATION
+# ------------------------------------------------
+
+def make_pdf(group, name):
+
+    csv_id = lookup_csv_identity(name)
+    if csv_id:
+        rate, last, first = csv_id
+    else:
+        parts = name.split()
+        last = parts[-1]
+        first = " ".join(parts[:-1])
+        rate = get_rate(name)
+
+    start = group["start"].strftime("%m/%d/%Y")
+    end = group["end"].strftime("%m/%d/%Y")
+    ship = group["ship"]
+
+    prefix = f"{rate}_" if rate else ""
+    filename = f"{prefix}{last}_{first}_{ship}_{start.replace('/','-')}_TO_{end.replace('/','-')}.pdf"
+    filename = filename.replace(" ", "_")
+
+    outpath = os.path.join(OUTPUT_DIR, filename)
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    c.setFont(FONT_NAME, FONT_SIZE)
+
+    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
+    c.drawString(373, 671, "X")
+    c.setFont(FONT_NAME, 8)
+    c.drawString(39, 650, "ENTITLEMENT")
+    c.drawString(345, 641, "OPNAVINST 7220.14")
+
+    c.setFont(FONT_NAME, FONT_SIZE)
+    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
+    c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
+    c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
+
+    c.drawString(356.26, 499.5, "_________________________")
+    c.drawString(363.8, 487.5, "Certifying Official & Date")
+    c.drawString(356.26, 427.5, "_________________________")
+    c.drawString(384.1, 415.2, "FI MI Last Name")
+
+    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+    c.drawString(503.5, 40, "USN AD")
+
+    c.save()
+    buf.seek(0)
+
+    overlay = PdfReader(buf)
+    template = PdfReader(TEMPLATE)
+
+    base = template.pages[0]
+    base.merge_page(overlay.pages[0])
+
+    writer = PdfWriter()
+    writer.add_page(base)
+
+    with open(outpath, "wb") as f:
+        writer.write(f)
+
+    log(f"CREATED → {filename}")
+
+# ------------------------------------------------
+# MERGE ALL PDFs WITH BOOKMARKS
+# ------------------------------------------------
+
+def merge_all_pdfs():
+    pdf_files = sorted([
+        f for f in os.listdir(OUTPUT_DIR) 
+        if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
+    ])
+    
+    if not pdf_files:
+        log("NO PDFs TO MERGE")
+        return None
+    
+    log(f"MERGING {len(pdf_files)} PDFs...")
+    
+    merger = PdfMerger()
+    
+    for pdf_file in pdf_files:
+        pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
+        try:
+            bookmark_name = os.path.splitext(pdf_file)[0]
+            merger.append(pdf_path, outline_item=bookmark_name)
+            log(f"ADDED WITH BOOKMARK → {bookmark_name}")
+        except Exception as e:
+            log(f"ERROR ADDING {pdf_file}: {e}")
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
+    merged_path = os.path.join(OUTPUT_DIR, merged_filename)
+    
+    try:
+        merger.write(merged_path)
+        merger.close()
+        log(f"✅ MERGED PDF CREATED → {merged_filename}")
+        log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
+        return merged_filename
+    except Exception as e:
+        log(f"❌ MERGE FAILED: {e}")
+        return None
+
+# ------------------------------------------------
+# PROCESS
+# ------------------------------------------------
+
+def process_all():
+    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+
+    if not files:
+        log("NO INPUT FILES")
+        return
+
+    log("=== PROCESS STARTED ===")
+
+    for file in files:
+        log(f"OCR → {file}")
+        path = os.path.join(DATA_DIR, file)
+
+        raw = strip_times(ocr_pdf(path))
+
+        try:
+            name = extract_member_name(raw)
+            log(f"NAME → {name}")
+        except Exception as e:
+            log(f"NAME ERROR → {e}")
+            continue
+
+        year = extract_year_from_filename(file)
+        rows = parse_rows(raw, year)
+
+        if not rows:
+            ship = match_ship(raw)
+            if ship:
+                log(f"FALLBACK SHIP → {ship}")
+                rows = [{"date": datetime.today().strftime("%m/%d/%Y"), "ship": ship}]
+            else:
+                log("NO SHIP MATCH")
+                continue
+
+        groups = group_by_ship(rows)
+
+        for g in groups:
+            make_pdf(g, name)
+
+    log("======================================")
+    log("✅ GENERATION COMPLETE")
+    log("======================================")
+    
+    log("=== STARTING AUTO-MERGE ===")
+    merge_all_pdfs()
+    log("======================================")
+    log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
+    log("======================================")
+
+# ------------------------------------------------
+# FLASK APP
+# ------------------------------------------------
+
+app = Flask(__name__, template_folder="web/frontend")
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        for f in request.files.getlist("files"):
+            if f.filename:
+                f.save(os.path.join(DATA_DIR, f.filename))
+
+        tpl = request.files.get("template_file")
+        if tpl and tpl.filename:
+            tpl.save(TEMPLATE)
+
+        csvf = request.files.get("rate_file")
+        if csvf and csvf.filename:
+            csvf.save(RATE_FILE)
+
+        global RATES, CSV_IDENTITIES
+        RATES = load_rates()
+        CSV_IDENTITIES.clear()
+        for key, rate in RATES.items():
+            last, first = key.split(",", 1)
+            def normalize_for_id(text):
+                t = re.sub(r"\(.*?\)", "", text.upper())
+                t = re.sub(r"[^A-Z ]", "", t)
+                return " ".join(t.split())
+            full_norm = normalize_for_id(f"{first} {last}")
+            CSV_IDENTITIES.append((full_norm, rate, last, first))
+
+        process_all()
+
+    return render_template(
+        "index.html",
+        logs="\n".join(LIVE_LOGS),
+        template_path=TEMPLATE,
+        rate_path=RATE_FILE
+    )
+
+@app.route("/logs")
+def get_logs():
+    return "\n".join(LIVE_LOGS)
+
+@app.route("/download_all")
+def download_all():
+    try:
+        zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
+        
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        
+        log("=== CREATING ZIP FILE ===")
+        
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            files_added = 0
+            for f in os.listdir(OUTPUT_DIR):
+                full = os.path.join(OUTPUT_DIR, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+                    files_added += 1
+                    log(f"ZIPPED → {f}")
+        
+        if files_added == 0:
+            log("❌ NO FILES TO ZIP")
+            return "No files found in output directory", 404
+        
+        log(f"✅ ZIP CREATED: {files_added} files")
+        
+        return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True, download_name="SeaPay_Output.zip")
+    except Exception as e:
+        log(f"❌ ZIP ERROR: {e}")
+        return f"Error creating zip: {str(e)}", 500
+
+@app.route("/download_merged")
+def download_merged():
+    try:
+        merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) 
+                              if f.startswith("MERGED_SeaPay_Forms_") and f.endswith(".pdf")])
+        
+        if not merged_files:
+            log("❌ NO MERGED PDF FOUND")
+            return "No merged PDF found", 404
+        
+        latest_merged = merged_files[-1]
+        log(f"📄 DOWNLOADING MERGED PDF → {latest_merged}")
+        
+        return send_from_directory(OUTPUT_DIR, latest_merged, as_attachment=True)
+    except Exception as e:
+        log(f"❌ MERGED PDF DOWNLOAD ERROR: {e}")
+        return f"Error downloading merged PDF: {str(e)}", 500
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    total_deleted = cleanup_all_folders()
+    clear_logs()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"Reset complete! {total_deleted} files deleted. Logs cleared.",
+        "files_deleted": total_deleted
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
