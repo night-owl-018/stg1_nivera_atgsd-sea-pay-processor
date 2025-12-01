@@ -3,12 +3,11 @@
 <head>
 <title>ATGSD Sea Pay Processor</title>
 <style>
-body { background:black; color:#0f0; font-family:monospace }
+body { background:#000; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
-input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
-pre { background:#000; padding:10px; height:260px; overflow:auto; white-space:pre-wrap }
+button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
+pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
-a { color:#6f6; text-decoration:none }
 </style>
 </head>
 
@@ -30,20 +29,37 @@ a { color:#6f6; text-decoration:none }
 <div class="small">Current: {{ rate_path }}</div>
 
 <br><br>
-<button type="submit">RUN PROCESSOR</button>
+<button type="submit" onclick="startLogs()">RUN PROCESSOR</button>
 
 </form>
 
 <hr>
 
-<a href="/download_all">
-<button type="button">⬇ DOWNLOAD ALL GENERATED FILES</button>
-</a>
+<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
 
 <hr>
 
-<h3>LIVE LOGS</h3>
-<pre id="logBox">{{ logs }}</pre>
+<h3>LIVE LOG CONSOLE</h3>
+<pre id="logBox">Waiting for run command...</pre>
+
+<script>
+function startLogs() {
+    setTimeout(pollLogs, 1000);
+}
+
+function pollLogs() {
+    fetch("/logs")
+        .then(r => r.text())
+        .then(txt => {
+            document.getElementById("logBox").innerText = txt;
+            setTimeout(pollLogs, 1000);
+        });
+}
+
+function downloadAll() {
+    window.location.href = "/download_all";
+}
+</script>
 
 </body>
 </html>
