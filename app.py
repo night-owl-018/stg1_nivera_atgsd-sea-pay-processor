@@ -195,13 +195,21 @@ def parse_rows(text, year):
     """
     Parse OCR text into unique (date, ship) rows.
 
-    NEW RULE:
-    - Only one ship is allowed per date.
-    - If multiple ship events exist on the same date, the first one wins.
-    - Later duplicates for that date are discarded and logged.
+    NEW BEHAVIOR:
+    - Only one ship is allowed per date (first one wins).
+    - Duplicate dates for later ships are skipped and recorded.
+    - Rows with no recognizable ship (MITE, SBTT, etc.) are skipped and recorded.
+
+    Returns:
+        rows: list[{"date": "MM/DD/YYYY", "ship": "CHAFEE"}]
+        skipped_duplicates: list[{"date": "MM/DD/YYYY", "ship": "PAUL HAMILTON"}]
+        skipped_unknown: list[{"date": "MM/DD/YYYY", "raw": "<full event text>"}]
     """
     rows = []
     seen_dates = set()
+    skipped_duplicates = []
+    skipped_unknown = []
+
     lines = text.splitlines()
 
     for i, line in enumerate(lines):
@@ -218,18 +226,24 @@ def parse_rows(text, year):
             raw += " " + lines[i + 1]
 
         ship = match_ship(raw)
+        cleaned_raw = raw.strip()
+
         if not ship:
+            # No recognizable ship for this row (e.g., MITE, SBTT, admin events)
+            skipped_unknown.append({"date": date, "raw": cleaned_raw})
+            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
             continue
 
         if date in seen_dates:
-            # Duplicate date: another ship already claimed this day
+            # Another ship already claimed this date; this one is discarded
+            skipped_duplicates.append({"date": date, "ship": ship})
             log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship})")
             continue
 
         rows.append({"date": date, "ship": ship})
         seen_dates.add(date)
 
-    return rows
+    return rows, skipped_duplicates, skipped_unknown
 
 # ------------------------------------------------
 # GROUPING
@@ -406,6 +420,9 @@ def process_all():
 
     log("=== PROCESS STARTED ===")
 
+    # This will hold a human-readable summary for all sailors / ships / dates
+    summary_lines = []
+
     for file in files:
         log(f"OCR → {file}")
         path = os.path.join(DATA_DIR, file)
@@ -420,21 +437,59 @@ def process_all():
             continue
 
         year = extract_year_from_filename(file)
-        rows = parse_rows(raw, year)
+        rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+
+        used_fallback = False
 
         if not rows:
             ship = match_ship(raw)
             if ship:
                 log(f"FALLBACK SHIP → {ship}")
                 rows = [{"date": datetime.today().strftime("%m/%d/%Y"), "ship": ship}]
+                used_fallback = True
             else:
                 log("NO SHIP MATCH")
                 continue
 
         groups = group_by_ship(rows)
 
+        # Generate PDFs for each group
         for g in groups:
             make_pdf(g, name)
+
+        # -----------------------------
+        # BUILD SUMMARY FOR THIS FILE
+        # -----------------------------
+        summary_lines.append(f"=== FILE: {file} ===")
+        summary_lines.append(f"MEMBER: {name}")
+        summary_lines.append("")
+
+        summary_lines.append("VALID SEA PAY PERIODS:")
+        if groups:
+            for g in groups:
+                start_str = g["start"].strftime("%m/%d/%Y")
+                end_str = g["end"].strftime("%m/%d/%Y")
+                ship = g["ship"]
+                summary_lines.append(f"  - {ship}: {start_str} to {end_str}")
+        else:
+            summary_lines.append("  (none found)")
+
+        if used_fallback:
+            summary_lines.append("  NOTE: No row-level matches found; fallback ship-based entry used.")
+
+        if skipped_dupe:
+            summary_lines.append("")
+            summary_lines.append("SKIPPED (duplicate dates – multiple ships on same day):")
+            for s in skipped_dupe:
+                summary_lines.append(f"  - {s['date']}: {s['ship']}")
+
+        if skipped_unknown:
+            summary_lines.append("")
+            summary_lines.append("SKIPPED (unrecognized ship/event text):")
+            for s in skipped_unknown:
+                summary_lines.append(f"  - {s['date']}: {s['raw']}")
+
+        summary_lines.append("")  # blank line between files
 
     log("======================================")
     log("✅ GENERATION COMPLETE")
@@ -445,6 +500,20 @@ def process_all():
     log("======================================")
     log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
     log("======================================")
+
+    # ---------------------------------
+    # WRITE SUMMARY TEXT FILE TO OUTPUT
+    # ---------------------------------
+    if summary_lines:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_filename = f"SeaPay_Summary_{timestamp}.txt"
+        summary_path = os.path.join(OUTPUT_DIR, summary_filename)
+        try:
+            with open(summary_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(summary_lines))
+            log(f"📝 SUMMARY FILE CREATED → {summary_filename}")
+        except Exception as e:
+            log(f"❌ SUMMARY FILE ERROR: {e}")
 
 # ------------------------------------------------
 # FLASK APP
