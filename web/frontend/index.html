@@ -31,9 +31,10 @@ hr { border:1px solid #0f0; margin:15px 0 }
 </form>
 <hr>
 <div class="download-section">
-<button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
-<button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
-<button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES & LOGS</button>
+    <button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
+    <button onclick="downloadSummary()">📝 DOWNLOAD SUMMARY TXT</button>
+    <button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
+    <button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES & LOGS</button>
 </div>
 <hr>
 <h3>LIVE LOG CONSOLE</h3>
@@ -92,6 +93,10 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
 
 function downloadMerged() {
     window.location.href = "/download_merged";
+}
+
+function downloadSummary() {
+    window.location.href = "/download_summary";
 }
 
 function downloadAll() {
