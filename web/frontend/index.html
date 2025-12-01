@@ -7,6 +7,8 @@ body { background:#000; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
 button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px; margin:5px 5px 5px 0 }
 button:disabled { opacity:0.5; cursor:not-allowed }
+button.reset-btn { color:#f00; border-color:#f00 }
+button.reset-btn:hover { background:#300 }
 pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
 .download-section { margin-top: 10px }
@@ -30,6 +32,7 @@ pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px sol
 <div class="download-section">
 <button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
 <button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
+<button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES</button>
 </div>
 <hr>
 <h3>LIVE LOG CONSOLE</h3>
@@ -93,6 +96,28 @@ function downloadMerged() {
 function downloadAll() {
     window.location.href = "/download_all";
 }
+
+function resetAll() {
+    if (confirm("⚠️ Are you sure? This will delete ALL input and output files!")) {
+        fetch("/reset", {
+            method: "POST"
+        })
+        .then(r => r.json())
+        .then(data => {
+            alert("✅ " + data.message);
+        })
+        .catch(err => {
+            console.error("Reset failed:", err);
+            alert("❌ Reset failed. Check console.");
+        });
+    }
+}
+
+// Cleanup when browser closes
+window.addEventListener("beforeunload", function(e) {
+    // Send cleanup request when browser is closing
+    navigator.sendBeacon("/reset");
+});
 </script>
 </body>
 </html>
