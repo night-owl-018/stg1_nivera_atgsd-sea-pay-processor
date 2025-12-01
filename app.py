@@ -18,7 +18,8 @@ from pdf2image import convert_from_path
 # ------------------------------------------------
 
 DATA_DIR = "/data"
-OUTPUT_DIR = "/output"
+OUTPUT_BASE = "/output"
+OUTPUT_DIR = OUTPUT_BASE
 TEMPLATE_DIR = "/templates"
 CONFIG_DIR = "/config"
 
@@ -27,7 +28,7 @@ RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
 SHIP_FILE = "/app/ships.txt"
 
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(OUTPUT_BASE, exist_ok=True)
 os.makedirs(TEMPLATE_DIR, exist_ok=True)
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
@@ -36,7 +37,17 @@ FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
 # ------------------------------------------------
-# LOAD RATE CSV  (UNCHANGED FROM PC)
+# ✅ OUTPUT FOLDER CREATOR (NEW)
+# ------------------------------------------------
+
+def ensure_subfolder(name):
+    safe = re.sub(r"[^A-Za-z0-9_\-]", "_", name)
+    path = os.path.join(OUTPUT_BASE, safe)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+# ------------------------------------------------
+# LOAD RATE CSV
 # ------------------------------------------------
 
 def _clean_header(h):
@@ -51,7 +62,6 @@ def load_rates():
 
     with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-
         if not reader.fieldnames:
             return {}
 
@@ -70,13 +80,12 @@ def load_rates():
             if last and rate:
                 rates[f"{last},{first}"] = rate
 
-    print(f"✅ RATES LOADED: {len(rates)}")
     return rates
 
 RATES = load_rates()
 
 # ------------------------------------------------
-# LOAD SHIP LIST (UNCHANGED)
+# LOAD SHIP LIST
 # ------------------------------------------------
 
 with open(SHIP_FILE, "r", encoding="utf-8") as f:
@@ -115,14 +124,13 @@ def extract_member_name(text):
     return " ".join(m.group(1).split())
 
 # ------------------------------------------------
-# SHIP MATCH (UNCHANGED FROM PC)
+# SHIP MATCH
 # ------------------------------------------------
 
 def match_ship(raw_text):
     candidate = normalize(raw_text)
     if not candidate:
         return None
-
     words = candidate.split()
 
     for size in range(len(words), 0, -1):
@@ -131,11 +139,10 @@ def match_ship(raw_text):
             match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
             if match:
                 return NORMALIZED_SHIPS[match[0]]
-
     return None
 
 # ------------------------------------------------
-# PARSE DATES (UNCHANGED)
+# PARSE DATES
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -158,7 +165,7 @@ def parse_rows(text, year):
 
         raw = line[m.end():]
         if i + 1 < len(lines):
-            raw += " " + lines[i + 1]   # ✅ pull next line for ship context
+            raw += " " + lines[i + 1]
 
         ship = match_ship(raw)
         if not ship:
@@ -171,7 +178,7 @@ def parse_rows(text, year):
     return rows
 
 # ------------------------------------------------
-# GROUP CONTIGUOUS DAYS
+# GROUP DAYS
 # ------------------------------------------------
 
 def group_by_ship(rows):
@@ -181,7 +188,6 @@ def group_by_ship(rows):
         groups.setdefault(r["ship"], []).append(dt)
 
     results = []
-
     for ship, dates in groups.items():
         dates = sorted(set(dates))
         start = prev = dates[0]
@@ -198,7 +204,7 @@ def group_by_ship(rows):
     return results
 
 # ------------------------------------------------
-# RATE LOOKUP (UNCHANGED)
+# RATE
 # ------------------------------------------------
 
 def get_rate(name):
@@ -220,7 +226,7 @@ def get_rate(name):
     return ""
 
 # ------------------------------------------------
-# PDF CREATION (MATCHES PC)
+# PDF CREATION
 # ------------------------------------------------
 
 def make_pdf(group, name):
@@ -244,32 +250,20 @@ def make_pdf(group, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    # Headers
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
-
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    # Name
-    if rate:
-        c.drawString(39, 41, f"{rate} {last}, {first}")
-    else:
-        c.drawString(39, 41, f"{last}, {first}")
-
-    # Remarks
+    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
     c.drawString(38.84, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
-
-    # Signature blocks
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     c.drawString(384.1, 415.2, "FI MI Last Name")
-
-    # Footer
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -298,11 +292,8 @@ def make_pdf(group, name):
 
 def process_all():
     logs = []
-
-    if not os.path.exists(TEMPLATE):
-        return "[ERROR] Template PDF missing."
-
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+
     if not files:
         return "[INFO] No input PDFs found."
 
@@ -315,18 +306,13 @@ def process_all():
         year = extract_year_from_filename(file)
 
         rows = parse_rows(raw, year)
-        # ✅ FALLBACK: Scan entire document if date-based matching fails
+
         if not rows:
             all_ship = match_ship(raw)
             if all_ship:
                 logs.append(f"[FALLBACK] Ship found globally: {all_ship}")
-
-                # infer single-day service if dates missing
                 today = datetime.today()
-                rows = [{
-                    "ship": all_ship,
-                    "date": today.strftime("%m/%d/%Y")
-                }]
+                rows = [{"ship": all_ship, "date": today.strftime("%m/%d/%Y")}]
             else:
                 logs.append("[ERROR] No valid ship entries found from your ship list")
                 continue
@@ -347,6 +333,7 @@ app = Flask(__name__, template_folder="web/frontend")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    global OUTPUT_DIR
     logs = ""
 
     if request.method == "POST":
@@ -362,6 +349,12 @@ def index():
         csvf = request.files.get("rate_file")
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
+
+        folder = request.form.get("output_folder", "").strip()
+        if folder:
+            OUTPUT_DIR = ensure_subfolder(folder)
+        else:
+            OUTPUT_DIR = OUTPUT_BASE
 
         logs = process_all()
 
