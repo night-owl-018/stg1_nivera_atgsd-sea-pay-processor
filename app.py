@@ -66,7 +66,7 @@ def cleanup_folder(folder_path, folder_name):
             if os.path.isfile(file_path):
                 os.remove(file_path)
                 files_deleted += 1
-
+        
         if files_deleted > 0:
             log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
         return files_deleted
@@ -116,12 +116,10 @@ RATES = load_rates()
 CSV_IDENTITIES = []
 for key, rate in RATES.items():
     last, first = key.split(",", 1)
-
     def normalize_for_id(text):
         t = re.sub(r"\(.*?\)", "", text.upper())
         t = re.sub(r"[^A-Z ]", "", t)
         return " ".join(t.split())
-
     full_norm = normalize_for_id(f"{first} {last}")
     CSV_IDENTITIES.append((full_norm, rate, last, first))
 
@@ -211,8 +209,8 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        # SBTT ALWAYS EXCLUDED BUT LOGGED
-        if "SBTT" in upper_raw:
+        # SBTT ALWAYS SKIPPED FROM VALID ROWS, BUT TRACKED FOR SUMMARY (OCR SAFE)
+        if "SBTT" in upper_raw.replace(" ", ""):
             sbtt_ship = match_ship(raw) or ""
             label = f"{sbtt_ship} SBTT".strip() if sbtt_ship else "SBTT"
             skipped_unknown.append({"date": date, "raw": label})
