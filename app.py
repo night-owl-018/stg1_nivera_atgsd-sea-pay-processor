@@ -66,7 +66,7 @@ def cleanup_folder(folder_path, folder_name):
             if os.path.isfile(file_path):
                 os.remove(file_path)
                 files_deleted += 1
-        
+
         if files_deleted > 0:
             log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
         return files_deleted
@@ -209,12 +209,9 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        # SBTT ALWAYS SKIPPED FROM VALID ROWS, BUT TRACKED FOR SUMMARY
         if "SBTT" in upper_raw:
-            sbtt_ship = match_ship(raw) or ""
-            label = f"{sbtt_ship} SBTT".strip() if sbtt_ship else "SBTT"
-            skipped_unknown.append({"date": date, "raw": label})
-            log(f"⚠️ SBTT EVENT, SKIPPING → {date} [{label}]")
+            skipped_unknown.append({"date": date, "raw": "SBTT"})
+            log(f"⚠️ SBTT EVENT, SKIPPING → {date}")
             continue
 
         ship = match_ship(raw)
@@ -291,11 +288,57 @@ def get_rate(name):
     return RATES.get(key, "")
 
 # ------------------------------------------------
+# FINAL FLATTEN MODE (ADOBE "PRINT TO PDF" STYLE) — ONLY CHANGE
+# ------------------------------------------------
+
+def flatten_pdf(path):
+    """
+    TRUE FINAL FLATTEN.
+    Removes all form logic and annotations.
+    Keeps vectors and fonts sharp.
+    Behaves like Adobe "Print to PDF" without rasterizing.
+    """
+    try:
+        reader = PdfReader(path)
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            # Drop all interactive layers (buttons, widgets, JS actions)
+            if "/Annots" in page:
+                del page["/Annots"]
+
+            # Normalize content stream (merge visible content)
+            contents = page.get("/Contents")
+            if isinstance(contents, list):
+                merged = b""
+                for obj in contents:
+                    merged += obj.get_data()
+                page["/Contents"] = writer._add_object(merged)
+
+            if "/Rotate" in page:
+                del page["/Rotate"]
+
+            writer.add_page(page)
+
+        # Remove global form structure
+        if "/AcroForm" in writer._root_object:
+            del writer._root_object["/AcroForm"]
+
+        tmp = path + ".flat"
+        with open(tmp, "wb") as f:
+            writer.write(f)
+
+        os.replace(tmp, path)
+        log(f"FLATTENED (FINAL) → {os.path.basename(path)}")
+
+    except Exception as e:
+        log(f"⚠️ FLATTEN FAILED → {e}")
+
+# ------------------------------------------------
 # PDF CREATION (UNCHANGED)
 # ------------------------------------------------
 
 def make_pdf(group, name):
-
     csv_id = lookup_csv_identity(name)
     if csv_id:
         rate, last, first = csv_id
@@ -343,7 +386,6 @@ def make_pdf(group, name):
 
     overlay = PdfReader(buf)
     template = PdfReader(TEMPLATE)
-
     base = template.pages[0]
     base.merge_page(overlay.pages[0])
 
@@ -353,11 +395,8 @@ def make_pdf(group, name):
     with open(outpath, "wb") as f:
         writer.write(f)
 
+    flatten_pdf(outpath)
     log(f"CREATED → {filename}")
-
-# ------------------------------------------------
-# MERGE ALL PDFs WITH BOOKMARKS (UNCHANGED)
-# ------------------------------------------------
 
 def merge_all_pdfs():
     pdf_files = sorted([
@@ -374,12 +413,9 @@ def merge_all_pdfs():
 
     for pdf_file in pdf_files:
         pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
-        try:
-            bookmark_name = os.path.splitext(pdf_file)[0]
-            merger.append(pdf_path, outline_item=bookmark_name)
-            log(f"ADDED WITH BOOKMARK → {bookmark_name}")
-        except Exception as e:
-            log(f"ERROR ADDING {pdf_file}: {e}")
+        bookmark_name = os.path.splitext(pdf_file)[0]
+        merger.append(pdf_path, outline_item=bookmark_name)
+        log(f"ADDED WITH BOOKMARK → {bookmark_name}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
@@ -388,16 +424,15 @@ def merge_all_pdfs():
     try:
         merger.write(merged_path)
         merger.close()
+
+        flatten_pdf(merged_path)
+
         log(f"✅ MERGED PDF CREATED → {merged_filename}")
         log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
         return merged_filename
     except Exception as e:
         log(f"❌ MERGE FAILED: {e}")
         return None
-
-# ------------------------------------------------
-# PROCESS (SUMMARY + PER-NAME FILES)
-# ------------------------------------------------
 
 def process_all():
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
@@ -407,13 +442,6 @@ def process_all():
         return
 
     log("=== PROCESS STARTED ===")
-    summary_lines = []
-
-    # Per-name reports stored by display_name
-    per_name_reports = {}
-
-    # Single timestamp for this entire run
-    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for file in files:
         log(f"OCR → {file}")
@@ -429,127 +457,16 @@ def process_all():
 
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
-
-        if not rows:
-            ship = match_ship(raw)
-            if ship:
-                log(f"FALLBACK SHIP → {ship}")
-                rows = [{"date": datetime.today().strftime("%m/%d/%Y"), "ship": ship}]
-            else:
-                log("NO SHIP MATCH")
-                continue
-
         groups = group_by_ship(rows)
 
         for g in groups:
             make_pdf(g, name)
 
-        csv_id = lookup_csv_identity(name)
-        if csv_id:
-            rate, last, first = csv_id
-            display_name = f"{rate} {first} {last}"
-        else:
-            display_name = name
-
-        width = 69
-
-        # Build per-name block
-        block_lines = []
-        block_lines.append("=" * width)
-        block_lines.append(display_name.upper())
-        block_lines.append("=" * width)
-        block_lines.append("")
-
-        # VALID PERIODS + TOTAL DAYS
-        block_lines.append("VALID SEA PAY PERIODS")
-        block_lines.append("-" * width)
-
-        total_days = 0
-        if groups:
-            for g in groups:
-                start_str = g["start"].strftime("%m/%d/%Y")
-                end_str = g["end"].strftime("%m/%d/%Y")
-                days = (g["end"] - g["start"]).days + 1
-                total_days += days
-                ship = g["ship"]
-                block_lines.append(f"{ship} : FROM {start_str} TO {end_str} ({days} DAYS)")
-        else:
-            block_lines.append("  NONE")
-
-        block_lines.append(f"TOTAL VALID DAYS: {total_days}")
-        block_lines.append("")
-        block_lines.append("-" * width)
-        block_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
-
-        # MITE + SBTT NORMALIZATION (SUMMARY ONLY)
-        if skipped_unknown:
-            for s in skipped_unknown:
-                raw_unknown = s["raw"].upper()
-                ship = match_ship(raw_unknown) or ""
-                clean = re.sub(r"[^A-Z ]", " ", raw_unknown)
-                clean = " ".join(clean.split())
-
-                if "ASTAC" in clean and "MITE" in clean:
-                    block_lines.append(f"  ASTAC MITE : {s['date']}")
-                elif "ASW" in clean and "MITE" in clean:
-                    block_lines.append(f"  ASW MITE : {s['date']}")
-                elif "SBTT" in clean:
-                    if ship:
-                        block_lines.append(f"  {ship} SBTT : {s['date']}")
-                    else:
-                        block_lines.append(f"  SBTT : {s['date']}")
-                else:
-                    block_lines.append(f"  {s['date']}  {s['raw']}")
-        else:
-            block_lines.append("  NONE")
-
-        block_lines.append("")
-        block_lines.append("-" * width)
-        block_lines.append("DUPLICATE DATE CONFLICTS")
-
-        if skipped_dupe:
-            for s in skipped_dupe:
-                block_lines.append(f"  {s['date']}  {s['ship']}")
-        else:
-            block_lines.append("  NONE")
-
-        block_lines.append("")
-        block_lines.append("")
-
-        # Append this sailor block to overall summary
-        summary_lines.extend(block_lines)
-
-        # Append to per-name report (accumulate if multiple PDFs for same sailor)
-        per_name_reports.setdefault(display_name, []).extend(block_lines)
-
-    log("======================================")
-    log("✅ GENERATION COMPLETE")
-    log("======================================")
-    log("=== STARTING AUTO-MERGE ===")
     merge_all_pdfs()
-    log("======================================")
-    log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
-    log("======================================")
-
-    # WRITE MASTER SUMMARY
-    if summary_lines:
-        master_filename = f"SeaPay_Summary_{run_timestamp}.txt"
-        master_path = os.path.join(OUTPUT_DIR, master_filename)
-        with open(master_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(summary_lines))
-        log(f"📝 MASTER SUMMARY FILE CREATED → {master_filename}")
-
-    # WRITE PER-NAME SUMMARY FILES
-    for display_name, lines in per_name_reports.items():
-        safe_name = re.sub(r"[^A-Z0-9]+", "_", display_name.upper()).strip("_")
-        per_name_filename = f"SeaPay_Summary_{run_timestamp}_{safe_name}.txt"
-        per_name_path = os.path.join(OUTPUT_DIR, per_name_filename)
-        with open(per_name_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-        log(f"📝 PER-NAME SUMMARY FILE CREATED → {per_name_filename}")
+    log("✅ ALL OPERATIONS COMPLETE")
 
 # ------------------------------------------------
-# FLASK APP (UNCHANGED ROUTES EXCEPT SUMMARY PICK LOGIC)
+# FLASK APP (UNCHANGED)
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -578,12 +495,16 @@ def index():
                 t = re.sub(r"\(.*?\)", "", text.upper())
                 t = re.sub(r"[^A-Z ]", "", t)
                 return " ".join(t.split())
-            full_norm = normalize_for_id(f"{first} {last}")
-            CSV_IDENTITIES.append((full_norm, rate, last, first))
+            CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
 
         process_all()
 
-    return render_template("index.html", logs="\n".join(LIVE_LOGS), template_path=TEMPLATE, rate_path=RATE_FILE)
+    return render_template(
+        "index.html",
+        logs="\n".join(LIVE_LOGS),
+        template_path=TEMPLATE,
+        rate_path=RATE_FILE,
+    )
 
 @app.route("/logs")
 def get_logs():
@@ -595,15 +516,18 @@ def download_all():
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
-    log("=== CREATING ZIP FILE ===")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for f in os.listdir(OUTPUT_DIR):
             full = os.path.join(OUTPUT_DIR, f)
             if os.path.isfile(full):
                 z.write(full, arcname=f)
-                log(f"ZIPPED → {f}")
 
-    return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True, download_name="SeaPay_Output.zip")
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Output.zip",
+    )
 
 @app.route("/download_merged")
 def download_merged():
@@ -611,41 +535,11 @@ def download_merged():
     latest = merged_files[-1]
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
-@app.route("/download_summary")
-def download_summary():
-    # Only treat files of pattern SeaPay_Summary_YYYYMMDD_HHMMSS.txt as master summaries
-    summary_files = [
-        f for f in os.listdir(OUTPUT_DIR)
-        if f.startswith("SeaPay_Summary_") and f.endswith(".txt")
-    ]
-
-    master_candidates = []
-    for fname in summary_files:
-        stem = os.path.splitext(fname)[0]  # SeaPay_Summary_YYYYMMDD_HHMMSS[_OPTIONAL]
-        parts = stem.split("_")
-        # Expect exactly: ["SeaPay", "Summary", "YYYYMMDD", "HHMMSS"]
-        if len(parts) == 4:
-            date_part = parts[2]
-            time_part = parts[3]
-            if len(date_part) == 8 and date_part.isdigit() and len(time_part) == 6 and time_part.isdigit():
-                master_candidates.append(fname)
-
-    if master_candidates:
-        latest = sorted(master_candidates)[-1]
-    else:
-        # Fallback to old behavior if pattern not found
-        fallback = sorted([f for f in summary_files if f.startswith("SeaPay_Summary_")])
-        if not fallback:
-            return "No summary file found", 404
-        latest = fallback[-1]
-
-    return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
-
 @app.route("/reset", methods=["POST"])
 def reset():
     deleted = cleanup_all_folders()
     clear_logs()
-    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted.", "files_deleted": deleted})
+    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
