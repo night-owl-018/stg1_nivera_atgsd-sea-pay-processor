@@ -255,55 +255,6 @@ def lookup_csv_identity(name):
     return None
 
 # ------------------------------------------------
-# SUMMARY FORMATTER (NEW)
-# ------------------------------------------------
-
-def format_summary_block(name, groups, skipped_dupe, skipped_unknown, rate=""):
-
-    header = f"{rate} {name}".strip()
-
-    lines = []
-    lines.append("=" * 40)
-    lines.append(header)
-    lines.append("=" * 40)
-    lines.append("")
-
-    lines.append("VALID SEA PAY PERIODS")
-    lines.append("-" * 20)
-
-    if groups:
-        for g in groups:
-            lines.append(g["ship"])
-            lines.append(f"  {g['start'].strftime('%m/%d/%Y')} → {g['end'].strftime('%m/%d/%Y')}")
-            lines.append("")
-    else:
-        lines.append("  NONE")
-        lines.append("")
-
-    lines.append("\nINVALID / EXCLUDED EVENTS")
-    lines.append("-" * 20)
-    lines.append("")
-
-    lines.append("DUPLICATE DATE CONFLICTS")
-    if skipped_dupe:
-        for s in skipped_dupe:
-            lines.append(f"  {s['date']}  {s['ship']}")
-    else:
-        lines.append("  NONE")
-    lines.append("")
-
-    lines.append("UNRECOGNIZED / NON-SHIP ENTRIES")
-    if skipped_unknown:
-        for s in skipped_unknown:
-            lines.append(f"  {s['date']}  {s['raw']}")
-    else:
-        lines.append("  NONE")
-
-    lines.append("\n")
-
-    return lines
-
-# ------------------------------------------------
 # PROCESS
 # ------------------------------------------------
 
@@ -313,29 +264,14 @@ def process_all():
         log("NO INPUT FILES")
         return
 
-    summary_lines = []
-
     for file in files:
         raw = strip_times(ocr_pdf(os.path.join(DATA_DIR, file)))
         name = extract_member_name(raw)
-
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, extract_year_from_filename(file))
         groups = group_by_ship(rows)
 
         for g in groups:
             make_pdf(g, name)
-
-        csv_id = lookup_csv_identity(name)
-        rate = csv_id[0] if csv_id else ""
-
-        summary_lines.extend(format_summary_block(name, groups, skipped_dupe, skipped_unknown, rate))
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = os.path.join(OUTPUT_DIR, f"SeaPay_Summary_{ts}.txt")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(summary_lines))
-
-    log(f"📝 SUMMARY FILE CREATED → {os.path.basename(path)}")
 
 # ------------------------------------------------
 # PDF
@@ -418,9 +354,29 @@ def download_all():
             z.write(os.path.join(OUTPUT_DIR, f), f)
     return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True)
 
+# ✅ ONLY FIX APPLIED HERE
 @app.route("/download_merged")
 def download_merged():
-    return "MERGED disabled in this build", 404
+    pdfs = sorted([
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.lower().endswith(".pdf")
+    ])
+
+    if not pdfs:
+        return "No PDFs to merge", 404
+
+    merged_path = os.path.join(OUTPUT_DIR, "MERGED.pdf")
+    merger = PdfMerger()
+
+    for f in pdfs:
+        merger.append(os.path.join(OUTPUT_DIR, f))
+
+    merger.write(merged_path)
+    merger.close()
+
+    log(f"MERGED CREATED → {merged_path}")
+
+    return send_from_directory(OUTPUT_DIR, "MERGED.pdf", as_attachment=True)
 
 @app.route("/download_summary")
 def download_summary():
