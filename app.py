@@ -347,64 +347,7 @@ def make_pdf(group, name):
     base = template.pages[0]
     base.merge_page(overlay.pages[0])
 
-writer = PdfWriter()
-writer.add_page(base)
-
-    # Write overlay+template combined PDF
-    with open(outpath, "wb") as f:
-        writer.write(f)
-
-    # -------- FLATTEN OUTPUT PDF (SAFE) --------
-    try:
-        flattened_path = outpath + ".flat"
-
-        reader = PdfReader(outpath)
-        flat_writer = PdfWriter()
-
-        for page in reader.pages:
-            flat_writer.add_page(page)
-
-        # Remove form metadata if it exists
-        if "/AcroForm" in flat_writer._root_object:
-            del flat_writer._root_object["/AcroForm"]
-
-        with open(flattened_path, "wb") as f:
-            flat_writer.write(f)
-
-        os.replace(flattened_path, outpath)
-        log(f"FLATTENED → {filename}")
-
-    except Exception as e:
-        log(f"⚠️ FLATTEN FAILED (using original) → {e}")
-
-    log(f"CREATED → {filename}")
-
-
-# -------- FLATTEN OUTPUT PDF (SAFE) --------
-try:
-    flattened_path = outpath + ".flat"
-
-    reader = PdfReader(outpath)
-    flat_writer = PdfWriter()
-
-    for page in reader.pages:
-        flat_writer.add_page(page)
-
-    # Remove form metadata if it exists
-    if "/AcroForm" in flat_writer._root_object:
-        del flat_writer._root_object["/AcroForm"]
-
-    with open(flattened_path, "wb") as f:
-        flat_writer.write(f)
-
-    os.replace(flattened_path, outpath)
-    log(f"FLATTENED → {filename}")
-
-except Exception as e:
-    log(f"⚠️ FLATTEN FAILED (using original) → {e}")
-
 log(f"CREATED → {filename}")
-
 
 # ------------------------------------------------
 # MERGE ALL PDFs WITH BOOKMARKS (UNCHANGED)
