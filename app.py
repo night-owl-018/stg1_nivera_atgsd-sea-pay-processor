@@ -261,6 +261,36 @@ def group_by_ship(rows):
     return output
 
 # ------------------------------------------------
+# CSV AUTHORITY RESOLUTION
+# ------------------------------------------------
+
+def lookup_csv_identity(name):
+    ocr_norm = normalize(name)
+    best = None
+    best_score = 0.0
+
+    for csv_norm, rate, last, first in CSV_IDENTITIES:
+        score = SequenceMatcher(None, ocr_norm, csv_norm).ratio()
+        if score > best_score:
+            best_score = score
+            best = (rate, last, first)
+
+    if best and best_score >= 0.60:
+        rate, last, first = best
+        log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
+        return best
+
+    log(f"CSV NO GOOD MATCH (best={best_score:.2f}) for [{name}]")
+    return None
+
+def get_rate(name):
+    parts = normalize(name).split()
+    if len(parts) < 2:
+        return ""
+    key = f"{parts[-1]},{parts[0]}"
+    return RATES.get(key, "")
+
+# ------------------------------------------------
 # PDF CREATION (UNCHANGED)
 # ------------------------------------------------
 
