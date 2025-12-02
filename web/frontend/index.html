@@ -2,57 +2,209 @@
 <html>
 <head>
 <title>ATGSD Sea Pay Processor</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
 <style>
-body { background:#000; color:#0f0; font-family:monospace }
-label { display:block; margin-top:12px }
-button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
-pre { background:#000; padding:10px; overflow:auto; border:1px solid #0f0 }
-#logBox { height: calc(100vh - 180px); }
-.main-container { display:flex; align-items:flex-start; gap:16px; }
-.left-panel { flex:1; min-width:0; }
-.right-panel { flex:1; min-width:0; }
-.small { font-size:12px; color:#6f6 }
-.buttons { margin-top:10px }
-.reset-btn { background:#330000; border-color:#ff4444; color:#ff6666; }
+body {
+    margin: 0;
+    font-family: Inter, Segoe UI, sans-serif;
+    background-color: #0e1117;
+    color: #c9d1d9;
+}
+
+header {
+    background: #161b22;
+    padding: 16px;
+    border-bottom: 1px solid #30363d;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 20px;
+    color: #2f81f7;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 10px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.card {
+    background: #161b22;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #30363d;
+}
+
+.card h3 {
+    margin-top: 0;
+    font-size: 14px;
+    color: #8b949e;
+}
+
+input[type="file"] {
+    width: 100%;
+    padding: 14px;
+    border-radius: 6px;
+    background: #0e1117;
+    border: 1px dashed #30363d;
+    color: #c9d1d9;
+}
+
+input[type="file"]::file-selector-button {
+    background: #21262d;
+    color: #c9d1d9;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+input[type="file"]:hover {
+    border-color: #2f81f7;
+}
+
+.paths {
+    font-size: 12px;
+    color: #8b949e;
+    margin-top: 6px;
+}
+
+.toolbar {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+button {
+    padding: 12px 14px;
+    background: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover {
+    border-color: #2f81f7;
+}
+
+button.primary {
+    background: #2f81f7;
+    color: #fff;
+    border: none;
+}
+
+button.danger {
+    background: #da3633;
+    color: #fff;
+}
+
+.status {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #8b949e;
+}
+
+.logs-card {
+    margin-top: 18px;
+    background: #161b22;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #30363d;
+}
+
+.logs-card h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #8b949e;
+}
+
+#logBox {
+    height: 350px;
+    overflow-y: auto;
+    background: #0e1117;
+    border: 1px solid #30363d;
+    padding: 12px;
+    font-size: 12px;
+    font-family: Consolas, monospace;
+    white-space: pre-wrap;
+}
+
+footer {
+    text-align: center;
+    font-size: 12px;
+    color: #8b949e;
+    margin-top: 25px;
+}
 </style>
 </head>
 
 <body>
-<div class="main-container">
 
-  <div class="left-panel">
-    <h2>ATGSD Sea Pay Processor</h2>
+<header>
+    <h1>ATG SAN DIEGO | SEA PAY PROCESSOR</h1>
+</header>
 
-    <form id="uploadForm">
-      <label>INPUT SEA DUTY CERTIFICATION SHEET FROM TORIS</label>
-      <input type="file" name="files" multiple>
+<div class="container">
 
-      <label>NAVPERS_1070_613_TEMPLATE</label>
-      <input type="file" name="template_file">
-      <div class="small">Current: {{ template_path }}</div>
+<form id="uploadForm" enctype="multipart/form-data">
 
-      <label>N811 PERSONNEL ROSTER</label>
-      <input type="file" name="rate_file">
-      <div class="small">Current: {{ rate_path }}</div>
+<div class="grid">
 
-      <br><br>
-      <button type="submit" id="submitBtn">RUN PROCESSOR</button>
-    </form>
-
-    <hr>
-
-    <div class="download-section">
-      <button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
-      <button onclick="downloadSummary()">📝 DOWNLOAD SUMMARY TXT</button>
-      <button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
-      <button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES & LOGS</button>
+    <div class="card">
+        <h3>SEA DUTY CERTIFICATION SHEETS (TORIS)</h3>
+        <input type="file" name="files" multiple>
     </div>
-  </div>
 
-  <div class="right-panel">
-    <h3>LIVE LOG CONSOLE</h3>
-    <pre id="logBox">{{ logs }}</pre>
-  </div>
+    <div class="card">
+        <h3>NAVPERS 1070/613 TEMPLATE</h3>
+        <input type="file" name="template_file">
+        <div class="paths">Current: {{ template_path }}</div>
+    </div>
+
+    <div class="card">
+        <h3>N811 PERSONNEL ROSTER (CSV)</h3>
+        <input type="file" name="rate_file">
+        <div class="paths">Current: {{ rate_path }}</div>
+    </div>
+
+    <div class="card">
+        <h3>PROCESS CONTROL</h3>
+
+        <div class="toolbar">
+            <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
+            <button type="button" onclick="downloadMerged()">MERGED PDF</button>
+            <button type="button" onclick="downloadSummary()">SUMMARY TXT</button>
+            <button type="button" onclick="downloadAll()">DOWNLOAD ZIP</button>
+            <button type="button" onclick="resetAll()" class="danger">RESET</button>
+        </div>
+
+        <div class="status" id="statusText">STATUS: READY</div>
+    </div>
+
+</div>
+
+</form>
+
+<div class="logs-card">
+    <h3>LIVE OPERATION LOG</h3>
+    <div id="logBox">{{ logs }}</div>
+</div>
+
+<footer>
+    Tactical Admin Console | Designed for ATGSD Operations
+</footer>
 
 </div>
 
@@ -62,14 +214,13 @@ let autoScroll = true;
 let lastText = "";
 
 const logBox = document.getElementById("logBox");
+const statusText = document.getElementById("statusText");
 
-// Detect when user scrolls away from bottom
 logBox.addEventListener("scroll", function () {
     const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 30;
     autoScroll = atBottom;
 });
 
-// Start polling immediately
 pollLogs();
 
 function pollLogs() {
@@ -80,7 +231,6 @@ function pollLogs() {
         .then(r => r.text())
         .then(txt => {
 
-            // Do nothing if log hasn't changed (prevents scroll reset)
             if (txt === lastText) {
                 isPolling = false;
                 setTimeout(pollLogs, 1000);
@@ -104,14 +254,13 @@ function pollLogs() {
             setTimeout(pollLogs, 1000);
         })
         .catch(err => {
-            console.error("Log poll failed:", err);
+            console.error("Log polling failed", err);
             isPolling = false;
             setTimeout(pollLogs, 2000);
         });
 }
 
 
-// Handle form submission safely
 document.getElementById("uploadForm").addEventListener("submit", function(e) {
     e.preventDefault();
 
@@ -120,6 +269,7 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
 
     submitBtn.disabled = true;
     submitBtn.innerText = "PROCESSING...";
+    statusText.innerText = "STATUS: PROCESSING...";
 
     fetch("/", {
         method: "POST",
@@ -128,9 +278,11 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
     .then(() => {
         submitBtn.disabled = false;
         submitBtn.innerText = "RUN PROCESSOR";
+        statusText.innerText = "STATUS: COMPLETE";
     })
     .catch(err => {
         console.error("Upload failed:", err);
+        statusText.innerText = "STATUS: ERROR";
         submitBtn.disabled = false;
         submitBtn.innerText = "RUN PROCESSOR";
     });
@@ -154,10 +306,13 @@ function resetAll() {
 
     fetch("/reset", { method: "POST" })
         .then(resp => resp.json())
-        .then(data => alert(data.message || "Reset complete"))
+        .then(data => {
+            alert(data.message || "Reset complete")
+            statusText.innerText = "STATUS: READY";
+        })
         .catch(err => {
             console.error("Reset failed:", err);
-            alert("Reset failed - see logs for details.");
+            alert("Reset failed");
         });
 }
 </script>
