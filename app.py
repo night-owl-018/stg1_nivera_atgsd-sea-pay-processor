@@ -1,478 +1,154 @@
-import os
-import re
-import io
-import csv
-import zipfile
-import tempfile
-from collections import deque
-from datetime import datetime, timedelta
-from difflib import get_close_matches, SequenceMatcher
-
-from flask import Flask, render_template, request, send_from_directory, jsonify
-from PyPDF2 import PdfReader, PdfWriter, PdfMerger
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-
-import pytesseract
-from pdf2image import convert_from_path
-
-DATA_DIR = "/data"
-OUTPUT_DIR = "/output"
-TEMPLATE_DIR = "/templates"
-CONFIG_DIR = "/config"
-
-TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
-RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
-SHIP_FILE = "/app/ships.txt"
-
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(TEMPLATE_DIR, exist_ok=True)
-os.makedirs(CONFIG_DIR, exist_ok=True)
-
-pytesseract.pytesseract.tesseract_cmd = "tesseract"
-FONT_NAME = "Times-Roman"
-FONT_SIZE = 10
-
-LIVE_LOGS = deque(maxlen=500)
-
-def log(msg: str) -> None:
-    ts = datetime.now().strftime("%H:%M:%S")
-    line = f"[{ts}] {msg}"
-    print(line, flush=True)
-    LIVE_LOGS.append(line)
-
-def clear_logs():
-    LIVE_LOGS.clear()
-    print("Logs cleared", flush=True)
-
-def cleanup_folder(folder_path, folder_name):
-    try:
-        files_deleted = 0
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-                files_deleted += 1
-
-        if files_deleted > 0:
-            log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
-        return files_deleted
-    except Exception as e:
-        log(f"❌ CLEANUP ERROR in {folder_name}: {e}")
-        return 0
-
-def cleanup_all_folders():
-    log("=== STARTING RESET/CLEANUP ===")
-    total = 0
-    total += cleanup_folder(DATA_DIR, "INPUT/DATA")
-    total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
-    log(f"✅ RESET COMPLETE: {total} total files deleted")
-    log(f"🗑️ CLEARING ALL LOGS...")
-    log("=" * 50)
-    return total
-
-def _clean_header(h):
-    return h.lstrip("\ufeff").strip().strip('"').lower() if h else ""
-
-def load_rates():
-    rates = {}
-    if not os.path.exists(RATE_FILE):
-        log("RATE FILE MISSING")
-        return rates
-
-    with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        reader.fieldnames = [_clean_header(h) for h in reader.fieldnames]
-
-        for row in reader:
-            last = (row.get("last") or "").upper().strip()
-            first = (row.get("first") or "").upper().strip()
-            rate = (row.get("rate") or "").upper().strip()
-            if last and rate:
-                rates[f"{last},{first}"] = rate
-
-    log(f"RATES LOADED: {len(rates)}")
-    return rates
-
-RATES = load_rates()
-
-CSV_IDENTITIES = []
-for key, rate in RATES.items():
-    last, first = key.split(",", 1)
-
-    def normalize_for_id(text):
-        t = re.sub(r"\(.*?\)", "", text.upper())
-        t = re.sub(r"[^A-Z ]", "", t)
-        return " ".join(t.split())
-
-    full_norm = normalize_for_id(f"{first} {last}")
-    CSV_IDENTITIES.append((full_norm, rate, last, first))
-
-with open(SHIP_FILE, "r", encoding="utf-8") as f:
-    SHIP_LIST = [line.strip() for line in f if line.strip()]
-
-def normalize(text):
-    text = re.sub(r"\(.*?\)", "", text.upper())
-    text = re.sub(r"[^A-Z ]", "", text)
-    return " ".join(text.split())
-
-NORMALIZED_SHIPS = {normalize(s): s.upper() for s in SHIP_LIST}
-NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
-
-def strip_times(text):
-    return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
-
-def ocr_pdf(path):
-    images = convert_from_path(path)
-    output = ""
-    for img in images:
-        output += pytesseract.image_to_string(img)
-    return output.upper()
-
-def extract_member_name(text):
-    m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
-    if not m:
-        raise RuntimeError("NAME NOT FOUND")
-    return " ".join(m.group(1).split())
-
-def match_ship(raw_text):
-    candidate = normalize(raw_text)
-    words = candidate.split()
-    for size in range(len(words), 0, -1):
-        for i in range(len(words) - size + 1):
-            chunk = " ".join(words[i:i + size])
-            match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
-            if match:
-                return NORMALIZED_SHIPS[match[0]]
-    return None
-
-def extract_year_from_filename(fn):
-    m = re.search(r"(20\d{2})", fn)
-    return m.group(1) if m else str(datetime.now().year)
-
-def parse_rows(text, year):
-    rows = []
-    seen_dates = set()
-    skipped_duplicates = []
-    skipped_unknown = []
-
-    lines = text.splitlines()
-
-    for i, line in enumerate(lines):
-        m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
-        if not m:
-            continue
-
-        mm, dd, yy = m.groups()
-        y = ("20" + yy) if yy and len(yy) == 2 else yy or year
-        date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
-
-        raw = line[m.end():]
-        if i + 1 < len(lines):
-            raw += " " + lines[i + 1]
-
-        cleaned_raw = raw.strip()
-        upper_raw = cleaned_raw.upper()
-
-        if "SBTT" in upper_raw:
-            skipped_unknown.append({"date": date, "raw": "SBTT"})
-            log(f"⚠️ SBTT EVENT, SKIPPING → {date}")
-            continue
-
-        ship = match_ship(raw)
-
-        if not ship:
-            skipped_unknown.append({"date": date, "raw": cleaned_raw})
-            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
-            continue
-
-        if date in seen_dates:
-            skipped_duplicates.append({"date": date, "ship": ship})
-            log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship})")
-            continue
-
-        rows.append({"date": date, "ship": ship})
-        seen_dates.add(date)
-
-    return rows, skipped_duplicates, skipped_unknown
-
-def group_by_ship(rows):
-    grouped = {}
-    for r in rows:
-        dt = datetime.strptime(r["date"], "%m/%d/%Y")
-        grouped.setdefault(r["ship"], []).append(dt)
-
-    output = []
-    for ship, dates in grouped.items():
-        dates = sorted(set(dates))
-        start = prev = dates[0]
-
-        for d in dates[1:]:
-            if d == prev + timedelta(days=1):
-                prev = d
-            else:
-                output.append({"ship": ship, "start": start, "end": prev})
-                start = prev = d
-
-        output.append({"ship": ship, "start": start, "end": prev})
-
-    return output
-
-def lookup_csv_identity(name):
-    ocr_norm = normalize(name)
-    best = None
-    best_score = 0.0
-
-    for csv_norm, rate, last, first in CSV_IDENTITIES:
-        score = SequenceMatcher(None, ocr_norm, csv_norm).ratio()
-        if score > best_score:
-            best_score = score
-            best = (rate, last, first)
-
-    if best and best_score >= 0.60:
-        rate, last, first = best
-        log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
-        return best
-
-    log(f"CSV NO GOOD MATCH (best={best_score:.2f}) for [{name}]")
-    return None
-
-def get_rate(name):
-    parts = normalize(name).split()
-    if len(parts) < 2:
-        return ""
-    key = f"{parts[-1]},{parts[0]}"
-    return RATES.get(key, "")
-
-# ------------------- ONLY CHANGE BELOW -------------------
-
-def flatten_pdf(path):
-    """
-    HARD FLATTEN — HIGH QUALITY PRINT VERSION
-    """
-    try:
-        images = convert_from_path(path, dpi=300, fmt="png")
-        tmp = path + ".flat"
-        c = canvas.Canvas(tmp, pagesize=letter)
-
-        for img in images:
-            img_path = path + ".tmp.png"
-            img.save(img_path, "PNG")
-
-            c.drawImage(
-                img_path,
-                0,
-                0,
-                width=letter[0],
-                height=letter[1],
-                preserveAspectRatio=True,
-                anchor="c",
-                mask="auto"
-            )
-
-            c.showPage()
-            os.remove(img_path)
-
-        c.save()
-        os.replace(tmp, path)
-        log(f"FLATTENED → {os.path.basename(path)}")
-
-    except Exception as e:
-        log(f"⚠️ FLATTEN FAILED → {e}")
-
-# ------------------- NO OTHER CHANGES -------------------
-
-def make_pdf(group, name):
-    csv_id = lookup_csv_identity(name)
-    if csv_id:
-        rate, last, first = csv_id
-    else:
-        parts = name.split()
-        last = parts[-1]
-        first = " ".join(parts[:-1])
-        rate = get_rate(name)
-
-    start = group["start"].strftime("%m/%d/%Y")
-    end = group["end"].strftime("%m/%d/%Y")
-    ship = group["ship"]
-
-    prefix = f"{rate}_" if rate else ""
-    filename = f"{prefix}{last}_{first}_{ship}_{start.replace('/','-')}_TO_{end.replace('/','-')}.pdf"
-    filename = filename.replace(" ", "_")
-
-    outpath = os.path.join(OUTPUT_DIR, filename)
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    c.setFont(FONT_NAME, FONT_SIZE)
-
-    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
-    c.drawString(373, 671, "X")
-    c.setFont(FONT_NAME, 8)
-    c.drawString(39, 650, "ENTITLEMENT")
-    c.drawString(345, 641, "OPNAVINST 7220.14")
-
-    c.setFont(FONT_NAME, FONT_SIZE)
-    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
-    c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
-    c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
-
-    c.drawString(356.26, 499.5, "_________________________")
-    c.drawString(363.8, 487.5, "Certifying Official & Date")
-    c.drawString(356.26, 427.5, "_________________________")
-    c.drawString(384.1, 415.2, "FI MI Last Name")
-
-    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
-    c.drawString(503.5, 40, "USN AD")
-
-    c.save()
-    buf.seek(0)
-
-    overlay = PdfReader(buf)
-    template = PdfReader(TEMPLATE)
-    base = template.pages[0]
-    base.merge_page(overlay.pages[0])
-
-    writer = PdfWriter()
-    writer.add_page(base)
-
-    with open(outpath, "wb") as f:
-        writer.write(f)
-
-    flatten_pdf(outpath)
-    log(f"CREATED → {filename}")
-
-def merge_all_pdfs():
-    pdf_files = sorted([
-        f for f in os.listdir(OUTPUT_DIR)
-        if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
-    ])
-
-    if not pdf_files:
-        log("NO PDFs TO MERGE")
-        return None
-
-    log(f"MERGING {len(pdf_files)} PDFs...")
-    merger = PdfMerger()
-
-    for pdf_file in pdf_files:
-        pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
-        bookmark_name = os.path.splitext(pdf_file)[0]
-        merger.append(pdf_path, outline_item=bookmark_name)
-        log(f"ADDED WITH BOOKMARK → {bookmark_name}")
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
-    merged_path = os.path.join(OUTPUT_DIR, merged_filename)
-
-    try:
-        merger.write(merged_path)
-        merger.close()
-
-        flatten_pdf(merged_path)
-
-        log(f"✅ MERGED PDF CREATED → {merged_filename}")
-        log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
-        return merged_filename
-    except Exception as e:
-        log(f"❌ MERGE FAILED: {e}")
-        return None
-
-def process_all():
-    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
-
-    if not files:
-        log("NO INPUT FILES")
-        return
-
-    log("=== PROCESS STARTED ===")
-
-    for file in files:
-        log(f"OCR → {file}")
-        path = os.path.join(DATA_DIR, file)
-        raw = strip_times(ocr_pdf(path))
-
-        try:
-            name = extract_member_name(raw)
-            log(f"NAME → {name}")
-        except Exception as e:
-            log(f"NAME ERROR → {e}")
-            continue
-
-        year = extract_year_from_filename(file)
-        rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
-        groups = group_by_ship(rows)
-
-        for g in groups:
-            make_pdf(g, name)
-
-    merge_all_pdfs()
-    log("✅ ALL OPERATIONS COMPLETE")
-
-app = Flask(__name__, template_folder="web/frontend")
-
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        for f in request.files.getlist("files"):
-            if f.filename:
-                f.save(os.path.join(DATA_DIR, f.filename))
-
-        tpl = request.files.get("template_file")
-        if tpl and tpl.filename:
-            tpl.save(TEMPLATE)
-
-        csvf = request.files.get("rate_file")
-        if csvf and csvf.filename:
-            csvf.save(RATE_FILE)
-
-        global RATES, CSV_IDENTITIES
-        RATES = load_rates()
-        CSV_IDENTITIES.clear()
-        for key, rate in RATES.items():
-            last, first = key.split(",", 1)
-            def normalize_for_id(text):
-                t = re.sub(r"\(.*?\)", "", text.upper())
-                t = re.sub(r"[^A-Z ]", "", t)
-                return " ".join(t.split())
-            CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
-
-        process_all()
-
-    return render_template("index.html", logs="\n".join(LIVE_LOGS),
-                           template_path=TEMPLATE, rate_path=RATE_FILE)
-
-@app.route("/logs")
-def get_logs():
-    return "\n".join(LIVE_LOGS)
-
-@app.route("/download_all")
-def download_all():
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in os.listdir(OUTPUT_DIR):
-            full = os.path.join(OUTPUT_DIR, f)
-            if os.path.isfile(full):
-                z.write(full, arcname=f)
-
-    return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path),
-                               as_attachment=True, download_name="SeaPay_Output.zip")
-
-@app.route("/download_merged")
-def download_merged():
-    merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("MERGED_SeaPay_Forms_")])
-    latest = merged_files[-1]
-    return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
-
-@app.route("/reset", methods=["POST"])
-def reset():
-    deleted = cleanup_all_folders()
-    clear_logs()
-    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+here is my index.html code that still not fix on that logs: make the patch to make it work.
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+<style>
+body { background:#000; color:#0f0; font-family:monospace }
+label { display:block; margin-top:12px }
+button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
+pre { background:#000; padding:10px; overflow:auto; border:1px solid #0f0 }
+#logBox { height: calc(100vh - 180px); }
+.main-container { display:flex; align-items:flex-start; gap:16px; }
+.left-panel { flex:1; min-width:0; }
+.right-panel { flex:1; min-width:0; }
+.small { font-size:12px; color:#6f6 }
+.buttons { margin-top:10px }
+.reset-btn { background:#330000; border-color:#ff4444; color:#ff6666; }
+</style>
+</head>
+
+<body>
+<div class="main-container">
+
+  <div class="left-panel">
+    <h2>ATGSD Sea Pay Processor</h2>
+
+    <form id="uploadForm">
+      <label>INPUT SEA DUTY CERTIFICATION SHEET FROM TORIS</label>
+      <input type="file" name="files" multiple>
+
+      <label>NAVPERS_1070_613_TEMPLATE</label>
+      <input type="file" name="template_file">
+      <div class="small">Current: {{ template_path }}</div>
+
+      <label>N811 PERSONNEL ROSTER</label>
+      <input type="file" name="rate_file">
+      <div class="small">Current: {{ rate_path }}</div>
+
+      <br><br>
+      <button type="submit" id="submitBtn">RUN PROCESSOR</button>
+    </form>
+
+    <hr>
+
+    <div class="download-section">
+      <button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
+      <button onclick="downloadSummary()">📝 DOWNLOAD SUMMARY TXT</button>
+      <button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
+      <button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES & LOGS</button>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <h3>LIVE LOG CONSOLE</h3>
+    <pre id="logBox">{{ logs }}</pre>
+  </div>
+
+</div>
+
+<script>
+let isPolling = false;
+let autoScroll = true;
+const logBox = document.getElementById("logBox");
+
+// Detect when user scrolls manually
+logBox.addEventListener("scroll", function () {
+    const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+    autoScroll = atBottom;
+});
+
+// Start polling immediately when page loads
+pollLogs();
+
+function pollLogs() {
+    if (isPolling) return;
+    isPolling = true;
+    
+    fetch("/logs")
+        .then(r => r.text())
+        .then(txt => {
+            logBox.innerText = txt;
+
+            // Only auto-scroll if user is already near bottom
+            if (autoScroll) {
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+            
+            isPolling = false;
+            setTimeout(pollLogs, 1000);
+        })
+        .catch(err => {
+            console.error("Log poll failed:", err);
+            isPolling = false;
+            setTimeout(pollLogs, 2000);
+        });
+}
+
+// Handle form submission without page reload
+document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = document.getElementById("submitBtn");
+    
+    submitBtn.disabled = true;
+    submitBtn.innerText = "PROCESSING...";
+    
+    fetch("/", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "RUN PROCESSOR";
+    })
+    .catch(err => {
+        console.error("Upload failed:", err);
+        submitBtn.disabled = false;
+        submitBtn.innerText = "RUN PROCESSOR";
+    });
+});
+
+function downloadMerged() {
+    window.location.href = "/download_merged";
+}
+
+function downloadSummary() {
+    window.location.href = "/download_summary";
+}
+
+function downloadAll() {
+    window.location.href = "/download_all";
+}
+
+function resetAll() {
+    if (!confirm("Are you sure you want to delete ALL input, output files, and logs?")) {
+        return;
+    }
+
+    fetch("/reset", { method: "POST" })
+        .then(resp => resp.json())
+        .then(data => {
+            alert(data.message || "Reset complete!");
+        })
+        .catch(err => {
+            console.error("Reset failed:", err);
+            alert("Reset failed - see logs for details.");
+        });
+}
+</script>
+
+</body>
+</html>
