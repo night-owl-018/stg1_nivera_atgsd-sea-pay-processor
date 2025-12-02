@@ -206,8 +206,18 @@ def parse_rows(text, year):
         if i + 1 < len(lines):
             raw += " " + lines[i + 1]
 
-        ship = match_ship(raw)
         cleaned_raw = raw.strip()
+        upper_raw = cleaned_raw.upper()
+
+        # SBTT ALWAYS SKIPPED FROM VALID ROWS, BUT TRACKED FOR SUMMARY
+        if "SBTT" in upper_raw:
+            sbtt_ship = match_ship(raw) or ""
+            label = f"{sbtt_ship} SBTT".strip() if sbtt_ship else "SBTT"
+            skipped_unknown.append({"date": date, "raw": label})
+            log(f"⚠️ SBTT EVENT, SKIPPING → {date} [{label}]")
+            continue
+
+        ship = match_ship(raw)
 
         if not ship:
             skipped_unknown.append({"date": date, "raw": cleaned_raw})
@@ -469,11 +479,12 @@ def process_all():
                 ship = match_ship(raw) or ""
                 clean = re.sub(r"[^A-Z ]", " ", raw)
                 clean = " ".join(clean.split())
+
                 if "ASTAC" in clean and "MITE" in clean:
                     summary_lines.append(f"  ASTAC MITE : {s['date']}")
                 elif "ASW" in clean and "MITE" in clean:
                     summary_lines.append(f"  ASW MITE : {s['date']}")
-                elif "SBTT" in raw:
+                elif "SBTT" in clean:
                     if ship:
                         summary_lines.append(f"  {ship} SBTT : {s['date']}")
                     else:
