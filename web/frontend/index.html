@@ -50,22 +50,30 @@ header h1 {
     color: #8b949e;
 }
 
+/* FILE INPUT FIX */
 input[type="file"] {
     width: 100%;
-    padding: 14px;
-    border-radius: 6px;
-    background: #0e1117;
+    padding: 10px;
+    border-radius: 8px;
+    background: transparent;
     border: 1px dashed #30363d;
     color: #c9d1d9;
+    cursor: pointer;
 }
 
 input[type="file"]::file-selector-button {
-    background: #21262d;
-    color: #c9d1d9;
+    background: #1f6feb;
+    color: #ffffff;
     border: none;
-    padding: 8px 12px;
+    padding: 8px 14px;
+    margin-right: 10px;
     border-radius: 6px;
     cursor: pointer;
+    font-weight: 600;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: #2f81f7;
 }
 
 input[type="file"]:hover {
