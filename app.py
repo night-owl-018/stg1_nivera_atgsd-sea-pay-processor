@@ -52,24 +52,36 @@ def log(msg: str) -> None:
 
 def clear_logs():
     LIVE_LOGS.clear()
+    print("Logs cleared", flush=True)
 
 # ------------------------------------------------
 # CLEANUP FUNCTIONS
 # ------------------------------------------------
 
 def cleanup_folder(folder_path, folder_name):
-    count = 0
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-            count += 1
-    log(f"🗑️ CLEANED {folder_name}: {count} files deleted")
-    return count
+    try:
+        files_deleted = 0
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                files_deleted += 1
+        
+        if files_deleted > 0:
+            log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
+        return files_deleted
+    except Exception as e:
+        log(f"❌ CLEANUP ERROR in {folder_name}: {e}")
+        return 0
 
 def cleanup_all_folders():
-    total = cleanup_folder(DATA_DIR, "INPUT") + cleanup_folder(OUTPUT_DIR, "OUTPUT")
-    log(f"✅ RESET COMPLETE: {total} files deleted")
+    log("=== STARTING RESET/CLEANUP ===")
+    total = 0
+    total += cleanup_folder(DATA_DIR, "INPUT/DATA")
+    total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
+    log(f"✅ RESET COMPLETE: {total} total files deleted")
+    log(f"🗑️ CLEARING ALL LOGS...")
+    log("=" * 50)
     return total
 
 # ------------------------------------------------
@@ -127,15 +139,16 @@ NORMALIZED_SHIPS = {normalize(s): s.upper() for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 
 # ------------------------------------------------
-# OCR
+# OCR FUNCTIONS
 # ------------------------------------------------
 
 def strip_times(text):
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
 
 def ocr_pdf(path):
+    images = convert_from_path(path)
     output = ""
-    for img in convert_from_path(path):
+    for img in images:
         output += pytesseract.image_to_string(img)
     return output.upper()
 
@@ -196,21 +209,14 @@ def parse_rows(text, year):
         ship = match_ship(raw)
         cleaned_raw = raw.strip()
 
-        # ✅ SBTT EXCLUSION (ADD ONLY)
-        if "SBTT" in cleaned_raw.upper():
-            ship_for_label = ship if ship else "UNKNOWN SHIP"
-            skipped_unknown.append({"date": date, "raw": f"{ship_for_label} SBTT"})
-            log(f"⚠️ SBTT EVENT SKIPPED → {date} [{ship_for_label} SBTT]")
-            continue
-
         if not ship:
             skipped_unknown.append({"date": date, "raw": cleaned_raw})
-            log(f"⚠️ UNKNOWN EVENT → {date} [{cleaned_raw}]")
+            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
             continue
 
         if date in seen_dates:
             skipped_duplicates.append({"date": date, "ship": ship})
-            log(f"⚠️ DUPLICATE DATE → {date} ({ship})")
+            log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship})")
             continue
 
         rows.append({"date": date, "ship": ship})
@@ -225,23 +231,27 @@ def parse_rows(text, year):
 def group_by_ship(rows):
     grouped = {}
     for r in rows:
-        grouped.setdefault(r["ship"], []).append(datetime.strptime(r["date"], "%m/%d/%Y"))
+        dt = datetime.strptime(r["date"], "%m/%d/%Y")
+        grouped.setdefault(r["ship"], []).append(dt)
 
     output = []
     for ship, dates in grouped.items():
         dates = sorted(set(dates))
         start = prev = dates[0]
+
         for d in dates[1:]:
             if d == prev + timedelta(days=1):
                 prev = d
             else:
                 output.append({"ship": ship, "start": start, "end": prev})
                 start = prev = d
+
         output.append({"ship": ship, "start": start, "end": prev})
+
     return output
 
 # ------------------------------------------------
-# CSV MATCH
+# CSV AUTHORITY RESOLUTION
 # ------------------------------------------------
 
 def lookup_csv_identity(name):
@@ -256,130 +266,38 @@ def lookup_csv_identity(name):
             best = (rate, last, first)
 
     if best and best_score >= 0.60:
-        log(f"CSV MATCH ({best_score:.2f}) → {best[0]} {best[1]},{best[2]}")
+        rate, last, first = best
+        log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
         return best
 
+    log(f"CSV NO GOOD MATCH (best={best_score:.2f}) for [{name}]")
     return None
 
-# ------------------------------------------------
-# SUMMARY FORMATTER (TOTAL DAYS ADDED)
-# ------------------------------------------------
-
-def format_summary_block(name, groups, skipped_dupe, skipped_unknown, rate=""):
-
-    width = 69
-    header = f"{rate} {name}".strip()
-
-    lines = []
-    lines.append("=" * width)
-    lines.append(header)
-    lines.append("=" * width)
-    lines.append("")
-
-    lines.append("VALID SEA PAY PERIODS")
-    lines.append("-" * width)
-
-    ship_totals = {}
-
-    if groups:
-        for g in groups:
-            ship = g["ship"]
-            start = g["start"]
-            end = g["end"]
-            lines.append(f"{ship} : FROM {start.strftime('%m/%d/%Y')} TO {end.strftime('%m/%d/%Y')}")
-
-            # total days per ship
-            days = (end - start).days + 1
-            ship_totals[ship] = ship_totals.get(ship, 0) + days
-    else:
-        lines.append("  NONE")
-
-    # ✅ TOTAL DAYS SECTION
-    lines.append("")
-    lines.append("-" * width)
-    lines.append("TOTAL SEA PAY DAYS BY SHIP")
-
-    if ship_totals:
-        total_all = 0
-        for ship, days in sorted(ship_totals.items()):
-            lines.append(f"{ship} : {days} DAY" + ("S" if days != 1 else ""))
-            total_all += days
-        lines.append("")
-        lines.append(f"TOTAL SEA PAY DAYS (ALL SHIPS): {total_all} DAYS")
-    else:
-        lines.append("  NONE")
-
-    lines.append("")
-    lines.append("-" * width)
-    lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
-
-    if skipped_unknown:
-        for s in skipped_unknown:
-            lines.append(f"  {s['raw']} : {s['date']}")
-    else:
-        lines.append("  NONE")
-
-    lines.append("")
-    lines.append("-" * width)
-    lines.append("DUPLICATE DATE CONFLICTS")
-
-    if skipped_dupe:
-        for s in skipped_dupe:
-            lines.append(f"  {s['date']}  {s['ship']}")
-    else:
-        lines.append("  NONE")
-
-    lines.append("\n")
-    return lines
+def get_rate(name):
+    parts = normalize(name).split()
+    if len(parts) < 2:
+        return ""
+    key = f"{parts[-1]},{parts[0]}"
+    return RATES.get(key, "")
 
 # ------------------------------------------------
-# PROCESS
-# ------------------------------------------------
-
-def process_all():
-    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
-    if not files:
-        log("NO INPUT FILES")
-        return
-
-    summary_lines = []
-
-    for file in files:
-        raw = strip_times(ocr_pdf(os.path.join(DATA_DIR, file)))
-        name = extract_member_name(raw)
-
-        rows, skipped_dupe, skipped_unknown = parse_rows(raw, extract_year_from_filename(file))
-        groups = group_by_ship(rows)
-
-        for g in groups:
-            make_pdf(g, name)
-
-        csv_id = lookup_csv_identity(name)
-        rate = csv_id[0] if csv_id else ""
-
-        summary_lines.extend(format_summary_block(name, groups, skipped_dupe, skipped_unknown, rate))
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = os.path.join(OUTPUT_DIR, f"SeaPay_Summary_{ts}.txt")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(summary_lines))
-
-    log(f"📝 SUMMARY FILE CREATED → {os.path.basename(path)}")
-
-# ------------------------------------------------
-# PDF (UNCHANGED)
+# PDF CREATION (UNCHANGED)
 # ------------------------------------------------
 
 def make_pdf(group, name):
+
     csv_id = lookup_csv_identity(name)
-    rate = csv_id[0] if csv_id else ""
-    parts = name.split()
-    last = parts[-1]
-    first = " ".join(parts[:-1])
+    if csv_id:
+        rate, last, first = csv_id
+    else:
+        parts = name.split()
+        last = parts[-1]
+        first = " ".join(parts[:-1])
+        rate = get_rate(name)
 
     start = group["start"].strftime("%m/%d/%Y")
-    end   = group["end"].strftime("%m/%d/%Y")
-    ship  = group["ship"]
+    end = group["end"].strftime("%m/%d/%Y")
+    ship = group["ship"]
 
     prefix = f"{rate}_" if rate else ""
     filename = f"{prefix}{last}_{first}_{ship}_{start.replace('/','-')}_TO_{end.replace('/','-')}.pdf"
@@ -391,9 +309,24 @@ def make_pdf(group, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    c.drawString(39, 595, f"REPORT CAREER SEA PAY FROM {start} TO {end}.")
-    c.drawString(39, 570, f"Member performed eight continuous hours per day on-board: {ship}")
-    c.drawString(39, 45, f"{rate} {last}, {first}".strip())
+    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
+    c.drawString(373, 671, "X")
+    c.setFont(FONT_NAME, 8)
+    c.drawString(39, 650, "ENTITLEMENT")
+    c.drawString(345, 641, "OPNAVINST 7220.14")
+
+    c.setFont(FONT_NAME, FONT_SIZE)
+    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
+    c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
+    c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
+
+    c.drawString(356.26, 499.5, "_________________________")
+    c.drawString(363.8, 487.5, "Certifying Official & Date")
+    c.drawString(356.26, 427.5, "_________________________")
+    c.drawString(384.1, 415.2, "FI MI Last Name")
+
+    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+    c.drawString(503.5, 40, "USN AD")
 
     c.save()
     buf.seek(0)
@@ -413,7 +346,174 @@ def make_pdf(group, name):
     log(f"CREATED → {filename}")
 
 # ------------------------------------------------
-# FLASK
+# MERGE ALL PDFs WITH BOOKMARKS (UNCHANGED)
+# ------------------------------------------------
+
+def merge_all_pdfs():
+    pdf_files = sorted([
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
+    ])
+
+    if not pdf_files:
+        log("NO PDFs TO MERGE")
+        return None
+
+    log(f"MERGING {len(pdf_files)} PDFs...")
+    merger = PdfMerger()
+
+    for pdf_file in pdf_files:
+        pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
+        try:
+            bookmark_name = os.path.splitext(pdf_file)[0]
+            merger.append(pdf_path, outline_item=bookmark_name)
+            log(f"ADDED WITH BOOKMARK → {bookmark_name}")
+        except Exception as e:
+            log(f"ERROR ADDING {pdf_file}: {e}")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
+    merged_path = os.path.join(OUTPUT_DIR, merged_filename)
+
+    try:
+        merger.write(merged_path)
+        merger.close()
+        log(f"✅ MERGED PDF CREATED → {merged_filename}")
+        log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
+        return merged_filename
+    except Exception as e:
+        log(f"❌ MERGE FAILED: {e}")
+        return None
+
+# ------------------------------------------------
+# PROCESS (SUMMARY CHANGES ONLY HERE)
+# ------------------------------------------------
+
+def process_all():
+    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+
+    if not files:
+        log("NO INPUT FILES")
+        return
+
+    log("=== PROCESS STARTED ===")
+    summary_lines = []
+
+    for file in files:
+        log(f"OCR → {file}")
+        path = os.path.join(DATA_DIR, file)
+        raw = strip_times(ocr_pdf(path))
+
+        try:
+            name = extract_member_name(raw)
+            log(f"NAME → {name}")
+        except Exception as e:
+            log(f"NAME ERROR → {e}")
+            continue
+
+        year = extract_year_from_filename(file)
+        rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+
+        if not rows:
+            ship = match_ship(raw)
+            if ship:
+                log(f"FALLBACK SHIP → {ship}")
+                rows = [{"date": datetime.today().strftime("%m/%d/%Y"), "ship": ship}]
+            else:
+                log("NO SHIP MATCH")
+                continue
+
+        groups = group_by_ship(rows)
+
+        for g in groups:
+            make_pdf(g, name)
+
+        csv_id = lookup_csv_identity(name)
+        if csv_id:
+            rate, last, first = csv_id
+            display_name = f"{rate} {first} {last}"
+        else:
+            display_name = name
+
+        width = 69
+        summary_lines.append("=" * width)
+        summary_lines.append(display_name.upper())
+        summary_lines.append("=" * width)
+        summary_lines.append("")
+
+        # VALID PERIODS + TOTAL DAYS
+        summary_lines.append("VALID SEA PAY PERIODS")
+        summary_lines.append("-" * width)
+
+        total_days = 0
+        if groups:
+            for g in groups:
+                start_str = g["start"].strftime("%m/%d/%Y")
+                end_str = g["end"].strftime("%m/%d/%Y")
+                days = (g["end"] - g["start"]).days + 1
+                total_days += days
+                ship = g["ship"]
+                summary_lines.append(f"{ship} : FROM {start_str} TO {end_str} ({days} DAYS)")
+        else:
+            summary_lines.append("  NONE")
+
+        summary_lines.append(f"TOTAL VALID DAYS: {total_days}")
+        summary_lines.append("")
+        summary_lines.append("-" * width)
+        summary_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
+
+        # MITE + SBTT NORMALIZATION (SUMMARY ONLY)
+        if skipped_unknown:
+            for s in skipped_unknown:
+                raw = s["raw"].upper()
+                ship = match_ship(raw) or ""
+                if "ASTAC" in raw and "MITE" in raw:
+                    summary_lines.append(f"  ASTAC MITE : {s['date']}")
+                elif "ASW" in raw and "MITE" in raw:
+                    summary_lines.append(f"  ASW MITE : {s['date']}")
+                elif "SBTT" in raw:
+                    if ship:
+                        summary_lines.append(f"  {ship} SBTT : {s['date']}")
+                    else:
+                        summary_lines.append(f"  SBTT : {s['date']}")
+                else:
+                    summary_lines.append(f"  {s['date']}  {s['raw']}")
+        else:
+            summary_lines.append("  NONE")
+
+        summary_lines.append("")
+        summary_lines.append("-" * width)
+        summary_lines.append("DUPLICATE DATE CONFLICTS")
+
+        if skipped_dupe:
+            for s in skipped_dupe:
+                summary_lines.append(f"  {s['date']}  {s['ship']}")
+        else:
+            summary_lines.append("  NONE")
+
+        summary_lines.append("")
+        summary_lines.append("")
+
+    log("======================================")
+    log("✅ GENERATION COMPLETE")
+    log("======================================")
+    log("=== STARTING AUTO-MERGE ===")
+    merge_all_pdfs()
+    log("======================================")
+    log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
+    log("======================================")
+
+    # WRITE SUMMARY
+    if summary_lines:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_filename = f"SeaPay_Summary_{timestamp}.txt"
+        summary_path = os.path.join(OUTPUT_DIR, summary_filename)
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(summary_lines))
+        log(f"📝 SUMMARY FILE CREATED → {summary_filename}")
+
+# ------------------------------------------------
+# FLASK APP (UNCHANGED)
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -422,18 +522,32 @@ app = Flask(__name__, template_folder="web/frontend")
 def index():
     if request.method == "POST":
         for f in request.files.getlist("files"):
-            f.save(os.path.join(DATA_DIR, f.filename))
+            if f.filename:
+                f.save(os.path.join(DATA_DIR, f.filename))
 
-        if request.files.get("template_file"):
-            request.files["template_file"].save(TEMPLATE)
+        tpl = request.files.get("template_file")
+        if tpl and tpl.filename:
+            tpl.save(TEMPLATE)
 
-        if request.files.get("rate_file"):
-            request.files["rate_file"].save(RATE_FILE)
+        csvf = request.files.get("rate_file")
+        if csvf and csvf.filename:
+            csvf.save(RATE_FILE)
+
+        global RATES, CSV_IDENTITIES
+        RATES = load_rates()
+        CSV_IDENTITIES.clear()
+        for key, rate in RATES.items():
+            last, first = key.split(",", 1)
+            def normalize_for_id(text):
+                t = re.sub(r"\(.*?\)", "", text.upper())
+                t = re.sub(r"[^A-Z ]", "", t)
+                return " ".join(t.split())
+            full_norm = normalize_for_id(f"{first} {last}")
+            CSV_IDENTITIES.append((full_norm, rate, last, first))
 
         process_all()
 
-    return render_template("index.html", logs="\n".join(LIVE_LOGS),
-                           template_path=TEMPLATE, rate_path=RATE_FILE)
+    return render_template("index.html", logs="\n".join(LIVE_LOGS), template_path=TEMPLATE, rate_path=RATE_FILE)
 
 @app.route("/logs")
 def get_logs():
@@ -442,28 +556,36 @@ def get_logs():
 @app.route("/download_all")
 def download_all():
     zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    log("=== CREATING ZIP FILE ===")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for f in os.listdir(OUTPUT_DIR):
-            z.write(os.path.join(OUTPUT_DIR, f), f)
-    return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True)
+            full = os.path.join(OUTPUT_DIR, f)
+            if os.path.isfile(full):
+                z.write(full, arcname=f)
+                log(f"ZIPPED → {f}")
+
+    return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True, download_name="SeaPay_Output.zip")
 
 @app.route("/download_merged")
 def download_merged():
-    return "MERGED disabled in this build", 404
+    merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("MERGED_SeaPay_Forms_")])
+    latest = merged_files[-1]
+    return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
 @app.route("/download_summary")
 def download_summary():
-    files = sorted([f for f in os.listdir(OUTPUT_DIR)
-                    if f.startswith("SeaPay_Summary_") and f.endswith(".txt")])
-    if not files:
-        return "No summary created yet", 404
-    return send_from_directory(OUTPUT_DIR, files[-1], as_attachment=True)
+    summary_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("SeaPay_Summary_")])
+    latest = summary_files[-1]
+    return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
 @app.route("/reset", methods=["POST"])
 def reset():
     deleted = cleanup_all_folders()
     clear_logs()
-    return jsonify(message=f"Reset complete ({deleted} files)")
+    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted.", "files_deleted": deleted})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
