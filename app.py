@@ -432,19 +432,35 @@ def merge_all_pdfs():
         return None
 
 # ------------------------------------------------
-# PATCH: METHOD A STRIKEOUT ENGINE
+# STRIKEOUT ENGINE (METHOD A, FIXED)
 # ------------------------------------------------
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
+        # Collect canonical dates (MM/DD/YYYY)
         targets = [d["date"] for d in skipped_duplicates] + [u["date"] for u in skipped_unknown]
 
+        # If nothing to strike, just make a copy
         if not targets:
             shutil.copy2(original_pdf, output_path)
             log(f"NO STRIKEOUTS NEEDED, COPIED → {os.path.basename(output_path)}")
             return
+
+        # Build all common textual variants of each date to match Tesseract output
+        date_variants = set()
+        for t in targets:
+            try:
+                dt = datetime.strptime(t, "%m/%d/%Y")
+            except Exception:
+                continue
+            # Zero-padded and non-padded, with 4-digit and 2-digit year
+            date_variants.add(t)  # 08/06/2025
+            date_variants.add(f"{dt.month}/{dt.day}/{dt.year}")           # 8/6/2025
+            date_variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}") # 8/6/25
+            date_variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")  # 08/06/25
+        log(f"STRIKEOUT TARGETS → {sorted(date_variants)}")
 
         pages = convert_from_path(original_pdf)
         overlays = []
@@ -453,32 +469,37 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"  PROCESSING PAGE {page_index+1}/{len(pages)}")
 
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
+            img_w, img_h = img.size
+            scale_y = letter[1] / float(img_h)
 
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
-
-            drew = False
+            drew_any = False
 
             for i, text in enumerate(data["text"]):
                 text = text.strip()
                 if not text:
                     continue
 
-                for target in targets:
-                    if target in text:
-                        x = 40
-                        top = data["top"][i]
-                        h = data["height"][i]
-                        y = letter[1] - top
+                if text in date_variants:
+                    top = data["top"][i]
+                    h = data["height"][i]
 
-                        c.setStrokeColor(black)
-                        c.setLineWidth(2)
-                        c.line(40, y - h/2, 550, y - h/2)
-                        drew = True
+                    # Convert from image coordinates (px) to PDF (points)
+                    center_y_img = top + h / 2.0
+                    center_y_from_bottom_px = img_h - center_y_img
+                    y = center_y_from_bottom_px * scale_y
+
+                    # Full-row strikeout from x=40 to x=550
+                    c.setStrokeColor(black)
+                    c.setLineWidth(2)
+                    c.line(40, y, 550, y)
+                    drew_any = True
+                    log(f"    STRIKEOUT AT TEXT='{text}' Y={y:.1f}")
 
             c.save()
             buf.seek(0)
-            overlays.append(PdfReader(buf) if drew else None)
+            overlays.append(PdfReader(buf) if drew_any else None)
 
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
@@ -499,8 +520,8 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         try:
             shutil.copy2(original_pdf, output_path)
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
-        except:
-            log(f"⚠️ FALLBACK COPY FAILED")
+        except Exception as e2:
+            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
 
 # ------------------------------------------------
 # PROCESS ALL
@@ -514,6 +535,8 @@ def process_all():
         return
 
     log("=== PROCESS STARTED ===")
+
+    summary_lines = []
 
     for file in files:
         log(f"OCR → {file}")
@@ -531,6 +554,14 @@ def process_all():
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
+        # Record summary for this file
+        summary_lines.append(f"FILE: {file}")
+        summary_lines.append(f"  NAME: {name}")
+        summary_lines.append(f"  VALID EVENTS: {len(rows)}")
+        summary_lines.append(f"  DUPLICATES SKIPPED: {len(skipped_dupe)}")
+        summary_lines.append(f"  UNKNOWN/SBTT SKIPPED: {len(skipped_unknown)}")
+        summary_lines.append("")
+
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
 
@@ -547,6 +578,19 @@ def process_all():
             make_pdf(g, name)
 
     merge_all_pdfs()
+
+    # Write summary.txt
+    summary_path = os.path.join(OUTPUT_DIR, "summary.txt")
+    try:
+        with open(summary_path, "w", encoding="utf-8") as f:
+            if summary_lines:
+                f.write("\n".join(summary_lines))
+            else:
+                f.write("NO FILES PROCESSED\n")
+        log("SUMMARY.TXT UPDATED")
+    except Exception as e:
+        log(f"⚠️ FAILED TO WRITE SUMMARY.TXT → {e}")
+
     log("✅ ALL OPERATIONS COMPLETE")
 
 # ------------------------------------------------
@@ -621,26 +665,17 @@ def download_merged():
     latest = merged_files[-1]
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
-# ------------------------------------------------
-# SUMMARY TXT RESTORED
-# ------------------------------------------------
-
 @app.route("/download_summary")
 def download_summary():
     summary_path = os.path.join(OUTPUT_DIR, "summary.txt")
     if not os.path.exists(summary_path):
-        with open(summary_path, "w") as f:
-            f.write("SUMMARY NOT IMPLEMENTED YET\n")
+        return "SUMMARY NOT AVAILABLE. RUN PROCESSOR FIRST.", 404
 
     return send_from_directory(
         OUTPUT_DIR,
         "summary.txt",
-        as_attachment=True
+        as_attachment=True,
     )
-
-# ------------------------------------------------
-# MARKED SHEETS DOWNLOAD
-# ------------------------------------------------
 
 @app.route("/download_marked_sheets")
 def download_marked_sheets():
