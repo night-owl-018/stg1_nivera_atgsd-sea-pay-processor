@@ -58,6 +58,14 @@ pre { background:#000; padding:10px; overflow:auto; border:1px solid #0f0 }
 
 <script>
 let isPolling = false;
+let autoScroll = true;
+const logBox = document.getElementById("logBox");
+
+// Detect when user scrolls manually
+logBox.addEventListener("scroll", function () {
+    const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+    autoScroll = atBottom;
+});
 
 // Start polling immediately when page loads
 pollLogs();
@@ -69,9 +77,12 @@ function pollLogs() {
     fetch("/logs")
         .then(r => r.text())
         .then(txt => {
-            const logBox = document.getElementById("logBox");
             logBox.innerText = txt;
-            logBox.scrollTop = logBox.scrollHeight;
+
+            // Only auto-scroll if user is already near bottom
+            if (autoScroll) {
+                logBox.scrollTop = logBox.scrollHeight;
+            }
             
             isPolling = false;
             setTimeout(pollLogs, 1000);
