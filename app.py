@@ -229,13 +229,11 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
 
         if not ship:
-            # No recognizable ship for this row (e.g., MITE, SBTT, admin events)
             skipped_unknown.append({"date": date, "raw": cleaned_raw})
             log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
             continue
 
         if date in seen_dates:
-            # Another ship already claimed this date; this one is discarded
             skipped_duplicates.append({"date": date, "ship": ship})
             log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship})")
             continue
@@ -490,9 +488,16 @@ def process_all():
         summary_lines.append("-" * width)
         summary_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
 
+        # ✅ NEW: normalize ASTAC MITE / ASW MITE just for SUMMARY TXT
         if skipped_unknown:
             for s in skipped_unknown:
-                summary_lines.append(f"  {s['date']}  {s['raw']}")
+                raw = s["raw"].upper()
+                if "ASTAC" in raw and "MITE" in raw:
+                    summary_lines.append(f"  ASTAC MITE : {s['date']}")
+                elif "ASW" in raw and "MITE" in raw:
+                    summary_lines.append(f"  ASW MITE : {s['date']}")
+                else:
+                    summary_lines.append(f"  {s['date']}  {s['raw']}")
         else:
             summary_lines.append("  NONE")
 
