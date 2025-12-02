@@ -150,10 +150,10 @@ def strip_times(text):
 
 def ocr_pdf(path):
     images = convert_from_path(path)
-    output = ""
+    out = ""
     for img in images:
-        output += pytesseract.image_to_string(img)
-    return output.upper()
+        out += pytesseract.image_to_string(img)
+    return out.upper()
 
 # ------------------------------------------------
 # NAME EXTRACTION
@@ -166,7 +166,7 @@ def extract_member_name(text):
     return " ".join(m.group(1).split())
 
 # ------------------------------------------------
-# SHIP MATCH
+# SHIP MATCHING
 # ------------------------------------------------
 
 def match_ship(raw_text):
@@ -181,7 +181,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATES
+# DATE EXTRACTION
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -329,7 +329,7 @@ def flatten_pdf(path):
         log(f"⚠️ FLATTEN FAILED → {e}")
 
 # ------------------------------------------------
-# MAKE 1070 PDF
+# CREATE 1070/613 PDF
 # ------------------------------------------------
 
 def make_pdf(group, name):
@@ -393,7 +393,7 @@ def make_pdf(group, name):
     log(f"CREATED → {filename}")
 
 # ------------------------------------------------
-# MERGE
+# MERGE ALL PDFs
 # ------------------------------------------------
 
 def merge_all_pdfs():
@@ -417,8 +417,8 @@ def merge_all_pdfs():
         merger.append(pdf_path, outline_item=bookmark)
         log(f"ADDED BOOKMARK → {bookmark}")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    merged_filename = f"MERGED_SeaPay_Forms_{ts}.pdf"
     merged_path = os.path.join(OUTPUT_DIR, merged_filename)
 
     try:
@@ -432,7 +432,7 @@ def merge_all_pdfs():
         return None
 
 # ------------------------------------------------
-# STRIKEOUT PATCH
+# PATCH: METHOD A STRIKEOUT ENGINE
 # ------------------------------------------------
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
@@ -449,46 +449,42 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         pages = convert_from_path(original_pdf)
         overlays = []
 
-        for idx, img in enumerate(pages):
-            log(f"  PROCESSING PAGE {idx+1}/{len(pages)}")
+        for page_index, img in enumerate(pages):
+            log(f"  PROCESSING PAGE {page_index+1}/{len(pages)}")
 
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
 
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
-            drew_any = False
+
+            drew = False
 
             for i, text in enumerate(data["text"]):
-                if not text.strip():
+                text = text.strip()
+                if not text:
                     continue
 
                 for target in targets:
                     if target in text:
-                        x = data["left"][i]
+                        x = 40
                         top = data["top"][i]
-                        w = data["width"][i]
                         h = data["height"][i]
-
                         y = letter[1] - top
 
                         c.setStrokeColor(black)
                         c.setLineWidth(2)
-                        c.line(x, y - h/2, x + w, y - h/2)
-                        drew_any = True
+                        c.line(40, y - h/2, 550, y - h/2)
+                        drew = True
 
             c.save()
             buf.seek(0)
-
-            if drew_any:
-                overlays.append(PdfReader(buf))
-            else:
-                overlays.append(None)
+            overlays.append(PdfReader(buf) if drew else None)
 
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            if overlays[i] is not None:
+            if overlays[i]:
                 page.merge_page(overlays[i].pages[0])
             writer.add_page(page)
 
@@ -499,12 +495,12 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
 
     except Exception as e:
-        log(f"⚠️ MARKING FAILED ({os.path.basename(original_pdf)}) → {e}")
+        log(f"⚠️ MARKING FAILED → {e}")
         try:
             shutil.copy2(original_pdf, output_path)
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
-        except Exception as e2:
-            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+        except:
+            log(f"⚠️ FALLBACK COPY FAILED")
 
 # ------------------------------------------------
 # PROCESS ALL
@@ -584,6 +580,7 @@ def index():
                 t = re.sub(r"\(.*?\)", "", text.upper())
                 t = re.sub(r"[^A-Z ]", "", t)
                 return " ".join(t.split())
+
             CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
 
         process_all()
@@ -623,6 +620,27 @@ def download_merged():
     merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("MERGED_SeaPay_Forms_")])
     latest = merged_files[-1]
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
+
+# ------------------------------------------------
+# SUMMARY TXT RESTORED
+# ------------------------------------------------
+
+@app.route("/download_summary")
+def download_summary():
+    summary_path = os.path.join(OUTPUT_DIR, "summary.txt")
+    if not os.path.exists(summary_path):
+        with open(summary_path, "w") as f:
+            f.write("SUMMARY NOT IMPLEMENTED YET\n")
+
+    return send_from_directory(
+        OUTPUT_DIR,
+        "summary.txt",
+        as_attachment=True
+    )
+
+# ------------------------------------------------
+# MARKED SHEETS DOWNLOAD
+# ------------------------------------------------
 
 @app.route("/download_marked_sheets")
 def download_marked_sheets():
