@@ -2,43 +2,95 @@
 <html>
 <head>
 <title>ATGSD Sea Pay Processor</title>
+
 <style>
-body { background:#000; color:#0f0; font-family:monospace }
+body {
+    background:#000;
+    color:#0f0;
+    font-family:monospace;
+    margin:0;
+    height:100vh;
+    display:flex;
+}
+
+/* LEFT SIDE CONTENT */
+#leftPane {
+    width: 55%;
+    padding: 15px;
+}
+
+/* RIGHT SIDE LOG PANEL */
+#rightPane {
+    width: 45%;
+    border-left: 2px solid #0f0;
+    padding: 15px;
+    display:flex;
+    flex-direction:column;
+}
+
+/* FORM STYLING */
 label { display:block; margin-top:12px }
 button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px; margin:5px 5px 5px 0 }
 button:disabled { opacity:0.5; cursor:not-allowed }
 button.reset-btn { color:#f00; border-color:#f00 }
 button.reset-btn:hover { background:#300 }
-pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
 hr { border:1px solid #0f0; margin:15px 0 }
-.download-section { margin-top: 10px }
+.download-section { margin-top:10px }
+
+/* LOG WINDOW */
+#logBox {
+    background:#000;
+    padding:10px;
+    border:1px solid #0f0;
+    flex-grow:1;
+    overflow:auto;
+    white-space:pre-wrap;
+    font-size:12px;
+}
 </style>
 </head>
+
 <body>
+
+<!-- LEFT SIDE -->
+<div id="leftPane">
+
 <h2>ATGSD Sea Pay Processor</h2>
+
 <form id="uploadForm">
 <label>INPUT SEA DUTY CERTIFICATION SHEET FROM TORIS</label>
 <input type="file" name="files" multiple>
+
 <label>NAVPERS_1070_613_TEMPLATE</label>
 <input type="file" name="template_file">
 <div class="small">Current: {{ template_path }}</div>
+
 <label>N811 PERSONNEL ROSTER</label>
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
+
 <br><br>
 <button type="submit" id="submitBtn">RUN PROCESSOR</button>
 </form>
+
 <hr>
+
 <div class="download-section">
     <button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
     <button onclick="downloadSummary()">📝 DOWNLOAD SUMMARY TXT</button>
     <button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
     <button onclick="resetAll()" class="reset-btn">🗑️ RESET ALL FILES & LOGS</button>
 </div>
-<hr>
+
+</div>
+
+<!-- RIGHT SIDE -->
+<div id="rightPane">
 <h3>LIVE LOG CONSOLE</h3>
 <pre id="logBox">{{ logs }}</pre>
+</div>
+
 <script>
 let isPolling = false;
 
@@ -48,14 +100,14 @@ pollLogs();
 function pollLogs() {
     if (isPolling) return;
     isPolling = true;
-    
+
     fetch("/logs")
         .then(r => r.text())
         .then(txt => {
             const logBox = document.getElementById("logBox");
             logBox.innerText = txt;
             logBox.scrollTop = logBox.scrollHeight;
-            
+
             isPolling = false;
             setTimeout(pollLogs, 1000);
         })
@@ -69,13 +121,13 @@ function pollLogs() {
 // Handle form submission without page reload
 document.getElementById("uploadForm").addEventListener("submit", function(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(this);
     const submitBtn = document.getElementById("submitBtn");
-    
+
     submitBtn.disabled = true;
     submitBtn.innerText = "PROCESSING...";
-    
+
     fetch("/", {
         method: "POST",
         body: formData
@@ -110,16 +162,16 @@ function resetAll() {
         })
         .then(r => r.json())
         .then(data => {
-            // Clear the log box immediately
             document.getElementById("logBox").innerText = "";
             alert("✅ " + data.message);
         })
         .catch(err => {
             console.error("Reset failed:", err);
-            alert("❌ Reset failed. Check console.");
+            alert("❌ Reset failed.");
         });
     }
 }
 </script>
+
 </body>
 </html>
