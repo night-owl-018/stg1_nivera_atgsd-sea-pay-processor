@@ -181,7 +181,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATE HANDLING
+# DATE HANDLING (WITH occ_idx)
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -189,12 +189,21 @@ def extract_year_from_filename(fn):
     return m.group(1) if m else str(datetime.now().year)
 
 def parse_rows(text, year):
+    """
+    Parse rows from OCR text.
+
+    - Assigns an occurrence index (occ_idx) per date.
+    - First time a date is seen → occ_idx = 1 (valid, if ship recognized).
+    - Later same-date ship entries become duplicates with higher occ_idx.
+    - Unknown / SBTT / MITE / ATGSD get stored in skipped_unknown with occ_idx.
+    """
     rows = []
     seen_dates = set()
     skipped_duplicates = []
     skipped_unknown = []
 
     lines = text.splitlines()
+    date_occ_idx = {}  # date -> counter
 
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
@@ -205,6 +214,10 @@ def parse_rows(text, year):
         y = ("20" + yy) if yy and len(yy) == 2 else yy or year
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
+        # increment occurrence index for this date
+        date_occ_idx[date] = date_occ_idx.get(date, 0) + 1
+        occ_idx = date_occ_idx[date]
+
         raw = line[m.end():]
         if i + 1 < len(lines):
             raw += " " + lines[i + 1]
@@ -212,24 +225,26 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        if "SBTT" in upper_raw:
-            skipped_unknown.append({"date": date, "raw": "SBTT"})
-            log(f"⚠️ SBTT EVENT, SKIPPING → {date}")
+        # INVALID / NON-SHIP / TRAINING EVENTS FIRST
+        if "SBTT" in upper_raw or "MITE" in upper_raw or "ASTAC" in upper_raw or "ATGSD" in upper_raw:
+            skipped_unknown.append({"date": date, "raw": cleaned_raw, "occ_idx": occ_idx})
+            log(f"⚠️ NON-SHIP/TRAINING EVENT, SKIPPING → {date} [{cleaned_raw}]")
             continue
 
         ship = match_ship(raw)
 
         if not ship:
-            skipped_unknown.append({"date": date, "raw": cleaned_raw})
+            skipped_unknown.append({"date": date, "raw": cleaned_raw, "occ_idx": occ_idx})
             log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
             continue
 
+        # DATE DUPLICATE LOGIC: first one wins, later ones are duplicates
         if date in seen_dates:
-            skipped_duplicates.append({"date": date, "ship": ship})
-            log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship})")
+            skipped_duplicates.append({"date": date, "ship": ship, "occ_idx": occ_idx})
+            log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship}), OCC#{occ_idx}")
             continue
 
-        rows.append({"date": date, "ship": ship})
+        rows.append({"date": date, "ship": ship, "occ_idx": occ_idx})
         seen_dates.add(date)
 
     return rows, skipped_duplicates, skipped_unknown
@@ -436,7 +451,7 @@ def merge_all_pdfs():
         return None
 
 # ------------------------------------------------
-# STRIKEOUT ENGINE (METHOD A WITH SKIP COUNTS)
+# STRIKEOUT ENGINE USING (DATE, occ_idx)
 # ------------------------------------------------
 
 def _build_date_variants(date_str):
@@ -452,54 +467,50 @@ def _build_date_variants(date_str):
     return variants
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
+    """
+    Strikeout logic:
+
+    - Each skipped entry has (date, occ_idx).
+    - OCR reconstructs rows and assigns the same occ_idx sequence per date.
+    - INVALID (skipped_unknown) rows are marked first.
+    - Then DATE DUPLICATE (skipped_duplicates) rows are marked.
+    - Result: exactly the same rows your parser skipped are crossed out.
+    """
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-        # Collect dates that have any skipped events
-        skip_dates = set()
-        for d in skipped_duplicates:
-            skip_dates.add(d["date"])
-        for u in skipped_unknown:
-            skip_dates.add(u["date"])
+        # Build target sets: invalid first, then duplicates
+        targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
+        targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
+        all_targets = targets_invalid.union(targets_dup)
 
-        if not skip_dates:
+        if not all_targets:
             shutil.copy2(original_pdf, output_path)
             log(f"NO STRIKEOUTS NEEDED, COPIED → {os.path.basename(output_path)}")
             return
 
-        # Map textual date variants back to canonical date
-        variant_to_date = {}
-        for d in skip_dates:
-            for v in _build_date_variants(d):
-                variant_to_date[v] = d
-
-        # Count skipped events per date
-        dup_counts = {}
-        unk_counts = {}
-        for d in skipped_duplicates:
-            dup_counts[d["date"]] = dup_counts.get(d["date"], 0) + 1
-        for u in skipped_unknown:
-            unk_counts[u["date"]] = unk_counts.get(u["date"], 0) + 1
+        # Collect all dates involved
+        all_dates = {d for (d, _) in all_targets}
+        date_variants_map = {d: _build_date_variants(d) for d in all_dates}
 
         pages = convert_from_path(original_pdf)
-        occs_by_date = {d: [] for d in skip_dates}  # each: list of {"page", "y"}
+        row_list = []  # each: {"page","y","text","date","occ_idx"}
 
-        # First pass: find all date occurrences and record positions
+        # First pass: build rows per page, assign date + occ_idx by scanning top→bottom
         for page_index, img in enumerate(pages):
-            log(f"  SCANNING PAGE {page_index+1}/{len(pages)} FOR DATES")
+            log(f"  BUILDING ROWS FROM PAGE {page_index+1}/{len(pages)}")
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
             img_w, img_h = img.size
             scale_y = letter[1] / float(img_h)
 
+            # group tokens by line_num
+            rows_by_line = {}
             n = len(data["text"])
             for i in range(n):
-                text = data["text"][i].strip()
-                if not text:
+                txt = data["text"][i].strip()
+                if not txt:
                     continue
-                canonical = variant_to_date.get(text)
-                if not canonical:
-                    continue
-
+                line_num = data["line_num"][i]
                 top = data["top"][i]
                 h = data["height"][i]
 
@@ -507,46 +518,75 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 center_from_bottom_px = img_h - center_y_img
                 y = center_from_bottom_px * scale_y
 
-                occs_by_date[canonical].append({
+                if line_num not in rows_by_line:
+                    rows_by_line[line_num] = {
+                        "y_sum": y,
+                        "count": 1,
+                        "tokens": [txt],
+                    }
+                else:
+                    r = rows_by_line[line_num]
+                    r["y_sum"] += y
+                    r["count"] += 1
+                    r["tokens"].append(txt)
+
+            # convert grouped rows
+            tmp_rows = []
+            for line_num, r in rows_by_line.items():
+                text = " ".join(r["tokens"]).upper()
+                y_avg = r["y_sum"] / r["count"]
+                tmp_rows.append({
                     "page": page_index,
-                    "y": y,
+                    "y": y_avg,
+                    "text": text,
+                    "date": None,
+                    "occ_idx": None,
                 })
 
-        # Decide which occurrences to strike for each date
-        strike_targets = {}  # page_index -> list[y]
-        for date, occs in occs_by_date.items():
-            if not occs:
+            # sort by visual order (top → bottom means higher y → lower y)
+            tmp_rows.sort(key=lambda r: (-r["y"]))
+
+            # per-date counters to assign occ_idx same way as parser
+            date_counters = {d: 0 for d in all_dates}
+
+            for row in tmp_rows:
+                for d in all_dates:
+                    variants = date_variants_map[d]
+                    if any(v in row["text"] for v in variants):
+                        date_counters[d] = date_counters.get(d, 0) + 1
+                        row["date"] = d
+                        row["occ_idx"] = date_counters[d]
+                        break  # assume only one date per row
+
+            row_list.extend(tmp_rows)
+
+        strike_targets = {}
+
+        # Pass 1: INVALID rows (skipped_unknown)
+        for row in row_list:
+            if row["date"] is None or row["occ_idx"] is None:
                 continue
+            if (row["date"], row["occ_idx"]) in targets_invalid:
+                strike_targets.setdefault(row["page"], []).append(row["y"])
+                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} ON PAGE {row['page']+1} Y={row['y']:.1f}")
 
-            # How many rows for this date should be struck
-            skip_total = dup_counts.get(date, 0) + unk_counts.get(date, 0)
-            if skip_total <= 0:
+        # Pass 2: DUPLICATE rows (skipped_duplicates), but don't double-mark
+        for row in row_list:
+            if row["date"] is None or row["occ_idx"] is None:
                 continue
+            if (row["date"], row["occ_idx"]) in targets_dup:
+                # check if already in invalid set / already added
+                ys = strike_targets.get(row["page"], [])
+                if not any(abs(y - row["y"]) < 0.1 for y in ys):
+                    strike_targets.setdefault(row["page"], []).append(row["y"])
+                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} ON PAGE {row['page']+1} Y={row['y']:.1f}")
 
-            # Sort occurrences top-to-bottom within pages
-            occs_sorted = sorted(occs, key=lambda o: (o["page"], -o["y"]))
-            count = len(occs_sorted)
-
-            if skip_total >= count:
-                mark_indices = range(count)  # all bad
-            else:
-                # Assume earliest row is kept; later ones are duplicates/unknowns
-                mark_indices = range(count - skip_total, count)
-
-            for idx in mark_indices:
-                occ = occs_sorted[idx]
-                page_idx = occ["page"]
-                y = occ["y"]
-                strike_targets.setdefault(page_idx, []).append(y)
-                log(f"    STRIKEOUT DATE {date} ON PAGE {page_idx+1} AT Y={y:.1f}")
-
-        # If no strike targets, just copy and exit
         if not strike_targets:
             shutil.copy2(original_pdf, output_path)
             log(f"NO STRIKEOUT POSITIONS FOUND, COPIED → {os.path.basename(output_path)}")
             return
 
-        # Second pass: build overlays and merge
+        # Build overlays and merge
         overlays = []
         for page_index in range(len(pages)):
             ys = strike_targets.get(page_index)
@@ -557,7 +597,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setStrokeColor(black)
-            c.setLineWidth(0.8)  # thinner line as requested
+            c.setLineWidth(0.8)  # thinner line
 
             for y in ys:
                 c.line(40, y, 550, y)
