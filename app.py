@@ -1012,9 +1012,6 @@ def download_marked_sheets():
         as_attachment=True,
         download_name="Marked_Sheets.zip",
     )
-    
-@app.route("/reset", methods=["POST"])
-def reset():
 
 @app.route("/download_validation")
 def download_validation():
