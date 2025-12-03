@@ -1012,6 +1012,31 @@ def download_marked_sheets():
         as_attachment=True,
         download_name="Marked_Sheets.zip",
     )
+    
+@app.route("/reset", methods=["POST"])
+def reset():
+
+@app.route("/download_validation")
+def download_validation():
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+    zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(validation_dir):
+            for f in os.listdir(validation_dir):
+                full = os.path.join(validation_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="Validation_Reports.zip",
+    )
 
 @app.route("/reset", methods=["POST"])
 def reset():
