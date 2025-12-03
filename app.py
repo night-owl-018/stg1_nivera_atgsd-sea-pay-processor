@@ -16,8 +16,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
 
 import pytesseract
-from pytesseract import Output
 from pdf2image import convert_from_path
+from pytesseract import Output
 
 # ------------------------------------------------
 # PATH CONFIG
@@ -83,7 +83,7 @@ def cleanup_all_folders():
     total += cleanup_folder(DATA_DIR, "INPUT/DATA")
     total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
     log(f"✅ RESET COMPLETE: {total} total files deleted")
-    log(f"🗑 CLEARING ALL LOGS...")
+    log("🗑 CLEARING ALL LOGS...")
     log("=" * 50)
     return total
 
@@ -181,7 +181,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATE EXTRACTION
+# DATE HANDLING
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -235,7 +235,7 @@ def parse_rows(text, year):
     return rows, skipped_duplicates, skipped_unknown
 
 # ------------------------------------------------
-# GROUPING
+# GROUPING BY SHIP
 # ------------------------------------------------
 
 def group_by_ship(rows):
@@ -261,7 +261,7 @@ def group_by_ship(rows):
     return output
 
 # ------------------------------------------------
-# CSV MATCHING
+# CSV MATCHING / IDENTITY
 # ------------------------------------------------
 
 def lookup_csv_identity(name):
@@ -289,6 +289,17 @@ def get_rate(name):
         return ""
     key = f"{parts[-1]},{parts[0]}"
     return RATES.get(key, "")
+
+def resolve_identity(name):
+    csv_id = lookup_csv_identity(name)
+    if csv_id:
+        rate, last, first = csv_id
+    else:
+        parts = name.split()
+        last = parts[-1]
+        first = " ".join(parts[:-1])
+        rate = get_rate(name)
+    return rate, last, first
 
 # ------------------------------------------------
 # FLATTEN PDF
@@ -333,14 +344,7 @@ def flatten_pdf(path):
 # ------------------------------------------------
 
 def make_pdf(group, name):
-    csv_id = lookup_csv_identity(name)
-    if csv_id:
-        rate, last, first = csv_id
-    else:
-        parts = name.split()
-        last = parts[-1]
-        first = " ".join(parts[:-1])
-        rate = get_rate(name)
+    rate, last, first = resolve_identity(name)
 
     start = group["start"].strftime("%m/%d/%Y")
     end = group["end"].strftime("%m/%d/%Y")
@@ -432,80 +436,141 @@ def merge_all_pdfs():
         return None
 
 # ------------------------------------------------
-# STRIKEOUT ENGINE (METHOD A, FIXED)
+# STRIKEOUT ENGINE (METHOD A WITH SKIP COUNTS)
 # ------------------------------------------------
+
+def _build_date_variants(date_str):
+    variants = set()
+    try:
+        dt = datetime.strptime(date_str, "%m/%d/%Y")
+    except Exception:
+        return {date_str}
+    variants.add(date_str)  # 08/06/2025
+    variants.add(f"{dt.month}/{dt.day}/{dt.year}")                 # 8/6/2025
+    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")       # 8/6/25
+    variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")  # 08/06/25
+    return variants
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-        # Collect canonical dates (MM/DD/YYYY)
-        targets = [d["date"] for d in skipped_duplicates] + [u["date"] for u in skipped_unknown]
+        # Collect dates that have any skipped events
+        skip_dates = set()
+        for d in skipped_duplicates:
+            skip_dates.add(d["date"])
+        for u in skipped_unknown:
+            skip_dates.add(u["date"])
 
-        # If nothing to strike, just make a copy
-        if not targets:
+        if not skip_dates:
             shutil.copy2(original_pdf, output_path)
             log(f"NO STRIKEOUTS NEEDED, COPIED → {os.path.basename(output_path)}")
             return
 
-        # Build all common textual variants of each date to match Tesseract output
-        date_variants = set()
-        for t in targets:
-            try:
-                dt = datetime.strptime(t, "%m/%d/%Y")
-            except Exception:
-                continue
-            # Zero-padded and non-padded, with 4-digit and 2-digit year
-            date_variants.add(t)  # 08/06/2025
-            date_variants.add(f"{dt.month}/{dt.day}/{dt.year}")           # 8/6/2025
-            date_variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}") # 8/6/25
-            date_variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")  # 08/06/25
-        log(f"STRIKEOUT TARGETS → {sorted(date_variants)}")
+        # Map textual date variants back to canonical date
+        variant_to_date = {}
+        for d in skip_dates:
+            for v in _build_date_variants(d):
+                variant_to_date[v] = d
+
+        # Count skipped events per date
+        dup_counts = {}
+        unk_counts = {}
+        for d in skipped_duplicates:
+            dup_counts[d["date"]] = dup_counts.get(d["date"], 0) + 1
+        for u in skipped_unknown:
+            unk_counts[u["date"]] = unk_counts.get(u["date"], 0) + 1
 
         pages = convert_from_path(original_pdf)
-        overlays = []
+        occs_by_date = {d: [] for d in skip_dates}  # each: list of {"page", "y"}
 
+        # First pass: find all date occurrences and record positions
         for page_index, img in enumerate(pages):
-            log(f"  PROCESSING PAGE {page_index+1}/{len(pages)}")
-
+            log(f"  SCANNING PAGE {page_index+1}/{len(pages)} FOR DATES")
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
             img_w, img_h = img.size
             scale_y = letter[1] / float(img_h)
 
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=letter)
-            drew_any = False
-
-            for i, text in enumerate(data["text"]):
-                text = text.strip()
+            n = len(data["text"])
+            for i in range(n):
+                text = data["text"][i].strip()
                 if not text:
                     continue
+                canonical = variant_to_date.get(text)
+                if not canonical:
+                    continue
 
-                if text in date_variants:
-                    top = data["top"][i]
-                    h = data["height"][i]
+                top = data["top"][i]
+                h = data["height"][i]
 
-                    # Convert from image coordinates (px) to PDF (points)
-                    center_y_img = top + h / 2.0
-                    center_y_from_bottom_px = img_h - center_y_img
-                    y = center_y_from_bottom_px * scale_y
+                center_y_img = top + h / 2.0
+                center_from_bottom_px = img_h - center_y_img
+                y = center_from_bottom_px * scale_y
 
-                    # Full-row strikeout from x=40 to x=550
-                    c.setStrokeColor(black)
-                    c.setLineWidth(0.8)
-                    c.line(40, y, 550, y)
-                    drew_any = True
-                    log(f"    STRIKEOUT AT TEXT='{text}' Y={y:.1f}")
+                occs_by_date[canonical].append({
+                    "page": page_index,
+                    "y": y,
+                })
+
+        # Decide which occurrences to strike for each date
+        strike_targets = {}  # page_index -> list[y]
+        for date, occs in occs_by_date.items():
+            if not occs:
+                continue
+
+            # How many rows for this date should be struck
+            skip_total = dup_counts.get(date, 0) + unk_counts.get(date, 0)
+            if skip_total <= 0:
+                continue
+
+            # Sort occurrences top-to-bottom within pages
+            occs_sorted = sorted(occs, key=lambda o: (o["page"], -o["y"]))
+            count = len(occs_sorted)
+
+            if skip_total >= count:
+                mark_indices = range(count)  # all bad
+            else:
+                # Assume earliest row is kept; later ones are duplicates/unknowns
+                mark_indices = range(count - skip_total, count)
+
+            for idx in mark_indices:
+                occ = occs_sorted[idx]
+                page_idx = occ["page"]
+                y = occ["y"]
+                strike_targets.setdefault(page_idx, []).append(y)
+                log(f"    STRIKEOUT DATE {date} ON PAGE {page_idx+1} AT Y={y:.1f}")
+
+        # If no strike targets, just copy and exit
+        if not strike_targets:
+            shutil.copy2(original_pdf, output_path)
+            log(f"NO STRIKEOUT POSITIONS FOUND, COPIED → {os.path.basename(output_path)}")
+            return
+
+        # Second pass: build overlays and merge
+        overlays = []
+        for page_index in range(len(pages)):
+            ys = strike_targets.get(page_index)
+            if not ys:
+                overlays.append(None)
+                continue
+
+            buf = io.BytesIO()
+            c = canvas.Canvas(buf, pagesize=letter)
+            c.setStrokeColor(black)
+            c.setLineWidth(0.8)  # thinner line as requested
+
+            for y in ys:
+                c.line(40, y, 550, y)
 
             c.save()
             buf.seek(0)
-            overlays.append(PdfReader(buf) if drew_any else None)
+            overlays.append(PdfReader(buf))
 
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            if overlays[i]:
+            if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
             writer.add_page(page)
 
@@ -524,7 +589,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
 
 # ------------------------------------------------
-# PROCESS ALL
+# PROCESS ALL + SUMMARY GENERATION
 # ------------------------------------------------
 
 def process_all():
@@ -536,7 +601,8 @@ def process_all():
 
     log("=== PROCESS STARTED ===")
 
-    summary_lines = []
+    # Per-sailor summary accumulator
+    summary_data = {}  # key -> {"rate","last","first","periods","skipped_unknown","skipped_dupe"}
 
     for file in files:
         log(f"OCR → {file}")
@@ -554,14 +620,7 @@ def process_all():
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # Record summary for this file
-        summary_lines.append(f"FILE: {file}")
-        summary_lines.append(f"  NAME: {name}")
-        summary_lines.append(f"  VALID EVENTS: {len(rows)}")
-        summary_lines.append(f"  DUPLICATES SKIPPED: {len(skipped_dupe)}")
-        summary_lines.append(f"  UNKNOWN/SBTT SKIPPED: {len(skipped_unknown)}")
-        summary_lines.append("")
-
+        # Mark source sheet with strikeouts
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
 
@@ -572,29 +631,132 @@ def process_all():
 
         mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
 
+        # Group valid periods and create PDFs
         groups = group_by_ship(rows)
 
         for g in groups:
             make_pdf(g, name)
 
+        # Accumulate summary per sailor
+        rate, last, first = resolve_identity(name)
+        key = f"{rate} {last},{first}" if rate else f"{last},{first}"
+
+        if key not in summary_data:
+            summary_data[key] = {
+                "rate": rate,
+                "last": last,
+                "first": first,
+                "periods": [],
+                "skipped_unknown": [],
+                "skipped_dupe": [],
+            }
+
+        sd = summary_data[key]
+
+        for g in groups:
+            days = (g["end"] - g["start"]).days + 1
+            sd["periods"].append({
+                "ship": g["ship"],
+                "start": g["start"],
+                "end": g["end"],
+                "days": days,
+            })
+
+        sd["skipped_unknown"].extend(skipped_unknown)
+        sd["skipped_dupe"].extend(skipped_dupe)
+
     merge_all_pdfs()
 
-    # Write summary.txt
-    summary_path = os.path.join(OUTPUT_DIR, "summary.txt")
-    try:
+    # Build summary files in /output/summary
+    summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    os.makedirs(summary_dir, exist_ok=True)
+
+    compiled_lines = []
+
+    for key in sorted(summary_data.keys()):
+        sd = summary_data[key]
+        rate = sd["rate"]
+        last = sd["last"]
+        first = sd["first"]
+        periods = sd["periods"]
+        skipped_unknown = sd["skipped_unknown"]
+        skipped_dupe = sd["skipped_dupe"]
+
+        # Sort periods by ship then start date
+        periods_sorted = sorted(periods, key=lambda p: (p["ship"], p["start"]))
+
+        total_days = sum(p["days"] for p in periods_sorted)
+
+        # Build block lines in requested format
+        lines = []
+        lines.append("=====================================================================")
+        title = f"{rate} {last}, {first}".strip()
+        lines.append(title)
+        lines.append("=====================================================================")
+        lines.append("")
+        lines.append("VALID SEA PAY PERIODS")
+        lines.append("---------------------------------------------------------------------")
+
+        if periods_sorted:
+            for p in periods_sorted:
+                s = p["start"].strftime("%m/%d/%Y")
+                e = p["end"].strftime("%m/%d/%Y")
+                lines.append(f"{p['ship']} : FROM {s} TO {e} ({p['days']} DAYS)")
+            lines.append(f"TOTAL VALID DAYS: {total_days}")
+        else:
+            lines.append("  NONE")
+            lines.append("TOTAL VALID DAYS: 0")
+
+        lines.append("")
+        lines.append("---------------------------------------------------------------------")
+        lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
+
+        if skipped_unknown:
+            for u in skipped_unknown:
+                raw = u.get("raw", "")
+                lines.append(f"  {u['date']} : {raw}")
+        else:
+            lines.append("  NONE")
+
+        lines.append("")
+        lines.append("---------------------------------------------------------------------")
+        lines.append("DUPLICATE DATE CONFLICTS")
+
+        if skipped_dupe:
+            for d in skipped_dupe:
+                lines.append(f"  {d['date']} : {d['ship']}")
+        else:
+            lines.append("  NONE")
+
+        lines.append("")
+
+        # Write individual summary file
+        safe_rate = rate.replace(" ", "") if rate else ""
+        base_name = f"{safe_rate}_{last}_{first}_summary".strip("_").replace(" ", "_")
+        summary_path = os.path.join(summary_dir, f"{base_name}.txt")
         with open(summary_path, "w", encoding="utf-8") as f:
-            if summary_lines:
-                f.write("\n".join(summary_lines))
-            else:
-                f.write("NO FILES PROCESSED\n")
-        log("SUMMARY.TXT UPDATED")
-    except Exception as e:
-        log(f"⚠️ FAILED TO WRITE SUMMARY.TXT → {e}")
+            f.write("\n".join(lines))
+
+        # Append to compiled
+        compiled_lines.extend(lines)
+        compiled_lines.append("")
+
+    # Write compiled summary file
+    compiled_path = os.path.join(summary_dir, "ALL_SUMMARIES_COMPILED.txt")
+    if compiled_lines:
+        with open(compiled_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(compiled_lines))
+        log("SUMMARY FILES UPDATED")
+    else:
+        # If somehow no sailor data, still create an empty compiled file
+        with open(compiled_path, "w", encoding="utf-8") as f:
+            f.write("NO DATA\n")
+        log("SUMMARY FILES CREATED BUT EMPTY")
 
     log("✅ ALL OPERATIONS COMPLETE")
 
 # ------------------------------------------------
-# ROUTES
+# FLASK APP / ROUTES
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -617,14 +779,12 @@ def index():
         global RATES, CSV_IDENTITIES
         RATES = load_rates()
         CSV_IDENTITIES.clear()
-
         for key, rate in RATES.items():
             last, first = key.split(",", 1)
             def normalize_for_id(text):
                 t = re.sub(r"\(.*?\)", "", text.upper())
                 t = re.sub(r"[^A-Z ]", "", t)
                 return " ".join(t.split())
-
             CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
 
         process_all()
@@ -667,14 +827,24 @@ def download_merged():
 
 @app.route("/download_summary")
 def download_summary():
-    summary_path = os.path.join(OUTPUT_DIR, "summary.txt")
-    if not os.path.exists(summary_path):
-        return "SUMMARY NOT AVAILABLE. RUN PROCESSOR FIRST.", 404
+    summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Summaries.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(summary_dir):
+            for f in os.listdir(summary_dir):
+                full = os.path.join(summary_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
 
     return send_from_directory(
-        OUTPUT_DIR,
-        "summary.txt",
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
         as_attachment=True,
+        download_name="SeaPay_Summaries.zip",
     )
 
 @app.route("/download_marked_sheets")
