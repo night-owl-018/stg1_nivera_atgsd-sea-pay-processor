@@ -131,6 +131,21 @@ button.danger {
     color:#8b949e;
 }
 
+/* SELECT DROPDOWN */
+select {
+    width:100%;
+    padding:10px;
+    margin-top:8px;
+    margin-bottom:12px;
+    border-radius:6px;
+    background:#0e1117;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+}
+select:hover {
+    border-color:#58a6ff;
+}
+
 /* LOG CONSOLE */
 .logs {
     margin-top:18px;
@@ -197,8 +212,8 @@ footer {
     <div class="card">
         <h3>PROCESS CONTROL</h3>
 
-        <!-- NEW: STRIKETHROUGH COLOR SELECTOR -->
-        <label for="strike_color">Strikethrough Color:</label>
+        <!-- FIXED + PROPERLY STYLED STRIKETHROUGH DROPDOWN -->
+        <label for="strike_color" style="color:#8b949e; font-size:12px;">Strikethrough Color:</label>
         <select name="strike_color" id="strike_color">
             <option value="black" selected>Black (Default)</option>
             <option value="red">Red</option>
