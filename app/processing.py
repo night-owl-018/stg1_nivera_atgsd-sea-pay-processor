@@ -16,7 +16,7 @@ from app.core.rates import resolve_identity
 # PROCESS ALL PDFs
 # ------------------------------------------------
 
-def process_all():
+def process_all(strike_color="black"):
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
     if not files:
@@ -49,22 +49,25 @@ def process_all():
         # Group valid periods by ship
         groups = group_by_ship(rows)
 
-        # ---------- NEW PATCH ----------
-        # Compute total valid days (for strikeout correction)
+        # Compute total valid days (for total-days correction)
         total_days = sum(
             (g["end"] - g["start"]).days + 1
             for g in groups
         )
-        # -------------------------------
 
         # Strikeout marked sheet
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
         marked_path = os.path.join(marked_dir, f"MARKED_{os.path.splitext(file)[0]}.pdf")
 
-        # ---------- UPDATED CALL ----------
-        mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path, total_days)
-        # ----------------------------------
+        mark_sheet_with_strikeouts(
+            path,
+            skipped_dupe,
+            skipped_unknown,
+            marked_path,
+            total_days,
+            strike_color=strike_color,
+        )
 
         # Create 1070 PDFs for each ship
         ship_periods = {}
