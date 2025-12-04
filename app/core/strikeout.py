@@ -1,6 +1,7 @@
 import os
 import shutil
 from datetime import datetime
+import io
 
 import pytesseract
 from pdf2image import convert_from_path
@@ -192,3 +193,4 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
