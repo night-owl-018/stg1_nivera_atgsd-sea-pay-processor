@@ -49,7 +49,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         row_list = []
 
         # ------------------------------------------------
-        # BUILD ALL ROWS (unchanged)
+        # BUILD ALL ROWS (OCR token grouping)
         # ------------------------------------------------
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
@@ -78,6 +78,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
             tokens.sort(key=lambda t: -t["y"])
 
+            # group tokens into rows
             visual_rows = []
             current_row = []
             last_y = None
@@ -114,6 +115,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
             tmp_rows.sort(key=lambda r: -r["y"])
 
+            # detect date occurrences
             date_counters = {d: 0 for d in all_dates}
             for row in tmp_rows:
                 for d in all_dates:
@@ -127,77 +129,102 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             row_list.extend(tmp_rows)
 
         # ------------------------------------------------
-        # DETECT STANDARD STRIKEOUT TARGETS (unchanged)
+        # DETECT STANDARD STRIKEOUT TARGETS
         # ------------------------------------------------
         strike_targets = {}
 
-        # invalid entries first
+        # invalid rows
         for row in row_list:
-            if row["date"] is None or row["occ_idx"] is None:
-                continue
-            if (row["date"], row["occ_idx"]) in targets_invalid:
+            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
                 strike_targets.setdefault(row["page"], []).append(row["y"])
                 log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
-        # duplicate entries second
+        # duplicate rows
         for row in row_list:
-            if row["date"] is None or row["occ_idx"] is None:
-                continue
-            if (row["date"], row["occ_idx"]) in targets_dup:
+            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
                 ys = strike_targets.get(row["page"], [])
                 if not any(abs(y - row["y"]) < 0.1 for y in ys):
                     strike_targets.setdefault(row["page"], []).append(row["y"])
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
         # ------------------------------------------------
-        # NEW PATCH — UNDERLINE-BASED TOTAL DAYS STRIKEOUT
+        # VISUAL UNDERLINE DETECTION FOR TOTAL DAYS
         # ------------------------------------------------
         total_row = None
         for row in row_list:
-            if ("TOTAL" in row["text"] and "SEA" in row["text"]
-                and "PAY" in row["text"] and "DAYS" in row["text"]):
+            if ("TOTAL" in row["text"]
+                and "SEA" in row["text"]
+                and "PAY" in row["text"]
+                and "DAYS" in row["text"]):
                 total_row = row
                 break
 
         total_overlay = None
 
         if total_row:
-            page_index = total_row["page"]
-            y = total_row["y"]
+            page_idx = total_row["page"]
+            target_y_pdf = total_row["y"]
 
-            # Find underline (____), fallback to default
-            m = re.search(r"(_+)", total_row["text"])
-            underline = m.group(1) if m else "____"
+            img = pages[page_idx]
+            width_img, height_img = img.size
+
+            data = pytesseract.image_to_data(img, output_type=Output.DICT)
+
+            underline_candidates = []
+
+            for i in range(len(data["text"])):
+                txt = data["text"][i].strip()
+                if not txt:
+                    continue
+
+                left = data["left"][i]
+                top = data["top"][i]
+                w = data["width"][i]
+                h = data["height"][i]
+
+                if h < 12 and w > 8:  # underline shape
+                    center_y_img = top + h / 2.0
+                    center_from_bottom_px = height_img - center_y_img
+                    pdf_y = center_from_bottom_px * (letter[1] / float(height_img))
+
+                    if abs(pdf_y - target_y_pdf) < 3:
+                        underline_candidates.append((left, w))
+
+            if underline_candidates:
+                min_x_img = min(u[0] for u in underline_candidates)
+                max_x_img = max(u[0] + u[1] for u in underline_candidates)
+
+                scale_x = letter[0] / float(width_img)
+                pdf_x1 = min_x_img * scale_x
+                pdf_x2 = max_x_img * scale_x
+            else:
+                # fallback (rare)
+                pdf_x1 = 260
+                pdf_x2 = 330
 
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
-            c.setFont("Helvetica", 10)
-
-            base_x = 40
-            label = "TOTAL SEA PAY DAYS FOR THIS REPORTING PERIOD: "
-            label_width = c.stringWidth(label, "Helvetica", 10)
-
-            underline_x = base_x + label_width
-            underline_width = c.stringWidth(underline, "Helvetica", 10)
-
-            # Strike the underline
             c.setLineWidth(0.8)
-            c.line(underline_x, y, underline_x + underline_width, y)
+            c.setStrokeColorRGB(0, 0, 0)
 
-            # Write correct number 3 spaces after underline
-            correct_x = underline_x + underline_width + c.stringWidth("   ", "Helvetica", 10)
-            c.drawString(correct_x, y, str(total_days))
+            # draw strike through actual underline span
+            c.line(pdf_x1, target_y_pdf, pdf_x2, target_y_pdf)
+
+            # correct number
+            correct_x = pdf_x2 + c.stringWidth("   ", "Helvetica", 10)
+            c.setFont("Helvetica", 10)
+            c.drawString(correct_x, target_y_pdf, str(total_days))
 
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
-        # NORMAL STRIKEOUT OVERLAYS (unchanged)
+        # STANDARD ROW STRIKEOUT OVERLAYS
         # ------------------------------------------------
         overlays = []
-        for page_index2 in range(len(pages)):
-            ys = strike_targets.get(page_index2)
+        for p in range(len(pages)):
+            ys = strike_targets.get(p)
             if not ys:
                 overlays.append(None)
                 continue
@@ -215,18 +242,18 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             overlays.append(PdfReader(buf))
 
         # ------------------------------------------------
-        # APPLY ALL OVERLAYS (patched order)
+        # APPLY OVERLAYS
         # ------------------------------------------------
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
 
-            # FIRST: apply total-days overlay (so it appears on top)
+            # total-days first (must be on top)
             if total_overlay and total_row and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
-            # SECOND: apply standard row strikeouts
+            # row strikeouts
             if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
 
@@ -237,6 +264,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
             writer.add_page(page)
 
+        # output file
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "wb") as f:
             writer.write(f)
