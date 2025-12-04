@@ -183,7 +183,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 c.setLineWidth(0.8)
 
                 # Raise strike through number, not underline
-                adjusted_y = y + 3.5
+                adjusted_y = y + 8
 
                 # Wide strike (covers ___23___)
                 strike_width = 80
@@ -253,3 +253,4 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
