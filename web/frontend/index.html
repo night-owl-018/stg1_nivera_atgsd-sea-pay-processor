@@ -197,6 +197,13 @@ footer {
     <div class="card">
         <h3>PROCESS CONTROL</h3>
 
+        <!-- NEW: STRIKETHROUGH COLOR SELECTOR -->
+        <label for="strike_color">Strikethrough Color:</label>
+        <select name="strike_color" id="strike_color">
+            <option value="black" selected>Black (Default)</option>
+            <option value="red">Red</option>
+        </select>
+
         <div class="toolbar">
             <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
             <button type="button" onclick="downloadMerged()">MERGED PDF</button>
