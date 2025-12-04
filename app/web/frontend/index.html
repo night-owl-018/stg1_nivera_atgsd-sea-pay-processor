@@ -197,6 +197,15 @@ footer {
     <div class="card">
         <h3>PROCESS CONTROL</h3>
 
+        <!-- FIX #2 — Added strike_color dropdown -->
+        <div style="margin-bottom:12px;">
+            <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
+            <select name="strike_color" id="strike_color" style="width:100%;padding:8px;border-radius:6px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
+                <option value="black" selected>Black (Default)</option>
+                <option value="red">Red</option>
+            </select>
+        </div>
+
         <div class="toolbar">
             <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
             <button type="button" onclick="downloadMerged()">MERGED PDF</button>
@@ -204,7 +213,8 @@ footer {
             <button type="button" onclick="downloadAll()">DOWNLOAD ZIP</button>
             
             <button type="button" onclick="location.href='/download_marked_sheets'">MARKED SHEETS</button>
-            <button type="button" onclick="location.href='/download_validation'">VALIDATION REPORTS</button>
+
+            <!-- FIX #2 — Removed broken VALIDATION REPORTS button -->
             
             <button type="button" onclick="resetAll()" class="danger">RESET</button>
         </div>
