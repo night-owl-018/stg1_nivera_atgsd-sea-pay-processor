@@ -38,7 +38,15 @@ def _build_date_variants(date_str):
 # STRIKEOUT ENGINE
 # ------------------------------------------------
 
-def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path, total_days):
+def mark_sheet_with_strikeouts(
+    original_pdf,
+    skipped_duplicates,
+    skipped_unknown,
+    output_path,
+    total_days,
+    strike_color="black",
+):
+
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
@@ -286,3 +294,4 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
