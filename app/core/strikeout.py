@@ -47,6 +47,15 @@ def mark_sheet_with_strikeouts(
     strike_color="black",
 ):
 
+    # ------------------------------------------------
+    # FIX #4 — COLOR MAPPING
+    # ------------------------------------------------
+    color_map = {
+        "black": (0, 0, 0),
+        "red": (1, 0, 0),
+    }
+    rgb = color_map.get(strike_color.lower(), (0, 0, 0))
+
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
@@ -63,7 +72,7 @@ def mark_sheet_with_strikeouts(
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
 
-        ocr_tokens = {}  # page_index → list of (text, left, top, width, height)
+        ocr_tokens = {}
 
         for page_index, img in enumerate(pages):
             log(f"  BUILDING ROWS FROM PAGE {page_index+1}/{len(pages)}")
@@ -151,13 +160,11 @@ def mark_sheet_with_strikeouts(
         # ------------------------------------------------
         strike_targets = {}
 
-        # invalid
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
                 strike_targets.setdefault(row["page"], []).append(row["y"])
                 log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
-        # duplicates
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
                 ys = strike_targets.get(row["page"], [])
@@ -167,7 +174,7 @@ def mark_sheet_with_strikeouts(
 
 
         # ------------------------------------------------
-        # PATCH: NUMBER-TO-NUMBER STRIKEOUT FOR TOTAL DAYS
+        # PATCH: NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
         # ------------------------------------------------
         total_row = None
         for row in row_list:
@@ -190,54 +197,46 @@ def mark_sheet_with_strikeouts(
 
             tokens_page = ocr_tokens[page_idx]
 
-            # detect old number token
             old_start_x_pdf = None
             old_end_x_pdf = None
-            old_value = ""
 
             for (txt, left, top, w, h) in tokens_page:
-                if re.fullmatch(r"\d+", txt):  # pure number
+                if re.fullmatch(r"\d+", txt):
                     center_y_img = top + h / 2.0
                     center_from_bottom_px = height_img - center_y_img
                     y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
 
                     if abs(y_pdf - target_y_pdf) < 3:
-                        old_value = txt
                         old_start_x_pdf = left * scale_x
                         old_end_x_pdf = (left + w) * scale_x
                         break
 
             if old_start_x_pdf is None:
-                # fallback: approximate
                 old_start_x_pdf = 260
                 old_end_x_pdf = 300
 
-            # compute correct placement
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setFont("Helvetica", 10)
 
             three_spaces_width = c.stringWidth("   ", "Helvetica", 10)
             correct_x_pdf = old_end_x_pdf + three_spaces_width
-
-            # draw strike-through line EXACTLY from old number to 3-spaces-before correct number
             strike_end_x = correct_x_pdf - three_spaces_width
 
+            # FIX #4 APPLY COLOR HERE
             c.setLineWidth(0.8)
-            c.setStrokeColorRGB(0, 0, 0)
+            c.setStrokeColorRGB(*rgb)
             c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
 
-            # write correct number
             c.drawString(correct_x_pdf, target_y_pdf, str(total_days))
 
             c.save()
             buf.seek(0)
-
             total_overlay = PdfReader(buf)
 
 
         # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES (invalid + dup)
+        # NORMAL STRIKEOUT LINES
         # ------------------------------------------------
         overlays = []
         for p in range(len(pages)):
@@ -249,7 +248,9 @@ def mark_sheet_with_strikeouts(
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setLineWidth(0.8)
-            c.setStrokeColorRGB(0, 0, 0)
+
+            # FIX #4 APPLY COLOR HERE
+            c.setStrokeColorRGB(*rgb)
 
             for y in ys:
                 c.line(40, y, 550, y)
@@ -266,11 +267,9 @@ def mark_sheet_with_strikeouts(
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            # total-days patch FIRST
             if total_overlay and total_row and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
-            # normal strikeouts
             if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
 
@@ -294,4 +293,3 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
-
