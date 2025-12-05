@@ -244,7 +244,7 @@ def write_validation_reports(summary_data):
 
         lines = []
         lines.append("=" * 90)
-        lines.append(f"SAILOR: {display_name}")
+        lines.append(f"MEMBER: {display_name}")
         lines.append("=" * 90)
         lines.append("")
 
@@ -817,3 +817,4 @@ def process_all(strike_color="black"):
     log("TRACKING DONE")
 
     log("✅ ALL OPERATIONS COMPLETE")
+
