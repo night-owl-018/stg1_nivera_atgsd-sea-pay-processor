@@ -87,34 +87,45 @@ input[type="file"]:hover {
     border-color:#58a6ff;
 }
 
-/* CONTROL BUTTONS */
-.toolbar {
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-top:12px;
-}
+/* CONTROL BUTTONS – MINIMAL DESIGN */
 button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:10px 14px;
-    border-radius:8px;
+    background:#1e1e1e;
+    color:#e6e6e6;
+    border:1px solid #333;
+    padding:10px 18px;
+    margin:4px;
+    border-radius:6px;
+    font-size:14px;
+    letter-spacing:0.5px;
     font-weight:600;
+    transition:all .15s ease-in-out;
     cursor:pointer;
 }
+
 button:hover {
-    border-color:#58a6ff;
+    background:#272727;
+    border-color:#3a3a3a;
+    color:white;
 }
+
 button.primary {
-    background:#1f6feb;
-    border:none;
-    color:white;
+    background:#0d6efd;
+    border-color:#0d6efd;
+    color:#fff;
 }
+
+button.primary:hover {
+    background:#0b5ed7;
+}
+
 button.danger {
-    background:#da3633;
-    border:none;
-    color:white;
+    background:#d9534f;
+    border-color:#d9534f;
+    color:#fff;
+}
+
+button.danger:hover {
+    background:#c9443f;
 }
 
 /* PATHS */
@@ -207,15 +218,15 @@ footer {
 
         <div class="toolbar">
             <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
-            <button type="button" onclick="downloadMerged()">MERGED PDF</button>
-            <button type="button" onclick="downloadSummary()">SUMMARY TXT</button>
-            <button type="button" onclick="downloadAll()">DOWNLOAD ZIP</button>
+            <button type="button" onclick="downloadMerged()">MERGED OUTPUT</button>
+            <button type="button" onclick="downloadSummary()">SUMMARY REPORT</button>
+            <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
             
             <button type="button" onclick="location.href='/download_marked_sheets'">MARKED SHEETS</button>
-            <button type="button" onclick="location.href='/download_validation'">VALIDATION REPORTS</button>
-            <button type="button" onclick="location.href='/download_tracking'">TRACKING PACKAGE</button>
+            <button type="button" onclick="location.href='/download_validation'">VALIDATION LOGS</button>
+            <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
 
-            <button type="button" onclick="resetAll()" class="danger">RESET</button>
+            <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
         </div>
 
         <div class="status" id="statusText">STATUS: READY</div>
