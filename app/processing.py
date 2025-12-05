@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.core.logger import log
 from app.core.config import DATA_DIR, OUTPUT_DIR
@@ -17,16 +17,19 @@ from reportlab.lib.pagesizes import letter
 
 
 # ------------------------------------------------
-# TEXT TO PDF WRITER
+# TEXT → PDF
 # ------------------------------------------------
 
 def _write_pdf_from_lines(lines, pdf_path):
+    """
+    Render a list of text lines into a PDF with a monospaced font.
+    """
     c = canvas.Canvas(pdf_path, pagesize=letter)
     width, height = letter
 
     text = c.beginText(40, height - 40)
     text.setFont("Courier", 9)
-    max_chars = 95
+    max_chars = 95  # safe for 8.5in width at 9pt Courier
 
     if not lines:
         lines = ["No validation data available."]
@@ -57,7 +60,7 @@ def _write_pdf_from_lines(lines, pdf_path):
 
 
 # ------------------------------------------------
-# DATE FORMATTING HELPERS
+# DATE HELPERS
 # ------------------------------------------------
 
 def _fmt_dmy(d, default="UNKNOWN"):
@@ -74,17 +77,14 @@ def _fmt_iso(d, default=""):
 
 def _parse_flex_date(date_str):
     """
-    Parse date in any of these formats:
+    Parse date in formats like:
       8/4/2025
       8-4-2025
       8_4_2025
-    Normalized to %m/%d/%Y internally.
     """
     if not date_str:
         return None
-
     cleaned = re.sub(r"[-_]", "/", date_str.strip())
-
     try:
         return datetime.strptime(cleaned, "%m/%d/%Y")
     except Exception:
@@ -92,18 +92,17 @@ def _parse_flex_date(date_str):
 
 
 # ------------------------------------------------
-# BULLETPROOF REPORTING PERIOD EXTRACTOR
+# REPORTING PERIOD EXTRACTION
 # ------------------------------------------------
 
 def extract_reporting_period(raw_text, filename):
     """
-    Extract the reporting window from either:
-      • The text inside the Sea Duty Certification Sheet (preferred)
-      • The filename (fallback)
+    Extract reporting window from:
+      1) Text in the sheet: 'From: 8/4/2025 To: 11/24/2025'
+      2) Filename: '... 8_4_2025 - 11_24_2025.pdf' or '... 8-4-2025 to 11-24-2025.pdf'
+    Returns (start_dt, end_dt, 'raw_start to raw_end') or (None, None, 'UNKNOWN')
     """
-    # 1) BEST SOURCE → The sheet text itself:
-    # Matches actual TORIS output:
-    #   "From: 8/4/2025 To: 11/24/2025"
+    # 1) Best: the sheet's text itself
     m1 = re.search(
         r"From:\s*(\d{1,2}/\d{1,2}/\d{4})\s*To:\s*(\d{1,2}/\d{1,2}/\d{4})",
         raw_text,
@@ -115,17 +114,12 @@ def extract_reporting_period(raw_text, filename):
         end_dt = datetime.strptime(end_str, "%m/%d/%Y")
         return start_dt, end_dt, f"{start_str} to {end_str}"
 
-    # 2) FALLBACK → Filename flexible matcher:
-    # Handles:
-    #   8_4_2025 - 11_24_2025.pdf
-    #   8-4-2025 to 11-24-2025.pdf
-    #   8/4/2025 - 11/24/2025.pdf
+    # 2) Filename as fallback
     m2 = re.search(
         r"(\d{1,2}[-_/]\d{1,2}[-_/]\d{4})\s*(?:to|-)\s*(\d{1,2}[-_/]\d{1,2}[-_/]\d{4})",
         filename,
         re.IGNORECASE,
     )
-
     if m2:
         raw_start, raw_end = m2.group(1), m2.group(2)
         start_dt = _parse_flex_date(raw_start)
@@ -137,15 +131,19 @@ def extract_reporting_period(raw_text, filename):
         if start_dt and end_dt:
             return start_dt, end_dt, f"{start_str} to {end_str}"
 
-    # 3) FAILSAFE:
+    # 3) Nothing found
     return None, None, "UNKNOWN"
 
 
 # ------------------------------------------------
-# VALIDATION REPORTS (PER SAILOR + MASTER)
+# VALIDATION REPORTS (MASTER + PER SAILOR, BOX TABLES)
 # ------------------------------------------------
 
 def write_validation_reports(summary_data):
+    """
+    Builds per-sailor and master validation reports with
+    box-table formatting in all relevant sections.
+    """
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     os.makedirs(validation_dir, exist_ok=True)
 
@@ -167,11 +165,73 @@ def write_validation_reports(summary_data):
             (sd.get("first") or "").upper()
         )
 
-    for key, sd in sorted(summary_data.items(), key=sort_key):
-        rate = sd.get("rate", "")
-        last = sd.get("last", "")
-        first = sd.get("first", "")
+    def fix_width(text, width):
+        """Trim or pad text to fixed width, add ellipsis if needed."""
+        if text is None:
+            text = ""
+        text = str(text)
+        if len(text) > width:
+            return text[: width - 1] + "…"
+        return text.ljust(width)
 
+    # Reporting Periods table widths
+    RP_W_START = 17
+    RP_W_END = 17
+    RP_W_FILE = 40
+
+    rp_border = (
+        "+" + "-" * (RP_W_START + 2) +
+        "+" + "-" * (RP_W_END + 2) +
+        "+" + "-" * (RP_W_FILE + 2) + "+"
+    )
+
+    # Summary table widths
+    SUM_W_LABEL = 28
+    SUM_W_VAL = 10
+    sum_border = (
+        "+" + "-" * (SUM_W_LABEL + 2) +
+        "+" + "-" * (SUM_W_VAL + 2) + "+"
+    )
+
+    # Valid periods table widths
+    VP_W_SHIP = 20
+    VP_W_START = 17
+    VP_W_END = 17
+    VP_W_DAYS = 4
+
+    vp_border = (
+        "+" + "-" * (VP_W_SHIP + 2) +
+        "+" + "-" * (VP_W_START + 2) +
+        "+" + "-" * (VP_W_END + 2) +
+        "+" + "-" * (VP_W_DAYS + 2) + "+"
+    )
+
+    # Invalid events table widths
+    INV_W_DATE = 12
+    INV_W_SHIP = 20
+    INV_W_REASON = 40
+
+    inv_border = (
+        "+" + "-" * (INV_W_DATE + 2) +
+        "+" + "-" * (INV_W_SHIP + 2) +
+        "+" + "-" * (INV_W_REASON + 2) + "+"
+    )
+
+    # Duplicates table widths
+    DUP_W_DATE = 12
+    DUP_W_SHIP = 20
+    DUP_W_OCC = 10
+
+    dup_border = (
+        "+" + "-" * (DUP_W_DATE + 2) +
+        "+" + "-" * (DUP_W_SHIP + 2) +
+        "+" + "-" * (DUP_W_OCC + 2) + "+"
+    )
+
+    for key, sd in sorted(summary_data.items(), key=sort_key):
+        rate = sd.get("rate", "") or ""
+        last = sd.get("last", "") or ""
+        first = sd.get("first", "") or ""
         display_name = f"{rate} {last}, {first}".strip()
 
         periods = sd.get("periods", [])
@@ -180,88 +240,190 @@ def write_validation_reports(summary_data):
         reporting_periods = sd.get("reporting_periods", [])
 
         total_days = sum(p["days"] for p in periods)
+        status = "VALID" if not (skipped_unknown or skipped_dupe) else "WITH DISCREPANCIES"
 
         lines = []
-        lines.append("=" * 80)
+        lines.append("=" * 90)
         lines.append(f"SAILOR: {display_name}")
-        lines.append("=" * 80)
+        lines.append("=" * 90)
         lines.append("")
 
-        # REPORTING WINDOWS
-        lines.append("REPORTING PERIODS")
-        lines.append("-" * 80)
+        # --- REPORTING PERIODS TABLE ---
+        lines.append("REPORTING PERIODS (SEA DUTY CERTIFICATION SHEETS)")
+        lines.append(rp_border)
+        lines.append(
+            "| " + fix_width("START DATE", RP_W_START) +
+            " | " + fix_width("END DATE", RP_W_END) +
+            " | " + fix_width("SOURCE FILE", RP_W_FILE) + " |"
+        )
+        lines.append(rp_border)
+
         if reporting_periods:
-            lines.append("  REPORTING PERIOD START     REPORTING PERIOD END       SOURCE FILE")
-            lines.append("  -------------------------  -------------------------  ----------------------------")
             for rp in reporting_periods:
                 rs = _fmt_dmy(rp.get("start"))
                 re_ = _fmt_dmy(rp.get("end"))
                 src = rp.get("file", "")
-                lines.append(f"  {rs:25}  {re_:25}  {src}")
+                row = (
+                    "| " + fix_width(rs, RP_W_START) +
+                    " | " + fix_width(re_, RP_W_END) +
+                    " | " + fix_width(src, RP_W_FILE) + " |"
+                )
+                if len(row) > 90:
+                    row = row[:90]
+                lines.append(row)
         else:
-            lines.append("  NONE")
+            row = (
+                "| " + fix_width("UNKNOWN", RP_W_START) +
+                " | " + fix_width("UNKNOWN", RP_W_END) +
+                " | " + fix_width("NO SHEET INFO", RP_W_FILE) + " |"
+            )
+            if len(row) > 90:
+                row = row[:90]
+            lines.append(row)
+
+        lines.append(rp_border)
         lines.append("")
 
-        # SUMMARY
+        # --- SUMMARY TABLE ---
         lines.append("SUMMARY")
-        lines.append("-" * 80)
-        lines.append(f"  Total Valid Sea Pay Days : {total_days}")
-        lines.append(f"  Valid Period Count       : {len(periods)}")
-        lines.append(f"  Invalid Events           : {len(skipped_unknown)}")
-        lines.append(f"  Duplicate Date Conflicts : {len(skipped_dupe)}")
+        lines.append(sum_border)
+        lines.append(
+            "| " + fix_width("Total Valid Sea Pay Days", SUM_W_LABEL) +
+            " | " + fix_width(total_days, SUM_W_VAL) + " |"
+        )
+        lines.append(
+            "| " + fix_width("Valid Period Count", SUM_W_LABEL) +
+            " | " + fix_width(len(periods), SUM_W_VAL) + " |"
+        )
+        lines.append(
+            "| " + fix_width("Invalid Events", SUM_W_LABEL) +
+            " | " + fix_width(len(skipped_unknown), SUM_W_VAL) + " |"
+        )
+        lines.append(
+            "| " + fix_width("Duplicate Date Conflicts", SUM_W_LABEL) +
+            " | " + fix_width(len(skipped_dupe), SUM_W_VAL) + " |"
+        )
+        lines.append(
+            "| " + fix_width("Status", SUM_W_LABEL) +
+            " | " + fix_width(status, SUM_W_VAL) + " |"
+        )
+        lines.append(sum_border)
         lines.append("")
 
-        # VALID PERIODS
+        # --- VALID SEA PAY PERIODS TABLE ---
         lines.append("VALID SEA PAY PERIODS")
-        lines.append("-" * 80)
+        lines.append(vp_border)
+        lines.append(
+            "| " + fix_width("SHIP", VP_W_SHIP) +
+            " | " + fix_width("START DATE", VP_W_START) +
+            " | " + fix_width("END DATE", VP_W_END) +
+            " | " + fix_width("DAYS", VP_W_DAYS) + " |"
+        )
+        lines.append(vp_border)
+
         if periods:
-            lines.append("  SHIP                 START            END              DAYS")
-            lines.append("  -------------------  ----------------  ----------------  ----")
             for p in periods:
                 ship = (p["ship"] or "").upper()
                 start = _fmt_dmy(p["start"])
                 end = _fmt_dmy(p["end"])
                 days = p["days"]
-                lines.append(f"  {ship[:19]:19}  {start:16}  {end:16}  {days:4}")
+                row = (
+                    "| " + fix_width(ship, VP_W_SHIP) +
+                    " | " + fix_width(start, VP_W_START) +
+                    " | " + fix_width(end, VP_W_END) +
+                    " | " + fix_width(days, VP_W_DAYS) + " |"
+                )
+                if len(row) > 90:
+                    row = row[:90]
+                lines.append(row)
         else:
-            lines.append("  NONE")
+            row = (
+                "| " + fix_width("NONE", VP_W_SHIP) +
+                " | " + fix_width("", VP_W_START) +
+                " | " + fix_width("", VP_W_END) +
+                " | " + fix_width("", VP_W_DAYS) + " |"
+            )
+            if len(row) > 90:
+                row = row[:90]
+            lines.append(row)
+
+        lines.append(vp_border)
         lines.append("")
 
-        # INVALID EVENTS
+        # --- INVALID / EXCLUDED EVENTS TABLE ---
         lines.append("INVALID / EXCLUDED EVENTS")
-        lines.append("-" * 80)
+        lines.append(inv_border)
+        lines.append(
+            "| " + fix_width("DATE", INV_W_DATE) +
+            " | " + fix_width("SHIP", INV_W_SHIP) +
+            " | " + fix_width("REASON", INV_W_REASON) + " |"
+        )
+        lines.append(inv_border)
+
         if skipped_unknown:
             for entry in skipped_unknown:
                 dt = entry.get("date", "UNKNOWN")
                 ship = entry.get("ship") or entry.get("ship_name", "")
-                reason = entry.get("reason", "Excluded")
-                detail = dt
-                if ship:
-                    detail += f" | {ship}"
-                lines.append(f"  - {detail} — {reason}")
+                reason = entry.get("reason", "Excluded / non-qualifying")
+                row = (
+                    "| " + fix_width(dt, INV_W_DATE) +
+                    " | " + fix_width(ship, INV_W_SHIP) +
+                    " | " + fix_width(reason, INV_W_REASON) + " |"
+                )
+                if len(row) > 90:
+                    row = row[:90]
+                lines.append(row)
         else:
-            lines.append("  NONE")
+            row = (
+                "| " + fix_width("NONE", INV_W_DATE) +
+                " | " + fix_width("", INV_W_SHIP) +
+                " | " + fix_width("", INV_W_REASON) + " |"
+            )
+            if len(row) > 90:
+                row = row[:90]
+            lines.append(row)
+
+        lines.append(inv_border)
         lines.append("")
 
-        # DUPLICATES
-        lines.append("DUPLICATES")
-        lines.append("-" * 80)
+        # --- DUPLICATES TABLE ---
+        lines.append("DUPLICATE DATE CONFLICTS")
+        lines.append(dup_border)
+        lines.append(
+            "| " + fix_width("DATE", DUP_W_DATE) +
+            " | " + fix_width("SHIP", DUP_W_SHIP) +
+            " | " + fix_width("OCCURRENCE", DUP_W_OCC) + " |"
+        )
+        lines.append(dup_border)
+
         if skipped_dupe:
             for entry in skipped_dupe:
                 dt = entry.get("date", "UNKNOWN")
                 ship = entry.get("ship") or entry.get("ship_name", "")
-                occ = entry.get("occ_idx") or entry.get("occurrence", "")
-                detail = dt
-                if ship:
-                    detail += f" | {ship}"
-                if occ:
-                    detail += f" | occurrence #{occ}"
-                lines.append(f"  - {detail}")
+                occ = entry.get("occ_idx") or entry.get("occurrence") or ""
+                occ_text = f"#{occ}" if occ else ""
+                row = (
+                    "| " + fix_width(dt, DUP_W_DATE) +
+                    " | " + fix_width(ship, DUP_W_SHIP) +
+                    " | " + fix_width(occ_text, DUP_W_OCC) + " |"
+                )
+                if len(row) > 90:
+                    row = row[:90]
+                lines.append(row)
         else:
-            lines.append("  NONE")
+            row = (
+                "| " + fix_width("NONE", DUP_W_DATE) +
+                " | " + fix_width("", DUP_W_SHIP) +
+                " | " + fix_width("", DUP_W_OCC) + " |"
+            )
+            if len(row) > 90:
+                row = row[:90]
+            lines.append(row)
+
+        lines.append(dup_border)
         lines.append("")
 
-        # OUTPUT PER-SAILOR REPORT
+        # --- Per-sailor outputs ---
         safe_name = f"{rate}_{last}_{first}".replace(" ", "_").replace(",", "")
         txt_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.txt")
         pdf_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.pdf")
@@ -271,8 +433,9 @@ def write_validation_reports(summary_data):
 
         _write_pdf_from_lines(lines, pdf_path)
 
+        # Append to master
         master_lines.extend(lines)
-        master_lines.append("=" * 80)
+        master_lines.append("=" * 90)
         master_lines.append("")
 
     with open(master_txt, "w", encoding="utf-8") as f:
@@ -282,62 +445,61 @@ def write_validation_reports(summary_data):
 
 
 # ------------------------------------------------
-# VALIDATION LEDGER (MASTER VIEW)
+# VALIDATION LEDGER (BOX TABLE, OVERFLOW-PROTECTED)
 # ------------------------------------------------
 
 def write_validation_ledger(summary_data, generated_at):
     """
     Produces a perfectly aligned ASCII box-table ledger with overflow protection.
-    Total line width = 90 characters. Guaranteed no wrapping.
+    Total line width <= 90 characters.
     """
-
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     os.makedirs(validation_dir, exist_ok=True)
 
     txt_path = os.path.join(validation_dir, "VALIDATION_LEDGER.txt")
     pdf_path = os.path.join(validation_dir, "VALIDATION_LEDGER.pdf")
 
-    # Column exact width limits (characters)
     W_RATE = 4
     W_NAME = 24
     W_START = 17
     W_END = 17
     W_GEN = 20
 
-    # Build header border
     border = (
-        "+" + "-" * (W_RATE + 2)
-        + "+" + "-" * (W_NAME + 2)
-        + "+" + "-" * (W_START + 2)
-        + "+" + "-" * (W_END + 2)
-        + "+" + "-" * (W_GEN + 2)
-        + "+"
+        "+" + "-" * (W_RATE + 2) +
+        "+" + "-" * (W_NAME + 2) +
+        "+" + "-" * (W_START + 2) +
+        "+" + "-" * (W_END + 2) +
+        "+" + "-" * (W_GEN + 2) + "+"
     )
-
-    lines = []
-    lines.append(border)
-    lines.append(
-        "| RATE | NAME" + " " * (W_NAME - 4) +
-        " | START DATE" + " " * (W_START - 10) +
-        " | END DATE" + " " * (W_END - 8) +
-        " | GENERATED" + " " * (W_GEN - 9) + " |"
-    )
-    lines.append(border)
 
     def fix_width(text, width):
-        """Trim or pad text to fixed width, add ellipsis if needed."""
         if text is None:
             text = ""
         text = str(text)
         if len(text) > width:
-            return text[: width - 1] + "…"  # ellipsis
+            return text[: width - 1] + "…"
         return text.ljust(width)
 
     def sort_key(item):
         _k, sd = item
-        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
+        return (
+            (sd.get("last") or "").upper(),
+            (sd.get("first") or "").upper()
+        )
 
     gen_str = generated_at.strftime("%d %b %Y %H:%M")
+
+    lines = []
+    lines.append(border)
+    lines.append(
+        "| " + fix_width("RATE", W_RATE) +
+        " | " + fix_width("NAME", W_NAME) +
+        " | " + fix_width("START DATE", W_START) +
+        " | " + fix_width("END DATE", W_END) +
+        " | " + fix_width("GENERATED", W_GEN) + " |"
+    )
+    lines.append(border)
 
     for key, sd in sorted(summary_data.items(), key=sort_key):
         rate = sd.get("rate", "") or ""
@@ -347,56 +509,44 @@ def write_validation_ledger(summary_data, generated_at):
 
         reporting_periods = sd.get("reporting_periods", [])
         if not reporting_periods:
-            # Still output one row with UNKNOWNs
             start_s = "UNKNOWN"
             end_s = "UNKNOWN"
-
             row = (
-                "| " + fix_width(rate, W_RATE) + " | " +
-                fix_width(name, W_NAME) + " | " +
-                fix_width(start_s, W_START) + " | " +
-                fix_width(end_s, W_END) + " | " +
-                fix_width(gen_str, W_GEN) + " |"
+                "| " + fix_width(rate, W_RATE) +
+                " | " + fix_width(name, W_NAME) +
+                " | " + fix_width(start_s, W_START) +
+                " | " + fix_width(end_s, W_END) +
+                " | " + fix_width(gen_str, W_GEN) + " |"
             )
-
-            # Overflow protection: hard-trim final line
             if len(row) > 90:
                 row = row[:90]
-
             lines.append(row)
             continue
 
-        # Multiple reporting windows possible
         for rp in reporting_periods:
             rs = _fmt_dmy(rp.get("start"))
             re_ = _fmt_dmy(rp.get("end"))
-
             row = (
-                "| " + fix_width(rate, W_RATE) + " | " +
-                fix_width(name, W_NAME) + " | " +
-                fix_width(rs, W_START) + " | " +
-                fix_width(re_, W_END) + " | " +
-                fix_width(gen_str, W_GEN) + " |"
+                "| " + fix_width(rate, W_RATE) +
+                " | " + fix_width(name, W_NAME) +
+                " | " + fix_width(rs, W_START) +
+                " | " + fix_width(re_, W_END) +
+                " | " + fix_width(gen_str, W_GEN) + " |"
             )
-
             if len(row) > 90:
                 row = row[:90]
-
             lines.append(row)
 
     lines.append(border)
 
-    # Write TXT
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-    # Write matching PDF
     _write_pdf_from_lines(lines, pdf_path)
 
 
-
 # ------------------------------------------------
-# TRACKING (JSON + CSV)
+# TRACKING EXPORTS (JSON + CSV)
 # ------------------------------------------------
 
 def write_json_tracker(summary_data, generated_at):
@@ -500,8 +650,8 @@ def write_csv_tracker(summary_data, generated_at):
             first = sd.get("first", "")
 
             if reporting_periods:
-                rp_start = _fmt_iso(reporting_periods[0]["start"])
-                rp_end = _fmt_iso(reporting_periods[0]["end"])
+                rp_start = _fmt_iso(reporting_periods[0].get("start"))
+                rp_end = _fmt_iso(reporting_periods[0].get("end"))
             else:
                 rp_start = ""
                 rp_end = ""
@@ -514,7 +664,6 @@ def write_csv_tracker(summary_data, generated_at):
                         first,
                         rp_start,
                         rp_end,
-                        p["ship"],
                         _fmt_iso(p["start"]),
                         _fmt_iso(p["end"]),
                         p["days"],
@@ -531,7 +680,6 @@ def write_csv_tracker(summary_data, generated_at):
                     first,
                     rp_start,
                     rp_end,
-                    "",
                     "",
                     "",
                     0,
@@ -564,7 +712,7 @@ def process_all(strike_color="black"):
 
         raw = strip_times(ocr_pdf(path))
 
-        # Extract reporting period
+        # Reporting period
         sheet_start, sheet_end, sheet_range_text = extract_reporting_period(raw, file)
 
         # Member name
@@ -579,12 +727,13 @@ def process_all(strike_color="black"):
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # Group periods by ship
+        # Group valid rows by ship
         groups = group_by_ship(rows)
 
+        # Total days for this sheet
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
 
-        # Strikeout sheet
+        # Strikeout marked sheet
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
         marked_path = os.path.join(marked_dir, f"MARKED_{os.path.splitext(file)[0]}.pdf")
@@ -598,7 +747,7 @@ def process_all(strike_color="black"):
             strike_color=strike_color
         )
 
-        # NAVPERS per ship
+        # Build NAVPERS PDFs by ship
         ship_periods = {}
         for g in groups:
             ship_periods.setdefault(g["ship"], []).append(g)
@@ -623,6 +772,7 @@ def process_all(strike_color="black"):
 
         sd = summary_data[key]
 
+        # Reporting window for this sheet
         sd["reporting_periods"].append({
             "start": sheet_start,
             "end": sheet_end,
@@ -630,6 +780,7 @@ def process_all(strike_color="black"):
             "range_text": sheet_range_text
         })
 
+        # Valid periods
         for g in groups:
             days = (g["end"] - g["start"]).days + 1
             sd["periods"].append({
@@ -642,19 +793,21 @@ def process_all(strike_color="black"):
                 "sheet_file": file
             })
 
+        # Skipped
         sd["skipped_unknown"].extend(skipped_unknown)
         sd["skipped_dupe"].extend(skipped_dupe)
 
-    # Merge 1070s
+    # Merge NAVPERS PDFs
     merge_all_pdfs()
 
-    # Summary
+    # Summary TXT
     write_summary_files(summary_data)
 
-    # Validation
+    # Validation (per sailor + master)
     write_validation_reports(summary_data)
     log("VALIDATION REPORTS DONE")
 
+    # Ledger
     write_validation_ledger(summary_data, run_generated_at)
     log("LEDGER DONE")
 
@@ -664,4 +817,3 @@ def process_all(strike_color="black"):
     log("TRACKING DONE")
 
     log("✅ ALL OPERATIONS COMPLETE")
-
