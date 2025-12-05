@@ -3,14 +3,13 @@ import tempfile
 import zipfile
 from flask import Blueprint, render_template, request, send_from_directory, jsonify
 
-# FIXED IMPORTS (relative)
+# FIXED IMPORTS (relative paths)
 from .core.logger import LIVE_LOGS, log, clear_logs
 from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
 from .processing import process_all
-import app.core.rates as rates  # stays the same ONLY if folder name is app/
+import app.core.rates as rates
 
 bp = Blueprint("main", __name__)
-
 
 # ------------------------------------------------
 # ROOT PAGE
@@ -18,25 +17,20 @@ bp = Blueprint("main", __name__)
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        # Strikethrough color from form (default black)
         strike_color = request.form.get("strike_color", "black")
 
-        # Upload PDFs
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
 
-        # Upload template override
         tpl = request.files.get("template_file")
         if tpl and tpl.filename:
             tpl.save(TEMPLATE)
 
-        # Upload CSV (rates)
         csvf = request.files.get("rate_file")
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
-            # Reload CSV after upload
             rates.RATES = rates.load_rates()
             rates.CSV_IDENTITIES.clear()
 
@@ -52,7 +46,6 @@ def index():
                 full_norm = normalize_for_id(f"{first} {last}")
                 rates.CSV_IDENTITIES.append((full_norm, rate, last, first))
 
-        # Run processing after uploads, with selected color
         process_all(strike_color=strike_color)
 
     return render_template(
@@ -72,7 +65,7 @@ def get_logs():
 
 
 # ------------------------------------------------
-# DOWNLOAD ALL OUTPUT FILES 
+# DOWNLOAD ALL OUTPUT FILES
 # ------------------------------------------------
 @bp.route("/download_all")
 def download_all():
@@ -104,7 +97,6 @@ def download_merged():
         if f.startswith("MERGED_SeaPay_Forms_")
     )
 
-    # FIX #3 — Guard against no merged file existing
     if not merged_files:
         return "No merged PDF available. Run the processor first.", 404
 
@@ -118,7 +110,7 @@ def download_merged():
 
 
 # ------------------------------------------------
-# DOWNLOAD SUMMARIES
+# DOWNLOAD SUMMARY TEXT
 # ------------------------------------------------
 @bp.route("/download_summary")
 def download_summary():
@@ -144,7 +136,7 @@ def download_summary():
 
 
 # ------------------------------------------------
-# DOWNLOAD STRIKEOUT SHEETS
+# DOWNLOAD MARKED SHEETS
 # ------------------------------------------------
 @bp.route("/download_marked_sheets")
 def download_marked_sheets():
@@ -170,30 +162,65 @@ def download_marked_sheets():
 
 
 # ------------------------------------------------
-# ⭐ NEW — DOWNLOAD VALIDATION REPORTS
+# DOWNLOAD VALIDATION REPORTS
 # ------------------------------------------------
 @bp.route("/download_validation")
 def download_validation():
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
 
-    # Clean old zip
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
-    # Create new zip
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         if os.path.exists(validation_dir):
             for f in os.listdir(validation_dir):
-                full_path = os.path.join(validation_dir, f)
-                if os.path.isfile(full_path):
-                    z.write(full_path, arcname=f)
+                full = os.path.join(validation_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
 
     return send_from_directory(
         os.path.dirname(zip_path),
         os.path.basename(zip_path),
         as_attachment=True,
         download_name="Validation_Reports.zip",
+    )
+
+
+# ------------------------------------------------
+# ⭐ NEW — DOWNLOAD TRACKING PACKAGE (JSON + CSV + Validation)
+# ------------------------------------------------
+@bp.route("/download_tracking")
+def download_tracking():
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+    tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
+
+    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Tracking_Package.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+
+        # Include validation reports
+        if os.path.exists(validation_dir):
+            for f in os.listdir(validation_dir):
+                full = os.path.join(validation_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f"validation/{f}")
+
+        # Include tracking output
+        if os.path.exists(tracking_dir):
+            for f in os.listdir(tracking_dir):
+                full = os.path.join(tracking_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f"tracking/{f}")
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Tracking_Package.zip",
     )
 
 
