@@ -11,6 +11,32 @@ import app.core.rates as rates  # keep as-is for correct loading
 
 bp = Blueprint("main", __name__)
 
+
+# ------------------------------------------------
+# INTERNAL CLEANUP HELPER
+# ------------------------------------------------
+
+def cleanup_all_folders():
+    """
+    Delete ALL files under DATA_DIR (inputs) and OUTPUT_DIR (all output folders),
+    but keep the directory structure so the processor can recreate what it needs.
+    Returns the number of files deleted.
+    """
+    deleted = 0
+    for base in (DATA_DIR, OUTPUT_DIR):
+        if not os.path.isdir(base):
+            continue
+        for root, dirs, files in os.walk(base):
+            for f in files:
+                full = os.path.join(root, f)
+                try:
+                    os.remove(full)
+                    deleted += 1
+                except Exception as e:
+                    log(f"CLEANUP ERROR → {full}: {e}")
+    return deleted
+
+
 # ------------------------------------------------
 # HOME PAGE
 # ------------------------------------------------
@@ -61,6 +87,7 @@ def index():
         rate_path=RATE_FILE,
     )
 
+
 # ------------------------------------------------
 # LIVE LOGS
 # ------------------------------------------------
@@ -68,8 +95,9 @@ def index():
 def get_logs():
     return "\n".join(LIVE_LOGS)
 
+
 # ------------------------------------------------
-# DOWNLOAD ALL OUTPUT
+# DOWNLOAD ALL OUTPUT (root of OUTPUT_DIR only)
 # ------------------------------------------------
 @bp.route("/download_all")
 def download_all():
@@ -91,6 +119,7 @@ def download_all():
         download_name="SeaPay_Output.zip"
     )
 
+
 # ------------------------------------------------
 # DOWNLOAD MASTER MERGED PDF
 # ------------------------------------------------
@@ -111,6 +140,7 @@ def download_merged():
         latest,
         as_attachment=True
     )
+
 
 # ------------------------------------------------
 # DOWNLOAD SUMMARY TEXT FILES
@@ -137,6 +167,7 @@ def download_summary():
         download_name="SeaPay_Summaries.zip"
     )
 
+
 # ------------------------------------------------
 # DOWNLOAD MARKED STRIKEOUT SHEETS
 # ------------------------------------------------
@@ -162,6 +193,7 @@ def download_marked_sheets():
         download_name="Marked_Sheets.zip"
     )
 
+
 # ------------------------------------------------
 # DOWNLOAD VALIDATION REPORTS + LEDGER
 # ------------------------------------------------
@@ -173,22 +205,12 @@ def download_validation():
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
-    ledger_files = ["VALIDATION_LEDGER.txt", "VALIDATION_LEDGER.pdf"]
-
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-
-        # Add all validation files
         if os.path.exists(validation_dir):
             for f in os.listdir(validation_dir):
                 full = os.path.join(validation_dir, f)
                 if os.path.isfile(full):
                     z.write(full, arcname=f)
-
-            # Explicitly ensure ledger is included
-            for lf in ledger_files:
-                lf_path = os.path.join(validation_dir, lf)
-                if os.path.exists(lf_path):
-                    z.write(lf_path, arcname=lf)
 
     return send_from_directory(
         os.path.dirname(zip_path),
@@ -197,8 +219,9 @@ def download_validation():
         download_name="Validation_Reports.zip"
     )
 
+
 # ------------------------------------------------
-# DOWNLOAD TRACKING PACKAGE (JSON + CSV + VALIDATION + LEDGER)
+# DOWNLOAD TRACKING PACKAGE (JSON + CSV + VALIDATION)
 # ------------------------------------------------
 @bp.route("/download_tracking")
 def download_tracking():
@@ -210,8 +233,6 @@ def download_tracking():
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
-    ledger_files = ["VALIDATION_LEDGER.txt", "VALIDATION_LEDGER.pdf"]
-
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
 
         # ALL validation files
@@ -220,12 +241,6 @@ def download_tracking():
                 full = os.path.join(validation_dir, f)
                 if os.path.isfile(full):
                     z.write(full, arcname=f"validation/{f}")
-
-            # Explicit ledger include
-            for lf in ledger_files:
-                lf_path = os.path.join(validation_dir, lf)
-                if os.path.exists(lf_path):
-                    z.write(lf_path, arcname=f"validation/{lf}")
 
         # Tracking JSON / CSV
         if os.path.exists(tracking_dir):
@@ -241,13 +256,15 @@ def download_tracking():
         download_name="SeaPay_Tracking_Package.zip"
     )
 
-# ------------------------------------------------
-# RESET
-# ------------------------------------------------
-from .core.cleanup import cleanup_all_folders
 
+# ------------------------------------------------
+# RESET (INPUT + OUTPUT + LOGS)
+# ------------------------------------------------
 @bp.route("/reset", methods=["POST"])
 def reset():
     deleted = cleanup_all_folders()
     clear_logs()
-    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
+    return jsonify({
+        "status": "success",
+        "message": f"Reset complete. {deleted} files deleted."
+    })
