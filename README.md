@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://dummyimage.com/1400x320/0a1a2f/ffffff&text=SEA+PAY+PROCESSOR" alt="ATGSD Sea Pay Processor Banner">
+  <img src="https://dummyimage.com/1400x320/0a1a2f/ffffff&text=SEA+PAY+PROCESSOR" alt="Sea Pay Processor Banner">
 </p>
 
-# Sea Pay Processor
+# ATGSD Sea Pay Processor
 Batch processor for NAVPERS 1070/613 sea pay documentation.
 
 <p align="center">
