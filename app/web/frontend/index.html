@@ -1,337 +1,166 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>ATGSD Sea Pay Processor</title>
+    <meta charset="UTF-8">
+    <title>ATGSD SEA PAY PROCESSOR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e5e5e5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 90%;
+            max-width: 900px;
+            margin: 30px auto;
+            background: #2a2a2a;
+            padding: 25px;
+            border-radius: 6px;
+            box-shadow: 0 0 8px #000;
+        }
+        h1, h2, h3 {
+            text-align: center;
+            margin-top: 10px;
+        }
+        h1 {
+            font-size: 32px;
+            color: #4fa3ff;
+        }
+        .section-title {
+            margin-top: 30px;
+            padding-bottom: 6px;
+            font-size: 20px;
+            border-bottom: 2px solid #4fa3ff;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #ddd;
+        }
+        .btn {
+            background: #4fa3ff;
+            color: #000;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            background: #6bc1ff;
+        }
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+        .output-box {
+            background: #1b1b1b;
+            border: 1px solid #444;
+            padding: 12px;
+            margin-top: 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
 
-<style>
-body {
-    background: #0e1117;
-    font-family: Inter, Consolas, monospace;
-    margin: 0;
-    color:#c9d1d9;
-}
+        .download-link {
+            display: block;
+            margin: 6px 0;
+            color: #4fa3ff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .download-link:hover {
+            text-decoration: underline;
+        }
 
-/* HEADER */
-header {
-    background:#161b22;
-    padding:16px;
-    border-bottom:1px solid #30363d;
-}
-header h1 {
-    margin:0;
-    color:#58a6ff;
-    font-size:20px;
-}
-
-/* LAYOUT */
-.container {
-    max-width:1200px;
-    margin:20px auto;
-    padding:10px;
-}
-
-.grid {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:16px;
-}
-
-/* CARD FIX */
-.card {
-    background:linear-gradient(180deg,#161b22,#0e1117);
-    border-radius:10px;
-    padding:16px;
-    border:1px solid #21262d;
-    box-sizing:border-box;
-    overflow:hidden;
-}
-
-.card h3 {
-    margin-top:0;
-    font-size:14px;
-    letter-spacing:0.5px;
-    color:#8b949e;
-}
-
-/* FILE INPUT FIX */
-input[type="file"] {
-    width:100%;
-    max-width:100%;
-    padding:12px;
-    border-radius:8px;
-    background:#0e1117;
-    border:1px dashed #30363d;
-    color:#c9d1d9;
-    box-sizing:border-box;
-}
-
-input[type="file"]::file-selector-button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:6px 12px;
-    margin-right:10px;
-    border-radius:6px;
-    cursor:pointer;
-    max-width:100%;
-}
-
-input[type="file"]::file-selector-button:hover {
-    border-color:#58a6ff;
-    color:#58a6ff;
-}
-
-input[type="file"]:hover {
-    border-color:#58a6ff;
-}
-
-/* CONTROL BUTTONS – MINIMAL DESIGN */
-button {
-    background:#1e1e1e;
-    color:#e6e6e6;
-    border:1px solid #333;
-    padding:10px 18px;
-    margin:4px;
-    border-radius:6px;
-    font-size:14px;
-    letter-spacing:0.5px;
-    font-weight:600;
-    transition:all .15s ease-in-out;
-    cursor:pointer;
-}
-
-button:hover {
-    background:#272727;
-    border-color:#3a3a3a;
-    color:white;
-}
-
-button.primary {
-    background:#0d6efd;
-    border-color:#0d6efd;
-    color:#fff;
-}
-
-button.primary:hover {
-    background:#0b5ed7;
-}
-
-button.danger {
-    background:#d9534f;
-    border-color:#d9534f;
-    color:#fff;
-}
-
-button.danger:hover {
-    background:#c9443f;
-}
-
-/* PATHS */
-.paths {
-    margin-top:6px;
-    font-size:12px;
-    color:#8b949e;
-}
-
-/* STATUS */
-.status {
-    margin-top:10px;
-    font-size:12px;
-    color:#8b949e;
-}
-
-/* LOG CONSOLE */
-.logs {
-    margin-top:18px;
-    background:#161b22;
-    padding:16px;
-    border-radius:8px;
-    border:1px solid #30363d;
-}
-.logs h3 {
-    margin:0 0 10px 0;
-    color:#8b949e;
-    font-size:14px;
-}
-#logBox {
-    height:340px;
-    background:#0e1117;
-    border:1px solid #30363d;
-    padding:12px;
-    font-size:12px;
-    white-space:pre-wrap;
-    overflow-y:auto;
-    font-family:Consolas, monospace;
-}
-
-/* FOOTER */
-footer {
-    margin-top:24px;
-    text-align:center;
-    font-size:12px;
-    color:#8b949e;
-}
-</style>
+    </style>
 </head>
 
 <body>
+    <div class="container">
+        <h1>ATGSD SEA PAY PROCESSOR</h1>
+        <p style="text-align:center">Automated TORIS, SEA PAY PG13, and Summary File Generator</p>
 
-<header>
-<h1>ATG SAN DIEGO | SEA PAY PROCESSOR</h1>
-</header>
+        <!-- Upload Section -->
+        <div class="section-title">Upload Sea Duty Certification Sheets</div>
+        <form action="/process" enctype="multipart/form-data" method="post">
+            <input type="file" name="files" multiple required>
+            <button class="btn" type="submit">PROCESS FILES</button>
+        </form>
 
-<div class="container">
+        <!-- Output Section -->
+        <div class="section-title">Generated Output</div>
 
-<form id="uploadForm" enctype="multipart/form-data">
-
-<div class="grid">
-
-    <div class="card">
-        <h3>SEA DUTY CERTIFICATION SHEETS (TORIS)</h3>
-        <input type="file" name="files" multiple>
-    </div>
-
-    <div class="card">
-        <h3>NAVPERS 1070/613 TEMPLATE</h3>
-        <input type="file" name="template_file">
-        <div class="paths">Current: {{ template_path }}</div>
-    </div>
-
-    <div class="card">
-        <h3>N811 PERSONNEL ROSTER (CSV)</h3>
-        <input type="file" name="rate_file">
-        <div class="paths">Current: {{ rate_path }}</div>
-    </div>
-
-    <div class="card">
-        <h3>PROCESS CONTROL</h3>
-
-        <div style="margin-bottom:12px;">
-            <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
-            <select name="strike_color" id="strike_color" style="width:100%;padding:8px;border-radius:6px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
-                <option value="black" selected>Black (Default)</option>
-                <option value="red">Red</option>
-            </select>
+        <h3>SEA PAY PG13 Files</h3>
+        <div id="pg13-list" class="output-box">
+            No files generated yet.
         </div>
 
-        <div class="toolbar">
-            <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
-            <button type="button" onclick="downloadMerged()">MERGED OUTPUT</button>
-            <button type="button" onclick="downloadSummary()">SUMMARY REPORT</button>
-            <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
-            
-            <button type="button" onclick="location.href='/download_marked_sheets'">MARKED SHEETS</button>
-            <button type="button" onclick="location.href='/download_validation'">VALIDATION LOGS</button>
-            <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
-
-            <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
+        <h3>TORIS Sea Pay Cert Sheets</h3>
+        <div id="toris-list" class="output-box">
+            No files generated yet.
         </div>
 
-        <div class="status" id="statusText">STATUS: READY</div>
+        <h3>Summary Files (TXT / PDF)</h3>
+        <div id="summary-list" class="output-box">
+            No summaries generated yet.
+        </div>
+
+        <!-- PACKAGE -->
+        <div class="section-title">Final Package</div>
+        <p style="text-align:center">Generate 3 merged PDFs for printing or upload.</p>
+
+        <form action="/package" method="post">
+            <button class="btn" type="submit">GENERATE PACKAGE</button>
+        </form>
+
+        <div id="package-list" class="output-box">
+            No package files yet.
+        </div>
+
     </div>
 
-</div>
+    <script>
+        // Fetch output lists and refresh dynamically
+        async function refreshOutput() {
+            const res = await fetch('/list_outputs');
+            const data = await res.json();
 
-</form>
+            // PG13 files
+            const pg13Box = document.getElementById('pg13-list');
+            pg13Box.innerHTML = data.pg13.length
+                ? data.pg13.map(f => `<a class="download-link" href="/download/SEA_PAY_PG13/${f}">${f}</a>`).join('')
+                : "No files generated yet.";
 
-<div class="logs">
-<h3>LIVE OPERATION LOG</h3>
-<div id="logBox">{{ logs }}</div>
-</div>
+            // TORIS Cert sheets
+            const torisBox = document.getElementById('toris-list');
+            torisBox.innerHTML = data.toris.length
+                ? data.toris.map(f => `<a class="download-link" href="/download/TORIS_SEA_PAY_CERT_SHEET/${f}">${f}</a>`).join('')
+                : "No files generated yet.";
 
-<footer>
-STG1(SW) Nivera, Ryan | ATGSD
-</footer>
+            // Summary TXT/PDF
+            const summaryBox = document.getElementById('summary-list');
+            summaryBox.innerHTML = data.summary.length
+                ? data.summary.map(f => `<a class="download-link" href="/download/SUMMARY/${f}">${f}</a>`).join('')
+                : "No summaries generated yet.";
 
-</div>
-
-<script>
-let isPolling=false;
-let autoScroll=true;
-let lastText="";
-
-const logBox=document.getElementById("logBox");
-const statusText=document.getElementById("statusText");
-
-logBox.addEventListener("scroll",()=>{
-    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
-});
-
-pollLogs();
-
-function pollLogs(){
-    if(isPolling) return;
-    isPolling=true;
-
-    fetch("/logs")
-    .then(r=>r.text())
-    .then(txt=>{
-        if(txt===lastText){
-            isPolling=false;
-            setTimeout(pollLogs,1000);
-            return;
+            // PACKAGE files
+            const packageBox = document.getElementById('package-list');
+            packageBox.innerHTML = data.package.length
+                ? data.package.map(f => `<a class="download-link" href="/download/PACKAGE/${f}">${f}</a>`).join('')
+                : "No package files yet.";
         }
 
-        const prevTop=logBox.scrollTop;
-        const prevHeight=logBox.scrollHeight;
-
-        logBox.innerText=txt;
-        lastText=txt;
-
-        if(autoScroll){
-            logBox.scrollTop=logBox.scrollHeight;
-        } else {
-            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
-        }
-
-        isPolling=false;
-        setTimeout(pollLogs,1000);
-    })
-    .catch(()=>{
-        isPolling=false;
-        setTimeout(pollLogs,2000);
-    });
-}
-
-document.getElementById("uploadForm").addEventListener("submit",function(e){
-    e.preventDefault();
-
-    const formData=new FormData(this);
-    const btn=document.getElementById("submitBtn");
-
-    btn.innerText="PROCESSING...";
-    btn.disabled=true;
-    statusText.innerText="STATUS: PROCESSING...";
-
-    fetch("/",{method:"POST",body:formData})
-    .then(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: COMPLETE";
-    })
-    .catch(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: ERROR";
-    });
-});
-
-function downloadMerged(){location.href="/download_merged";}
-function downloadSummary(){location.href="/download_summary";}
-function downloadAll(){location.href="/download_all";}
-
-function resetAll(){
-    if(!confirm("Delete ALL input/output files and logs?")) return;
-    fetch("/reset",{method:"POST"})
-    .then(r=>r.json())
-    .then(data=>{
-        alert(data.message||"Reset complete");
-        statusText.innerText="STATUS: READY";
-    });
-}
-</script>
+        setInterval(refreshOutput, 2000);
+        refreshOutput();
+    </script>
 
 </body>
 </html>
