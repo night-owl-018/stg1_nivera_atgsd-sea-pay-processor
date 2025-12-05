@@ -1,41 +1,62 @@
 import os
-from datetime import datetime
 from PyPDF2 import PdfMerger
 
 from app.core.logger import log
-from app.core.config import OUTPUT_DIR
+from app.core.config import (
+    SEA_PAY_PG13_FOLDER,
+    TORIS_CERT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    PACKAGE_FOLDER,
+)
+
+
+def _merge_folder_pdfs(source_folder, out_path, description):
+    files = [
+        f for f in sorted(os.listdir(source_folder))
+        if f.lower().endswith(".pdf")
+    ]
+    if not files:
+        log(f"No PDFs found to merge for {description}.")
+        return False
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+    merger = PdfMerger()
+    for fn in files:
+        full_path = os.path.join(source_folder, fn)
+        try:
+            merger.append(full_path)
+            log(f"ADDED TO {description} → {fn}")
+        except Exception as e:
+            log(f"⚠️ SKIPPED {fn} IN {description} → {e}")
+
+    try:
+        merger.write(out_path)
+        merger.close()
+        log(f"MERGED PDF CREATED → {os.path.basename(out_path)}")
+        return True
+    except Exception as e:
+        log(f"❌ MERGE FAILED FOR {description} → {e}")
+        return False
 
 
 def merge_all_pdfs():
-    pdf_files = sorted([
-        f for f in os.listdir(OUTPUT_DIR)
-        if f.lower().endswith(".pdf")
-        and not f.startswith("MERGED_SeaPay_Forms_")
-        and not f.startswith("MARKED_")
-    ])
+    """
+    Build the final PACKAGE set:
 
-    if not pdf_files:
-        log("NO PDFs TO MERGE")
-        return None
+    /output/PACKAGE/
+        MERGED_SEA_PAY_PG13.pdf
+        MERGED_TORIS_SEA_PAY_CERT_SHEETS.pdf
+        MERGED_SUMMARY.pdf
+    """
+    os.makedirs(PACKAGE_FOLDER, exist_ok=True)
 
-    log(f"MERGING {len(pdf_files)} PDFs...")
-    merger = PdfMerger()
+    merged_pg13 = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
+    merged_toris = os.path.join(PACKAGE_FOLDER, "MERGED_TORIS_SEA_PAY_CERT_SHEETS.pdf")
+    merged_summary = os.path.join(PACKAGE_FOLDER, "MERGED_SUMMARY.pdf")
 
-    for pdf_file in pdf_files:
-        pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
-        bookmark = os.path.splitext(pdf_file)[0]
-        merger.append(pdf_path, outline_item=bookmark)
-        log(f"ADDED BOOKMARK → {bookmark}")
+    _merge_folder_pdfs(SEA_PAY_PG13_FOLDER, merged_pg13, "SEA PAY PG13")
+    _merge_folder_pdfs(TORIS_CERT_FOLDER, merged_toris, "TORIS SEA PAY CERT SHEET")
+    _merge_folder_pdfs(SUMMARY_PDF_FOLDER, merged_summary, "SUMMARY PDFs")
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    merged_filename = f"MERGED_SeaPay_Forms_{ts}.pdf"
-    merged_path = os.path.join(OUTPUT_DIR, merged_filename)
-
-    try:
-        merger.write(merged_path)
-        merger.close()
-        log(f"MERGED PDF CREATED → {merged_filename}")
-        return merged_filename
-    except Exception as e:
-        log(f"❌ MERGE FAILED → {e}")
-        return None
+    log("PACKAGE MERGE COMPLETE")
