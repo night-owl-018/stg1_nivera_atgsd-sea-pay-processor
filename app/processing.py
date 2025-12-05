@@ -249,11 +249,26 @@ def write_validation_reports(summary_data):
             "-" * W_SUM_VAL
         )
 
-        lines.append(fix_width("Total Valid Sea Pay Days", W_SUM_LABEL) + "  " + fix_width(total_days, W_SUM_VAL))
-        lines.append(fix_width("Valid Period Count", W_SUM_LABEL) + "  " + fix_width(len(periods), W_SUM_VAL))
-        lines.append(fix_width("Invalid Events", W_SUM_LABEL) + "  " + fix_width(len(invalids), W_SUM_VAL))
-        lines.append(fix_width("Duplicate Conflicts", W_SUM_LABEL) + "  " + fix_width(len(dupes), W_SUM_VAL))
-        lines.append(fix_width("Status", W_SUM_LABEL) + "  " + fix_width(status, W_SUM_VAL))
+        lines.append(
+            fix_width("Total Valid Sea Pay Days", W_SUM_LABEL) +
+            "  " + fix_width(total_days, W_SUM_VAL)
+        )
+        lines.append(
+            fix_width("Valid Period Count", W_SUM_LABEL) +
+            "  " + fix_width(len(periods), W_SUM_VAL)
+        )
+        lines.append(
+            fix_width("Invalid Events", W_SUM_LABEL) +
+            "  " + fix_width(len(invalids), W_SUM_VAL)
+        )
+        lines.append(
+            fix_width("Duplicate Conflicts", W_SUM_LABEL) +
+            "  " + fix_width(len(dupes), W_SUM_VAL)
+        )
+        lines.append(
+            fix_width("Status", W_SUM_LABEL) +
+            "  " + fix_width(status, W_SUM_VAL)
+        )
         lines.append("")
 
         # ---------------------------------------------------------
