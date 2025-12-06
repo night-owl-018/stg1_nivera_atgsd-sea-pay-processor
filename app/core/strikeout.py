@@ -174,12 +174,19 @@ def mark_sheet_with_strikeouts(
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
         # ------------------------------------------------
-        # PATCH: AUTO-STRIKE SBTT EVENTS
+        # PATCH: AUTO-STRIKE SBTT EVENTS (ALIGNED TO DATE)
         # ------------------------------------------------
         for row in row_list:
             if "SBTT" in row["text"]:
-                strike_targets.setdefault(row["page"], []).append(row["y"])
-                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} Y={row['y']:.1f}")
+                strike_y = row["y"]
+                if row.get("date"):
+                    for r2 in row_list:
+                        if r2.get("date") == row["date"] and r2.get("occ_idx") == row["occ_idx"]:
+                            strike_y = r2["y"]
+                            break
+
+                strike_targets.setdefault(row["page"], []).append(strike_y)
+                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} Y={strike_y:.1f}")
 
 
         # ------------------------------------------------
@@ -232,7 +239,6 @@ def mark_sheet_with_strikeouts(
             correct_x_pdf = old_end_x_pdf + three_spaces_width
             strike_end_x = correct_x_pdf - three_spaces_width
 
-            # PATCH — strike only when mismatch
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
@@ -243,7 +249,6 @@ def mark_sheet_with_strikeouts(
             ):
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                 c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
-            # ELSE: do not draw corrected number, do not strike through
 
             c.save()
             buf.seek(0)
