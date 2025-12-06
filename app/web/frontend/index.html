@@ -1,323 +1,422 @@
-import os
-import shutil
-from datetime import datetime
-import io
-import re
-
-import pytesseract
-from pdf2image import convert_from_path
-from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from pytesseract import Output
-
-from app.core.logger import log
-
-
-# ------------------------------------------------
-# DATE VARIANT BUILDER
-# ------------------------------------------------
-
-def _build_date_variants(date_str):
-    variants = set()
-    try:
-        dt = datetime.strptime(date_str, "%m/%d/%Y")
-    except Exception:
-        return {date_str}
-
-    variants.add(date_str)
-    variants.add(f"{dt.month}/{dt.day}/{dt.year}")
-    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")
-    variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")
-
-    return variants
-
-
-
-# ------------------------------------------------
-# STRIKEOUT ENGINE
-# ------------------------------------------------
-
-def mark_sheet_with_strikeouts(
-    original_pdf,
-    skipped_duplicates,
-    skipped_unknown,
-    output_path,
-    extracted_total_days,      # PATCH
-    computed_total_days,       # PATCH
-    strike_color="black",
-):
-
-    # ------------------------------------------------
-    # FIX #4 — COLOR MAPPING
-    # ------------------------------------------------
-    color_map = {
-        "black": (0, 0, 0),
-        "red": (1, 0, 0),
-    }
-    rgb = color_map.get(strike_color.lower(), (0, 0, 0))
-
-    try:
-        log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
-
-        targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
-        targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
-        all_targets = targets_invalid.union(targets_dup)
-
-        pages = convert_from_path(original_pdf)
-        row_list = []
-
-        # ------------------------------------------------
-        # BUILD ROWS & OCR tokens
-        # ------------------------------------------------
-        all_dates = {d for (d, _) in all_targets}
-        date_variants_map = {d: _build_date_variants(d) for d in all_dates}
-
-        ocr_tokens = {}
-
-        for page_index, img in enumerate(pages):
-            log(f"  BUILDING ROWS FROM PAGE {page_index+1}/{len(pages)}")
-
-            data = pytesseract.image_to_data(img, output_type=Output.DICT)
-            img_w, img_h = img.size
-            scale_y = letter[1] / float(img_h)
-
-            tokens = []
-            page_token_list = []
-
-            for j in range(len(data["text"])):
-                txt = data["text"][j].strip()
-                if not txt:
-                    continue
-
-                left = data["left"][j]
-                top = data["top"][j]
-                width = data["width"][j]
-                height = data["height"][j]
-
-                page_token_list.append((txt, left, top, width, height))
-
-                center_y_img = top + height / 2.0
-                center_from_bottom_px = img_h - center_y_img
-                y = center_from_bottom_px * scale_y
-
-                tokens.append({"text": txt.upper(), "y": y})
-
-            ocr_tokens[page_index] = page_token_list
-
-            tokens.sort(key=lambda t: -t["y"])
-
-            visual_rows = []
-            current_row = []
-            last_y = None
-            threshold = 5.5
-
-            for tok in tokens:
-                if last_y is None:
-                    current_row = [tok]
-                    last_y = tok["y"]
-                    continue
-
-                if abs(tok["y"] - last_y) <= threshold:
-                    current_row.append(tok)
-                    last_y = tok["y"]
-                else:
-                    visual_rows.append(current_row)
-                    current_row = [tok]
-                    last_y = tok["y"]
-
-            if current_row:
-                visual_rows.append(current_row)
-
-            tmp_rows = []
-            for row in visual_rows:
-                y_avg = sum(t["y"] for t in row) / len(row)
-                text = " ".join(t["text"] for t in row)
-                tmp_rows.append({
-                    "page": page_index,
-                    "y": y_avg,
-                    "text": text,
-                    "date": None,
-                    "occ_idx": None,
-                })
-
-            tmp_rows.sort(key=lambda r: -r["y"])
-
-            date_counters = {d: 0 for d in all_dates}
-            for row in tmp_rows:
-                for d in all_dates:
-                    variants = date_variants_map[d]
-                    if any(v in row["text"] for v in variants):
-                        date_counters[d] += 1
-                        row["date"] = d
-                        row["occ_idx"] = date_counters[d]
-                        break
-
-            row_list.extend(tmp_rows)
-
-
-        # ------------------------------------------------
-        # DETECT STRIKEOUT TARGETS
-        # ------------------------------------------------
-        strike_targets = {}
-
-        for row in row_list:
-            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
-                strike_targets.setdefault(row["page"], []).append(row["y"])
-                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
-
-        for row in row_list:
-            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
-                ys = strike_targets.get(row["page"], [])
-                if not any(abs(y - row["y"]) < 0.1 for y in ys):
-                    strike_targets.setdefault(row["page"], []).append(row["y"])
-                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
-
-        # ------------------------------------------------
-        # PATCH: AUTO-STRIKE SBTT EVENTS (SMART ALIGNMENT)
-        # ------------------------------------------------
-        for row in row_list:
-            if "SBTT" in row["text"]:
-
-                # Case 1 – SBTT already on same line as date
-                if row.get("date"):
-                    strike_y = row["y"]
-                else:
-                    # Case 2 – SBTT is on its own line below the date.
-                    strike_y = row["y"]
-                    for r2 in row_list:
-                        if (
-                            r2["page"] == row["page"]
-                            and r2["y"] > row["y"]
-                            and re.match(r"\d{1,2}/\d{1,2}/\d{4}", r2["text"])
-                        ):
-                            strike_y = r2["y"]
-                            break
-
-                strike_targets.setdefault(row["page"], []).append(strike_y)
-                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} Y={strike_y:.1f}")
-
-
-        # ------------------------------------------------
-        # PATCHED NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
-        # ------------------------------------------------
-        total_row = None
-        for row in row_list:
-            if ("TOTAL" in row["text"]
-                and "SEA" in row["text"]
-                and "PAY" in row["text"]
-                and "DAYS" in row["text"]):
-                total_row = row
-                break
-
-        total_overlay = None
-
-        if total_row:
-            page_idx = total_row["page"]
-            target_y_pdf = total_row["y"]
-
-            page_img = pages[page_idx]
-            width_img, height_img = page_img.size
-            scale_x = letter[0] / float(width_img)
-
-            tokens_page = ocr_tokens[page_idx]
-
-            old_start_x_pdf = None
-            old_end_x_pdf = None
-
-            for (txt, left, top, w, h) in tokens_page:
-                if re.fullmatch(r"\d+", txt):
-                    center_y_img = top + h / 2.0
-                    center_from_bottom_px = height_img - center_y_img
-                    y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
-
-                    if abs(y_pdf - target_y_pdf) < 3:
-                        old_start_x_pdf = left * scale_x
-                        old_end_x_pdf = (left + w) * scale_x
-                        break
-
-            if old_start_x_pdf is None:
-                old_start_x_pdf = 260
-                old_end_x_pdf = 300
-
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=letter)
-            c.setFont("Helvetica", 10)
-
-            three_spaces_width = c.stringWidth("   ", "Helvetica", 10)
-            correct_x_pdf = old_end_x_pdf + three_spaces_width
-            strike_end_x = correct_x_pdf - three_spaces_width
-
-            c.setLineWidth(0.8)
-            c.setStrokeColorRGB(*rgb)
-
-            if (
-                extracted_total_days is None
-                or computed_total_days is None
-                or extracted_total_days != computed_total_days
-            ):
-                c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
-                c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
-
-            c.save()
-            buf.seek(0)
-            total_overlay = PdfReader(buf)
-
-
-        # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES
-        # ------------------------------------------------
-        overlays = []
-        for p in range(len(pages)):
-            ys = strike_targets.get(p)
-            if not ys:
-                overlays.append(None)
-                continue
-
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=letter)
-            c.setLineWidth(0.8)
-            c.setStrokeColorRGB(*rgb)
-
-            for y in ys:
-                c.line(40, y, 550, y)
-
-            c.save()
-            buf.seek(0)
-            overlays.append(PdfReader(buf))
-
-
-        # ------------------------------------------------
-        # APPLY OVERLAYS
-        # ------------------------------------------------
-        reader = PdfReader(original_pdf)
-        writer = PdfWriter()
-
-        for i, page in enumerate(reader.pages):
-            if total_overlay and total_row and i == total_row["page"]:
-                page.merge_page(total_overlay.pages[0])
-
-            if i < len(overlays) and overlays[i] is not None:
-                page.merge_page(overlays[i].pages[0])
-
-            try:
-                page.compress_content_streams():
-                pass
-            except Exception:
-                pass
-
-            writer.add_page(page)
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "wb") as f:
-            writer.write(f)
-
-        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
-
-    except Exception as e:
-        log(f"⚠️ MARKING FAILED → {e}")
-        try:
-            shutil.copy2(original_pdf, output_path)
-            log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
-        except Exception as e2:
-            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+body {
+    background: #0e1117;
+    font-family: Inter, Consolas, monospace;
+    margin: 0;
+    color:#c9d1d9;
+}
+
+/* HEADER */
+header {
+    background:#161b22;
+    padding:16px;
+    border-bottom:1px solid #30363d;
+}
+header h1 {
+    margin:0;
+    color:#58a6ff;
+    font-size:20px;
+}
+
+/* LAYOUT */
+.container {
+    max-width:1200px;
+    margin:20px auto;
+    padding:10px;
+}
+.grid {
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+}
+.left,
+.right {
+    flex:1;
+    min-width:320px;
+}
+.card {
+    background:#161b22;
+    border:1px solid #30363d;
+    border-radius:8px;
+    padding:16px;
+    margin-bottom:16px;
+}
+.card h3 {
+    margin-top:0;
+    font-size:16px;
+    margin-bottom:8px;
+    color:#c9d1d9;
+}
+
+.card p {
+    margin:4px 0;
+    font-size:13px;
+    color:#8b949e;
+}
+
+/* FILE INPUTS */
+input[type="file"] {
+    width:100%;
+    padding:8px;
+    background:#0e1117;
+    border:1px solid #30363d;
+    border-radius:6px;
+    color:#c9d1d9;
+    box-sizing:border-box;
+}
+
+input[type="file"]::file-selector-button {
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:6px 12px;
+    margin-right:10px;
+    border-radius:6px;
+    cursor:pointer;
+    max-width:100%;
+}
+
+/* BUTTONS */
+.toolbar {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:10px;
+}
+button {
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:8px 12px;
+    border-radius:6px;
+    font-size:13px;
+    cursor:pointer;
+}
+button:hover {
+    background:#272727;
+    border-color:#3a3a3a;
+    color:white;
+}
+
+button.primary {
+    background:#0d6efd;
+    border-color:#0d6efd;
+    color:#fff;
+}
+
+button.primary:hover {
+    background:#0b5ed7;
+}
+
+button.danger {
+    background:#d9534f;
+    border-color:#d9534f;
+    color:#fff;
+}
+
+button.danger:hover {
+    background:#c9443f;
+}
+
+/* PATHS */
+.paths {
+    margin-top:6px;
+    font-size:12px;
+    color:#8b949e;
+}
+
+/* PATCH — STATUS BAR REPLACEMENT */
+.status {
+    margin-top:10px;
+    padding:6px 10px;
+    background: transparent !important;
+    border-left:4px solid transparent;
+    border-radius:4px;
+    font-size:13px;
+    position:relative;
+    overflow:hidden;
+}
+
+/* PROCESSING — RED + PULSE + RIPPLE */
+.status.processing {
+    background:#7f1d1d !important;
+    border-left:4px solid #dc2626;
+    animation:pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% { background:#7f1d1d; }
+    50% { background:#9a2828; }
+    100% { background:#7f1d1d; }
+}
+
+/* RIPPLE EFFECT */
+.status.processing::after {
+    content:"";
+    position:absolute;
+    top:0; left:0; right:0; bottom:0;
+    border-radius:4px;
+    background:rgba(220,38,38,0.25);
+    opacity:0;
+    animation:ripple 1.6s infinite ease-out;
+    pointer-events:none;
+}
+
+@keyframes ripple {
+    0% { opacity:0.5; transform:scale(1); }
+    70% { opacity:0; transform:scale(1.15); }
+    100% { opacity:0; transform:scale(1.2); }
+}
+
+/* COMPLETE — BLUE */
+.status.complete {
+    background:#1e3a8a !important;
+    border-left:4px solid #3b82f6;
+}
+
+/* LOGS */
+.logs {
+    background:#161b22;
+    border:1px solid #30363d;
+    border-radius:8px;
+    padding:16px;
+    margin-top:16px;
+}
+.logs h3 {
+    margin-top:0;
+    margin-bottom:8px;
+}
+#logBox {
+    background:#0d1117;
+    border:1px solid #30363d;
+    border-radius:6px;
+    padding:8px;
+    height:260px;
+    overflow-y:auto;
+    font-size:12px;
+    white-space:pre-wrap;
+}
+
+/* FOOTER */
+footer {
+    margin-top:16px;
+    font-size:12px;
+    color:#6e7681;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<header>
+    <h1>ATGSD SEA PAY PROCESSOR</h1>
+</header>
+
+<div class="container">
+
+<div class="grid">
+    <div class="left">
+
+        <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data">
+
+        <div class="card">
+            <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
+            <p>Select one or more PDFs exported from TORIS "Sea Duty Certification Sheet".</p>
+            <input type="file" name="files" multiple required>
+            <p style="font-size:12px;color:#8b949e;margin-top:6px;">
+                All PDFs will be saved to the container's /data directory, then processed.
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
+            <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
+            <input type="file" name="template_file">
+
+            <div class="paths">
+                Default template stored in container: /templates/NAVPERS_1070_613_TEMPLATE.pdf<br>
+                Current: {{ template_path }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>N811 PERSONNEL ROSTER (CSV)</h3>
+            <input type="file" name="rate_file">
+
+            <div class="paths">
+                Default: /config/atgsd_n811.csv<br>
+                Current: {{ rate_path }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>PROCESS CONTROL</h3>
+
+            <div style="margin-bottom:12px;">
+                <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
+                <select name="strike_color" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
+                    <option value="black" selected>Black (Default)</option>
+                    <option value="red">Red</option>
+                </select>
+            </div>
+
+            <div class="toolbar">
+                <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
+                <button type="button" onclick="downloadMerged()">MERGED SEA PAY PG13</button>
+                <button type="button" onclick="downloadSummary()">MERGED SUMMARY</button>
+                <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
+                
+                <button type="button" onclick="location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
+                <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
+
+                <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
+            </div>
+
+            <div class="status" id="statusText">STATUS: READY</div>
+        </div>
+
+    </div>
+
+    <div class="right">
+        <div class="card">
+            <h3>HOW IT WORKS</h3>
+            <p>1. Upload TORIS Sea Duty Certification Sheet PDFs.</p>
+            <p>2. Optionally upload a custom NAVPERS 1070/613 template (otherwise the default template is used).</p>
+            <p>3. Upload your N811 CSV to map names to rates.</p>
+            <p>4. Click "RUN PROCESSOR" to generate:</p>
+            <ul style="font-size:13px;color:#8b949e;margin-left:18px;">
+                <li>SEA PAY PG13s by ship and continuous date range.</li>
+                <li>TORIS Sea Pay Cert Sheets (with invalid lines struck out).</li>
+                <li>PSD-style summary files.</li>
+                <li>Merged files for printing/export.</li>
+            </ul>
+        </div>
+
+        <div class="logs">
+            <h3>LIVE OPERATION LOG</h3>
+            <div id="logBox"></div>
+        </div>
+
+        <footer>
+            ATGSD SEA PAY PROCESSOR – For internal training / admin use only.
+        </footer>
+    </div>
+</div>
+
+</form>
+
+</div>
+
+<script>
+let isPolling=false;
+let autoScroll=true;
+let lastText="";
+
+const logBox=document.getElementById("logBox");
+const statusText=document.getElementById("statusText");
+
+logBox.addEventListener("scroll",()=>{
+    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
+});
+
+pollLogs();
+
+function pollLogs(){
+    if(isPolling) return;
+    isPolling=true;
+
+    fetch("/logs")
+    .then(r=>r.text())
+    .then(txt=>{
+        if(txt===lastText){
+            isPolling=false;
+            setTimeout(pollLogs,1000);
+            return;
+        }
+
+        const prevHeight=logBox.scrollHeight;
+        const prevTop=logBox.scrollTop;
+
+        logBox.textContent=txt;
+        lastText=txt;
+
+        if(autoScroll){
+            logBox.scrollTop=logBox.scrollHeight;
+        } else {
+            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
+        }
+
+        isPolling=false;
+        setTimeout(pollLogs,1000);
+    })
+    .catch(()=>{
+        isPolling=false;
+        setTimeout(pollLogs,2000);
+    });
+}
+
+document.getElementById("uploadForm").addEventListener("submit",function(e){
+    e.preventDefault();
+
+    const formData=new FormData(this);
+    const btn=document.getElementById("submitBtn");
+
+    btn.innerText="PROCESSING...";
+    btn.disabled=true;
+    statusText.innerText="STATUS: PROCESSING...";
+
+    /* PATCH — enable red processing state */
+    statusText.classList.remove("complete");
+    statusText.classList.add("processing");
+
+    fetch("/process",{method:"POST",body:formData})
+    .then(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: COMPLETE";
+
+        /* PATCH — switch to blue complete state */
+        statusText.classList.remove("processing");
+        statusText.classList.add("complete");
+    })
+    .catch(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: ERROR";
+    });
+});
+
+function downloadMerged(){location.href="/download_merged";}
+function downloadSummary(){location.href="/download_summary";}
+function downloadAll(){location.href="/download_all";}
+
+function resetAll(){
+    if(!confirm("Delete ALL input/output files and logs?")) return;
+
+    fetch("/reset",{method:"POST"})
+    .then(r=>r.json())
+    .then(data=>{
+        alert(data.message || "Reset complete");
+
+        statusText.innerText = "STATUS: READY";
+
+        statusText.classList.remove("processing");
+        statusText.classList.remove("complete");
+
+        document.getElementById("strike_color").value = "black";
+
+        document.getElementById("logBox").textContent = "";
+        lastText = "";
+    });
+}
+</script>
+
+</body>
+</html>
