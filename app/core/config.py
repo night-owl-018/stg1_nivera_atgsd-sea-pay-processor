@@ -53,5 +53,3 @@ init_output_folders()
 
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
-
-
