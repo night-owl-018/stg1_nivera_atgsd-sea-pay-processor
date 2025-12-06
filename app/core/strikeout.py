@@ -43,14 +43,11 @@ def mark_sheet_with_strikeouts(
     skipped_duplicates,
     skipped_unknown,
     output_path,
-    extracted_total_days,      # PATCH
-    computed_total_days,       # PATCH
+    extracted_total_days,
+    computed_total_days,
     strike_color="black",
 ):
 
-    # ------------------------------------------------
-    # FIX #4 — COLOR MAPPING
-    # ------------------------------------------------
     color_map = {
         "black": (0, 0, 0),
         "red": (1, 0, 0),
@@ -155,48 +152,45 @@ def mark_sheet_with_strikeouts(
 
             row_list.extend(tmp_rows)
 
-
         # ------------------------------------------------
-        # DETECT STRIKEOUT TARGETS
+        # DETECT STRIKEOUT TARGETS (INVALID + DUPES)
         # ------------------------------------------------
-        strike_targets = {}
+        strike_targets = {}  # page → list of Y positions
 
         for row in row_list:
-            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
-                strike_targets.setdefault(row["page"], []).append(row["y"])
-                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
-
-        for row in row_list:
-            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
-                ys = strike_targets.get(row["page"], [])
-                if not any(abs(y - row["y"]) < 0.1 for y in ys):
-                    strike_targets.setdefault(row["page"], []).append(row["y"])
-                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
+            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in all_targets:
+                # We DO NOT strike here yet — we must map to DATE row first
+                pass
 
         # ------------------------------------------------
-        # PATCH: AUTO-STRIKE SBTT EVENTS (SMART ALIGNMENT)
+        # PATCH: AUTO-STRIKE SBTT
         # ------------------------------------------------
         for row in row_list:
             if "SBTT" in row["text"]:
+                all_targets.add((row.get("date"), row.get("occ_idx")))
 
-                # Case 1 – SBTT already on same line as date
-                if row.get("date"):
-                    strike_y = row["y"]
-                else:
-                    # Case 2 – SBTT is on its own line below the date.
-                    strike_y = row["y"]
-                    for r2 in row_list:
-                        if (
-                            r2["page"] == row["page"]
-                            and r2["y"] > row["y"]
-                            and re.match(r"\d{1,2}/\d{1,2}/\d{4}", r2["text"])
-                        ):
-                            strike_y = r2["y"]
-                            break
+        # ------------------------------------------------
+        # MAP INVALID EVENTS TO DATE Y-COORDINATE (Option C)
+        # ------------------------------------------------
+        # Group rows by (date, occ_idx)
+        rows_by_key = {}
+        for r in row_list:
+            k = (r.get("date"), r.get("occ_idx"))
+            rows_by_key.setdefault(k, []).append(r)
 
-                strike_targets.setdefault(row["page"], []).append(strike_y)
-                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} Y={strike_y:.1f}")
+        Y_date = {}  # map (date,occ) → correct anchored Y
 
+        for key, group in rows_by_key.items():
+            date, occ = key
+            if key not in all_targets:
+                continue  # skip valid rows completely
+
+            # Find DATE row = highest Y-value (top-most)
+            date_row = max(group, key=lambda r: r["y"])
+            Y_date[key] = date_row["y"]
+
+            # Add this Y-level to the strike list
+            strike_targets.setdefault(date_row["page"], []).append(date_row["y"])
 
         # ------------------------------------------------
         # PATCHED NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
@@ -263,9 +257,8 @@ def mark_sheet_with_strikeouts(
             buf.seek(0)
             total_overlay = PdfReader(buf)
 
-
         # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES
+        # NORMAL STRIKEOUT LINES (FULL WIDTH, DATE-ONLY)
         # ------------------------------------------------
         overlays = []
         for p in range(len(pages)):
@@ -274,18 +267,24 @@ def mark_sheet_with_strikeouts(
                 overlays.append(None)
                 continue
 
+            # remove duplicates with small tolerance
+            cleaned = []
+            for y in ys:
+                if not any(abs(y - c) < 0.5 for c in cleaned):
+                    cleaned.append(y)
+
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            for y in ys:
+            # full-width strike (40 → 550)
+            for y in cleaned:
                 c.line(40, y, 550, y)
 
             c.save()
             buf.seek(0)
             overlays.append(PdfReader(buf))
-
 
         # ------------------------------------------------
         # APPLY OVERLAYS
@@ -302,7 +301,6 @@ def mark_sheet_with_strikeouts(
 
             try:
                 page.compress_content_streams()
-                pass
             except Exception:
                 pass
 
@@ -321,4 +319,3 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
-
