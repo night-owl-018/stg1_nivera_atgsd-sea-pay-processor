@@ -63,7 +63,12 @@ def process_route():
         log(f"UPDATED CSV FILE → {RATE_FILE}")
 
     # Reload rates after CSV update
-    rates.load_csv()
+    try:
+        rates.load_csv_file(RATE_FILE)
+        log("CSV RELOADED SUCCESSFULLY")
+    except Exception as e:
+        log(f"ERROR RELOADING CSV: {e}")
+
 
     strike_color = request.form.get("strike_color", "black")
 
@@ -216,5 +221,6 @@ def reset_all():
 
     clear_logs()
     return jsonify({"status": "reset"})
+
 
 
