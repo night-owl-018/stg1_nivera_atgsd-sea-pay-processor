@@ -94,7 +94,7 @@ button {
     background:#21262d;
     color:#c9d1d9;
     border:1px solid #30363d;
-    padding:8px 12px;
+    padding:8px;
     border-radius:6px;
     font-size:13px;
     cursor:pointer;
@@ -184,7 +184,8 @@ footer {
 <div class="grid">
     <div class="left">
 
-        <form id="uploadForm" enctype="multipart/form-data">
+        <!-- PATCH: form action + method -->
+        <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data">
 
         <div class="card">
             <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
@@ -213,7 +214,9 @@ footer {
 
             <div style="margin-bottom:12px;">
                 <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
-                <select name="strike_color" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
+
+                <!-- PATCH: name updated to strikeColor -->
+                <select name="strikeColor" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
                     <option value="black" selected>Black (Default)</option>
                     <option value="red">Red</option>
                 </select>
@@ -324,7 +327,8 @@ document.getElementById("uploadForm").addEventListener("submit",function(e){
     btn.disabled=true;
     statusText.innerText="STATUS: PROCESSING...";
 
-    fetch("/",{method:"POST",body:formData})
+    /* PATCH: send POST to /process */
+    fetch("/process",{method:"POST",body:formData})
     .then(()=>{
         btn.disabled=false;
         btn.innerText="RUN PROCESSOR";
