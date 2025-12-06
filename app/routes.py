@@ -1,234 +1,284 @@
 import os
 import tempfile
 import zipfile
-from flask import Blueprint, render_template, request, send_from_directory, jsonify
 
-# Correct imports (relative)
-from .core.logger import LIVE_LOGS, log, clear_logs
-from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
-from .processing import process_all
-import app.core.rates as rates  # keep as-is for correct loading
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    redirect,
+    url_for,
+)
+
+from werkzeug.utils import secure_filename
+
+from app.core.logger import LIVE_LOGS, log
+from app.core.config import (
+    DATA_DIR,
+    OUTPUT_DIR,
+    TEMPLATE,
+    RATE_FILE,
+    SEA_PAY_PG13_FOLDER,
+    TORIS_CERT_FOLDER,
+    SUMMARY_TXT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    TRACKER_FOLDER,
+    PACKAGE_FOLDER,
+)
+from app.core import rates
+from app.processing import process_all
 
 bp = Blueprint("main", __name__)
 
 
-# ------------------------------------------------
-# INTERNAL CLEANUP HELPER
-# ------------------------------------------------
-
-def cleanup_all_folders():
-    """
-    Delete ALL files under DATA_DIR (inputs) and OUTPUT_DIR (all output folders),
-    but keep the directory structure so the processor can recreate what it needs.
-    Returns the number of files deleted.
-    """
-    deleted = 0
-    for base in (DATA_DIR, OUTPUT_DIR):
-        if not os.path.isdir(base):
-            continue
-        for root, dirs, files in os.walk(base):
-            for f in files:
-                full = os.path.join(root, f)
-                try:
-                    os.remove(full)
-                    deleted += 1
-                except Exception as e:
-                    log(f"CLEANUP ERROR → {full}: {e}")
-    return deleted
-
-
-# ------------------------------------------------
-# HOME PAGE
-# ------------------------------------------------
+# ---------------------------------------------------------
+# HOME + UPLOAD
+# ---------------------------------------------------------
 @bp.route("/", methods=["GET", "POST"])
 def index():
+    """
+    Main page:
+      - GET: render UI
+      - POST: handle file uploads
+    """
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    status_message = None
+
     if request.method == "POST":
-        strike_color = request.form.get("strike_color", "black")
+        # Handle PDF uploads
+        if "files" not in request.files:
+            status_message = "No files part in the request."
+        else:
+            files = request.files.getlist("files")
+            saved_count = 0
 
-        # Main PDFs
-        for f in request.files.getlist("files"):
-            if f.filename:
-                f.save(os.path.join(DATA_DIR, f.filename))
+            for f in files:
+                if not f or not f.filename:
+                    continue
+                filename = secure_filename(f.filename)
+                dest = os.path.join(DATA_DIR, filename)
+                f.save(dest)
+                saved_count += 1
+                log(f"UPLOADED → {filename}")
 
-        # Template override
-        tpl = request.files.get("template_file")
-        if tpl and tpl.filename:
-            tpl.save(TEMPLATE)
+            status_message = f"{saved_count} file(s) uploaded."
 
-        # Rates CSV upload
-        csvf = request.files.get("rate_file")
-        if csvf and csvf.filename:
-            csvf.save(RATE_FILE)
+        return redirect(url_for("main.index"))
 
-            # Reload CSV
-            rates.RATES = rates.load_rates()
-            rates.CSV_IDENTITIES.clear()
-
-            # Normalize identities
-            for key, rate in rates.RATES.items():
-                last, first = key.split(",", 1)
-
-                def normalize_for_id(text):
-                    import re
-                    t = re.sub(r"\(.*?\)", "", text.upper())
-                    t = re.sub(r"[^A-Z ]", "", t)
-                    return " ".join(t.split())
-
-                full_norm = normalize_for_id(f"{first} {last}")
-                rates.CSV_IDENTITIES.append((full_norm, rate, last, first))
-
-        # Run processor
-        process_all(strike_color=strike_color)
-
+    # GET
     return render_template(
         "index.html",
         logs="\n".join(LIVE_LOGS),
-        template_path=TEMPLATE,
-        rate_path=RATE_FILE,
+        rate_file=os.path.basename(RATE_FILE),
+        status_message=status_message,
     )
 
 
-# ------------------------------------------------
-# LIVE LOGS
-# ------------------------------------------------
+# ---------------------------------------------------------
+# LIVE LOG STREAM
+# ---------------------------------------------------------
 @bp.route("/logs")
-def get_logs():
-    return "\n".join(LIVE_LOGS)
+def logs():
+    """
+    Return last N log lines for the frontend log window.
+    """
+    return "\n".join(LIVE_LOGS[-500:])
 
 
-# ------------------------------------------------
-# DOWNLOAD ALL OUTPUT (root of OUTPUT_DIR only)
-# ------------------------------------------------
-@bp.route("/download_all")
-def download_all():
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
-
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in os.listdir(OUTPUT_DIR):
-            full = os.path.join(OUTPUT_DIR, f)
-            if os.path.isfile(full):
-                z.write(full, arcname=f)
-
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True,
-        download_name="SeaPay_Output.zip"
-    )
+# ---------------------------------------------------------
+# PROCESS BUTTON
+# ---------------------------------------------------------
+@bp.route("/process", methods=["POST"])
+def process():
+    """
+    Kick off main processing pipeline.
+    """
+    strike_color = request.form.get("strikeColor", "black")
+    log(f"PROCESS REQUESTED → strike_color={strike_color}")
+    process_all(strike_color=strike_color)
+    return "Processing complete."
 
 
-# ------------------------------------------------
-# DOWNLOAD MASTER MERGED PDF
-# ------------------------------------------------
+# ---------------------------------------------------------
+# MERGED SEA PAY PG13  (button: MERGED SEA PAY PG13)
+# ---------------------------------------------------------
 @bp.route("/download_merged")
 def download_merged():
-    merged_files = sorted(
-        f for f in os.listdir(OUTPUT_DIR)
-        if f.startswith("MERGED_SeaPay_Forms_")
-    )
+    """
+    Download merged PG13 set.
 
-    if not merged_files:
-        return "No merged PDF available. Run the processor first.", 404
+    New layout:
+      /output/PACKAGE/MERGED_SEA_PAY_PG13.pdf
+    """
+    merged_path = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
 
-    latest = merged_files[-1]
+    if not os.path.exists(merged_path):
+        return "Merged Sea Pay PG13 PDF not found. Run the processor first.", 404
 
     return send_from_directory(
-        OUTPUT_DIR,
-        latest,
-        as_attachment=True
+        os.path.dirname(merged_path),
+        os.path.basename(merged_path),
+        as_attachment=True,
+        download_name=os.path.basename(merged_path),
     )
 
 
-# ------------------------------------------------
-# DOWNLOAD SUMMARY TEXT FILES
-# ------------------------------------------------
+# ---------------------------------------------------------
+# MERGED SUMMARY  (button: MERGED SUMMARY)
+# ---------------------------------------------------------
 @bp.route("/download_summary")
 def download_summary():
-    summary_dir = os.path.join(OUTPUT_DIR, "summary")
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Summaries.zip")
+    """
+    Download merged SUMMARY PDF.
 
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
+    Built by merge_all_pdfs() from SUMMARY_PDF_FOLDER into:
+      /output/PACKAGE/MERGED_SUMMARY.pdf
+    """
+    merged_summary = os.path.join(PACKAGE_FOLDER, "MERGED_SUMMARY.pdf")
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(summary_dir):
-            for f in os.listdir(summary_dir):
-                full = os.path.join(summary_dir, f)
-                if os.path.isfile(full):
-                    z.write(full, arcname=f)
+    if not os.path.exists(merged_summary):
+        return "Merged Summary PDF not found. Run the processor first.", 404
 
     return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
+        os.path.dirname(merged_summary),
+        os.path.basename(merged_summary),
         as_attachment=True,
-        download_name="SeaPay_Summaries.zip"
+        download_name=os.path.basename(merged_summary),
     )
 
 
-# ------------------------------------------------
-# DOWNLOAD MARKED STRIKEOUT SHEETS
-# ------------------------------------------------
+# ---------------------------------------------------------
+# TORIS SEA PAY CERT SHEETS  (button: TORIS Sea Pay Cert Sheets)
+# ---------------------------------------------------------
 @bp.route("/download_marked_sheets")
 def download_marked_sheets():
-    marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
-    zip_path = os.path.join(tempfile.gettempdir(), "Marked_Sheets.zip")
+    """
+    Zip all TORIS strikeout PDFs.
 
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
+    New folder:
+      /output/TORIS_SEA_PAY_CERT_SHEET
+    """
+    if not os.path.isdir(TORIS_CERT_FOLDER):
+        return "No TORIS Sea Pay Cert Sheets found.", 404
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(marked_dir):
-            for f in os.listdir(marked_dir):
-                full = os.path.join(marked_dir, f)
-                if os.path.isfile(full):
-                    z.write(full, arcname=f)
+    pdfs = [
+        f
+        for f in os.listdir(TORIS_CERT_FOLDER)
+        if f.lower().endswith(".pdf")
+    ]
+    if not pdfs:
+        return "No TORIS Sea Pay Cert Sheets found.", 404
 
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True,
-        download_name="Marked_Sheets.zip"
-    )
+    tmp_zip = os.path.join(tempfile.gettempdir(), "TORIS_Sea_Pay_Cert_Sheets.zip")
+    if os.path.exists(tmp_zip):
+        os.remove(tmp_zip)
+
+    with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fn in pdfs:
+            full_path = os.path.join(TORIS_CERT_FOLDER, fn)
+            zf.write(full_path, arcname=fn)
+
+    return send_file(tmp_zip, as_attachment=True, download_name="TORIS_Sea_Pay_Cert_Sheets.zip")
 
 
-# ------------------------------------------------
-# DOWNLOAD TRACKING PACKAGE (ONLY TRACKING NOW)
-# ------------------------------------------------
+# ---------------------------------------------------------
+# TRACKER FILE  (button: TRACKER FILE)
+# ---------------------------------------------------------
 @bp.route("/download_tracking")
 def download_tracking():
-    tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Tracking_Package.zip")
+    """
+    Zip everything in the TRACKER folder.
 
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
+    Folder:
+      /output/TRACKER
+    """
+    if not os.path.isdir(TRACKER_FOLDER):
+        return "No tracker files found.", 404
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        # Tracking JSON / CSV only (NO validation folder)
-        if os.path.exists(tracking_dir):
-            for f in os.listdir(tracking_dir):
-                full = os.path.join(tracking_dir, f)
-                if os.path.isfile(full):
-                    z.write(full, arcname=f"tracking/{f}")
+    files = os.listdir(TRACKER_FOLDER)
+    if not files:
+        return "No tracker files found.", 404
 
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True,
-        download_name="SeaPay_Tracking_Package.zip"
-    )
+    tmp_zip = os.path.join(tempfile.gettempdir(), "SeaPay_Tracker.zip")
+    if os.path.exists(tmp_zip):
+        os.remove(tmp_zip)
+
+    with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fn in files:
+            full_path = os.path.join(TRACKER_FOLDER, fn)
+            if os.path.isfile(full_path):
+                zf.write(full_path, arcname=fn)
+
+    return send_file(tmp_zip, as_attachment=True, download_name="SeaPay_Tracker.zip")
 
 
-# ------------------------------------------------
-# RESET (INPUT + OUTPUT + LOGS)
-# ------------------------------------------------
-@bp.route("/reset", methods=["POST"])
+# ---------------------------------------------------------
+# EXPORT ZIP  (button: EXPORT ZIP)
+# ---------------------------------------------------------
+@bp.route("/download_all")
+def download_all():
+    """
+    Export EVERYTHING under /output as one zip.
+
+    Old code only grabbed PDFs in the root of /output.
+    New code walks all subfolders (SEA_PAY_PG13, SUMMARY_PDF, TORIS, etc.).
+    """
+    if not os.path.isdir(OUTPUT_DIR):
+        return "No output has been generated yet.", 404
+
+    tmp_zip = os.path.join(tempfile.gettempdir(), "SeaPay_Output_All.zip")
+    if os.path.exists(tmp_zip):
+        os.remove(tmp_zip)
+
+    with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(OUTPUT_DIR):
+            for fn in files:
+                full_path = os.path.join(root, fn)
+                # Store relative path inside zip so folders show clean
+                arcname = os.path.relpath(full_path, OUTPUT_DIR)
+                zf.write(full_path, arcname=arcname)
+
+    return send_file(tmp_zip, as_attachment=True, download_name="SeaPay_Output_All.zip")
+
+
+# ---------------------------------------------------------
+# RESET BUTTON
+# ---------------------------------------------------------
+@bp.route("/reset")
 def reset():
-    deleted = cleanup_all_folders()
-    clear_logs()
-    return jsonify({
-        "status": "success",
-        "message": f"Reset complete. {deleted} files deleted."
-    })
+    """
+    Clear:
+      - /data (input PDFs)
+      - /output (all generated output)
+      - In-memory LIVE_LOGS
+    """
+    # Clear input PDFs
+    try:
+        if os.path.isdir(DATA_DIR):
+            for f in os.listdir(DATA_DIR):
+                fp = os.path.join(DATA_DIR, f)
+                if os.path.isfile(fp):
+                    os.remove(fp)
+    except Exception as e:
+        log(f"RESET: error clearing DATA_DIR → {e}")
+
+    # Clear output tree
+    try:
+        for root, dirs, files in os.walk(OUTPUT_DIR):
+            for fn in files:
+                fp = os.path.join(root, fn)
+                try:
+                    os.remove(fp)
+                except Exception as e:
+                    log(f"RESET: error removing {fp} → {e}")
+    except Exception as e:
+        log(f"RESET: error walking OUTPUT_DIR → {e}")
+
+    # Clear logs
+    LIVE_LOGS.clear()
+    log("SYSTEM RESET COMPLETE")
+
+    return redirect(url_for("main.index"))
