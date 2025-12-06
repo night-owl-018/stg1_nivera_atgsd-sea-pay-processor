@@ -72,9 +72,11 @@ def index():
     return render_template(
         "index.html",
         logs="\n".join(LIVE_LOGS),
-        rate_file=os.path.basename(RATE_FILE),
+        template_path=TEMPLATE if os.path.exists(TEMPLATE) else "",
+        rate_path=RATE_FILE if os.path.exists(RATE_FILE) else "",
         status_message=status_message,
     )
+
 
 # ---------------------------------------------------------
 # LIVE LOG STREAM
@@ -86,11 +88,11 @@ def logs():
     This version handles both list and deque safely.
     """
     try:
-        # Convert LIVE_LOGS into a list so slicing always works
         safe_logs = list(LIVE_LOGS)
         return "\n".join(safe_logs[-500:])
     except Exception as e:
         return f"LOG ERROR: {e}", 500
+
 
 # ---------------------------------------------------------
 # PROCESS BUTTON
@@ -107,15 +109,12 @@ def process():
 
 
 # ---------------------------------------------------------
-# MERGED SEA PAY PG13  (button: MERGED SEA PAY PG13)
+# MERGED SEA PAY PG13
 # ---------------------------------------------------------
 @bp.route("/download_merged")
 def download_merged():
     """
     Download merged PG13 set.
-
-    New layout:
-      /output/PACKAGE/MERGED_SEA_PAY_PG13.pdf
     """
     merged_path = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
 
@@ -131,15 +130,12 @@ def download_merged():
 
 
 # ---------------------------------------------------------
-# MERGED SUMMARY  (button: MERGED SUMMARY)
+# MERGED SUMMARY
 # ---------------------------------------------------------
 @bp.route("/download_summary")
 def download_summary():
     """
     Download merged SUMMARY PDF.
-
-    Built by merge_all_pdfs() from SUMMARY_PDF_FOLDER into:
-      /output/PACKAGE/MERGED_SUMMARY.pdf
     """
     merged_summary = os.path.join(PACKAGE_FOLDER, "MERGED_SUMMARY.pdf")
 
@@ -155,22 +151,18 @@ def download_summary():
 
 
 # ---------------------------------------------------------
-# TORIS SEA PAY CERT SHEETS  (button: TORIS Sea Pay Cert Sheets)
+# TORIS SEA PAY CERT SHEETS
 # ---------------------------------------------------------
 @bp.route("/download_marked_sheets")
 def download_marked_sheets():
     """
     Zip all TORIS strikeout PDFs.
-
-    New folder:
-      /output/TORIS_SEA_PAY_CERT_SHEET
     """
     if not os.path.isdir(TORIS_CERT_FOLDER):
         return "No TORIS Sea Pay Cert Sheets found.", 404
 
     pdfs = [
-        f
-        for f in os.listdir(TORIS_CERT_FOLDER)
+        f for f in os.listdir(TORIS_CERT_FOLDER)
         if f.lower().endswith(".pdf")
     ]
     if not pdfs:
@@ -189,15 +181,12 @@ def download_marked_sheets():
 
 
 # ---------------------------------------------------------
-# TRACKER FILE  (button: TRACKER FILE)
+# TRACKER FILE
 # ---------------------------------------------------------
 @bp.route("/download_tracking")
 def download_tracking():
     """
     Zip everything in the TRACKER folder.
-
-    Folder:
-      /output/TRACKER
     """
     if not os.path.isdir(TRACKER_FOLDER):
         return "No tracker files found.", 404
@@ -220,15 +209,12 @@ def download_tracking():
 
 
 # ---------------------------------------------------------
-# EXPORT ZIP  (button: EXPORT ZIP)
+# EXPORT ZIP
 # ---------------------------------------------------------
 @bp.route("/download_all")
 def download_all():
     """
     Export EVERYTHING under /output as one zip.
-
-    Old code only grabbed PDFs in the root of /output.
-    New code walks all subfolders (SEA_PAY_PG13, SUMMARY_PDF, TORIS, etc.).
     """
     if not os.path.isdir(OUTPUT_DIR):
         return "No output has been generated yet.", 404
@@ -241,7 +227,6 @@ def download_all():
         for root, dirs, files in os.walk(OUTPUT_DIR):
             for fn in files:
                 full_path = os.path.join(root, fn)
-                # Store relative path inside zip so folders show clean
                 arcname = os.path.relpath(full_path, OUTPUT_DIR)
                 zf.write(full_path, arcname=arcname)
 
@@ -249,41 +234,48 @@ def download_all():
 
 
 # ---------------------------------------------------------
-# RESET BUTTON
+# RESET BUTTON  (PATCHED)
 # ---------------------------------------------------------
-@bp.route("/reset")
+@bp.route("/reset", methods=["POST"])
 def reset():
     """
     Clear:
-      - /data (input PDFs)
-      - /output (all generated output)
-      - In-memory LIVE_LOGS
+      - All uploaded TORIS PDFs in /data
+      - All generated files inside specific /output subfolders
+      - LIVE_LOGS
     """
-    # Clear input PDFs
+    import glob
+
+    # 1. Clear input PDFs
     try:
         if os.path.isdir(DATA_DIR):
-            for f in os.listdir(DATA_DIR):
-                fp = os.path.join(DATA_DIR, f)
+            for fp in glob.glob(os.path.join(DATA_DIR, "*")):
                 if os.path.isfile(fp):
                     os.remove(fp)
     except Exception as e:
-        log(f"RESET: error clearing DATA_DIR → {e}")
+        log(f"RESET ERROR clearing DATA_DIR → {e}")
 
-    # Clear output tree
-    try:
-        for root, dirs, files in os.walk(OUTPUT_DIR):
-            for fn in files:
-                fp = os.path.join(root, fn)
-                try:
-                    os.remove(fp)
-                except Exception as e:
-                    log(f"RESET: error removing {fp} → {e}")
-    except Exception as e:
-        log(f"RESET: error walking OUTPUT_DIR → {e}")
+    # 2. Clear only output subfolder files
+    output_folders = [
+        PACKAGE_FOLDER,
+        SEA_PAY_PG13_FOLDER,
+        SUMMARY_PDF_FOLDER,
+        SUMMARY_TXT_FOLDER,
+        TORIS_CERT_FOLDER,
+        TRACKER_FOLDER,
+    ]
 
-    # Clear logs
+    for folder in output_folders:
+        try:
+            if os.path.isdir(folder):
+                for fp in glob.glob(os.path.join(folder, "*")):
+                    if os.path.isfile(fp):
+                        os.remove(fp)
+        except Exception as e:
+            log(f"RESET ERROR clearing {folder} → {e}")
+
+    # 3. Clear logs
     LIVE_LOGS.clear()
     log("SYSTEM RESET COMPLETE")
 
-    return redirect(url_for("main.index"))
-
+    return {"message": "System reset. All generated files cleared."}
