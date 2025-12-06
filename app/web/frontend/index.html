@@ -94,7 +94,7 @@ button {
     background:#21262d;
     color:#c9d1d9;
     border:1px solid #30363d;
-    padding:8px;
+    padding:8px 12px;
     border-radius:6px;
     font-size:13px;
     cursor:pointer;
@@ -184,7 +184,6 @@ footer {
 <div class="grid">
     <div class="left">
 
-        <!-- PATCH: form action + method -->
         <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data">
 
         <div class="card">
@@ -200,13 +199,23 @@ footer {
             <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
             <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
             <input type="file" name="template_file">
-            <div class="paths">Current: {{ template_path }}</div>
+
+            <!-- PATCH APPLIED -->
+            <div class="paths">
+                Default: /pdf_template/NAVPERS_1070_613_TEMPLATE.pdf<br>
+                Current: {{ template_path }}
+            </div>
         </div>
 
         <div class="card">
             <h3>N811 PERSONNEL ROSTER (CSV)</h3>
             <input type="file" name="rate_file">
-            <div class="paths">Current: {{ rate_path }}</div>
+
+            <!-- PATCH APPLIED -->
+            <div class="paths">
+                Default: /config/atgsd_n811.csv<br>
+                Current: {{ rate_path }}
+            </div>
         </div>
 
         <div class="card">
@@ -214,8 +223,6 @@ footer {
 
             <div style="margin-bottom:12px;">
                 <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
-
-                <!-- PATCH: name updated to strikeColor -->
                 <select name="strikeColor" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
                     <option value="black" selected>Black (Default)</option>
                     <option value="red">Red</option>
@@ -327,7 +334,6 @@ document.getElementById("uploadForm").addEventListener("submit",function(e){
     btn.disabled=true;
     statusText.innerText="STATUS: PROCESSING...";
 
-    /* PATCH: send POST to /process */
     fetch("/process",{method:"POST",body:formData})
     .then(()=>{
         btn.disabled=false;
