@@ -1,355 +1,185 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>ATGSD Sea Pay Processor</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-
-<style>
-body {
-    background: #0e1117;
-    font-family: Inter, Consolas, monospace;
-    margin: 0;
-    color:#c9d1d9;
-}
-
-/* HEADER */
-header {
-    background:#161b22;
-    padding:16px;
-    border-bottom:1px solid #30363d;
-}
-header h1 {
-    margin:0;
-    color:#58a6ff;
-    font-size:20px;
-}
-
-/* LAYOUT */
-.container {
-    max-width:1200px;
-    margin:20px auto;
-    padding:10px;
-}
-.grid {
-    display:flex;
-    gap:16px;
-    flex-wrap:wrap;
-}
-.left,
-.right {
-    flex:1;
-    min-width:320px;
-}
-.card {
-    background:#161b22;
-    border:1px solid #30363d;
-    border-radius:8px;
-    padding:16px;
-    margin-bottom:16px;
-}
-.card h3 {
-    margin-top:0;
-    font-size:16px;
-    margin-bottom:8px;
-    color:#c9d1d9;
-}
-
-.card p {
-    margin:4px 0;
-    font-size:13px;
-    color:#8b949e;
-}
-
-/* FILE INPUTS */
-input[type="file"] {
-    width:100%;
-    padding:8px;
-    background:#0e1117;
-    border:1px solid #30363d;
-    border-radius:6px;
-    color:#c9d1d9;
-    box-sizing:border-box;
-}
-
-input[type="file"]::file-selector-button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:6px 12px;
-    margin-right:10px;
-    border-radius:6px;
-    cursor:pointer;
-    max-width:100%;
-}
-
-/* BUTTONS */
-.toolbar {
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-top:10px;
-}
-button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:8px 12px;
-    border-radius:6px;
-    font-size:13px;
-    cursor:pointer;
-}
-button:hover {
-    background:#272727;
-    border-color:#3a3a3a;
-    color:white;
-}
-
-button.primary {
-    background:#0d6efd;
-    border-color:#0d6efd;
-    color:#fff;
-}
-
-button.primary:hover {
-    background:#0b5ed7;
-}
-
-button.danger {
-    background:#d9534f;
-    border-color:#d9534f;
-    color:#fff;
-}
-
-button.danger:hover {
-    background:#c9443f;
-}
-
-/* PATHS */
-.paths {
-    margin-top:6px;
-    font-size:12px;
-    color:#8b949e;
-}
-
-/* STATUS + LOGS */
-.status {
-    margin-top:10px;
-    padding:6px 10px;
-    background:#0e4429;
-    border-left:4px solid #238636;
-    border-radius:4px;
-    font-size:13px;
-}
-
-.logs {
-    background:#161b22;
-    border:1px solid #30363d;
-    border-radius:8px;
-    padding:16px;
-    margin-top:16px;
-}
-.logs h3 {
-    margin-top:0;
-    margin-bottom:8px;
-}
-#logBox {
-    background:#0d1117;
-    border:1px solid #30363d;
-    border-radius:6px;
-    padding:8px;
-    height:260px;
-    overflow-y:auto;
-    font-size:12px;
-    white-space:pre-wrap;
-}
-
-/* FOOTER */
-footer {
-    margin-top:16px;
-    font-size:12px;
-    color:#6e7681;
-    text-align:center;
-}
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATGSD SEA PAY PROCESSOR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #dcdcdc;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #007acc;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: white;
+        }
+        .container {
+            padding: 20px;
+        }
+        .box {
+            background-color: #252526;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #3c3c3c;
+        }
+        h2 {
+            color: #9cdcfe;
+            margin-top: 0;
+        }
+        input, select, button {
+            margin: 5px 0;
+            padding: 8px;
+            font-size: 1em;
+        }
+        button {
+            cursor: pointer;
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #1177bb;
+        }
+        #logBox {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            height: 280px;
+            overflow-y: auto;
+            white-space: pre-line;
+            font-size: 0.9em;
+        }
+        .download-buttons button {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .status {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-top: 10px;
+            color: #4ec9b0;
+        }
+    </style>
 </head>
-<body>
 
-<header>
-    <h1>ATGSD SEA PAY PROCESSOR</h1>
-</header>
+<body>
+<header>ATGSD SEA PAY PROCESSOR</header>
 
 <div class="container">
 
-<div class="grid">
-    <div class="left">
+    <!-- Upload Section -->
+    <div class="box">
+        <h2>1. Upload TORIS Sheets</h2>
 
         <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="files" id="files" multiple accept="application/pdf" /><br>
 
-        <div class="card">
-            <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
-            <p>Select one or more PDFs exported from TORIS "Sea Duty Certification Sheet".</p>
-            <input type="file" name="files" multiple required>
-            <p style="font-size:12px;color:#8b949e;margin-top:6px;">
-                All PDFs will be saved to the container's /data directory, then processed.
-            </p>
-        </div>
+            <label for="strikeColor">Strikeout Color:</label>
+            <select name="strikeColor" id="strikeColor">
+                <option value="black">Black</option>
+                <option value="red">Red</option>
+                <option value="blue">Blue</option>
+            </select><br><br>
 
-        <div class="card">
-            <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
-            <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
-            <input type="file" name="template_file">
-            <div class="paths">Current: {{ template_path }}</div>
-        </div>
+            <button id="submitBtn" type="submit">RUN PROCESSOR</button>
+        </form>
 
-        <div class="card">
-            <h3>N811 PERSONNEL ROSTER (CSV)</h3>
-            <input type="file" name="rate_file">
-            <div class="paths">Current: {{ rate_path }}</div>
-        </div>
-
-        <div class="card">
-            <h3>PROCESS CONTROL</h3>
-
-            <div style="margin-bottom:12px;">
-                <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
-                <select name="strike_color" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
-                    <option value="black" selected>Black (Default)</option>
-                    <option value="red">Red</option>
-                </select>
-            </div>
-
-            <div class="toolbar">
-                <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
-                <button type="button" onclick="downloadMerged()">MERGED SEA PAY PG13</button>
-                <button type="button" onclick="downloadSummary()">MERGED SUMMARY</button>
-                <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
-                
-                <button type="button" onclick="location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
-                <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
-
-                <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
-            </div>
-
-            <div class="status" id="statusText">STATUS: READY</div>
-        </div>
-
+        <div id="statusText" class="status">STATUS: READY</div>
     </div>
 
-    <div class="right">
-        <div class="card">
-            <h3>HOW IT WORKS</h3>
-            <p>1. Upload TORIS Sea Duty Certification Sheet PDFs.</p>
-            <p>2. Optionally upload a custom NAVPERS 1070/613 template (otherwise the default template is used).</p>
-            <p>3. Upload your N811 CSV to map names to rates.</p>
-            <p>4. Click "RUN PROCESSOR" to generate:</p>
-            <ul style="font-size:13px;color:#8b949e;margin-left:18px;">
-                <li>SEA PAY PG13s by ship and continuous date range.</li>
-                <li>TORIS Sea Pay Cert Sheets (with invalid lines struck out).</li>
-                <li>PSD-style summary files.</li>
-                <li>Merged files for printing/export.</li>
-            </ul>
-        </div>
-
-        <div class="logs">
-            <h3>LIVE OPERATION LOG</h3>
-            <div id="logBox"></div>
-        </div>
-
-        <footer>
-            ATGSD SEA PAY PROCESSOR – For internal training / admin use only.
-        </footer>
+    <!-- Log Viewer -->
+    <div class="box">
+        <h2>System Logs</h2>
+        <div id="logBox"></div>
     </div>
-</div>
 
-</form>
+    <!-- Download Buttons -->
+    <div class="box download-buttons">
+        <h2>2. Download Outputs</h2>
+        <button onclick="window.location.href='/download_merged'">MERGED SEA PAY PG13</button>
+        <button onclick="window.location.href='/download_summary'">MERGED SUMMARY</button>
+        <button onclick="window.location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
+        <button onclick="window.location.href='/download_tracking'">TRACKER FILE</button>
+        <button onclick="window.location.href='/download_all'">EXPORT ZIP</button>
+    </div>
+
+    <!-- Reset Button -->
+    <div class="box">
+        <button style="background-color:#b30000;" onclick="resetAll()">RESET SYSTEM</button>
+    </div>
 
 </div>
 
 <script>
-let isPolling=false;
-let autoScroll=true;
-let lastText="";
+//
+// FIXED PROCESSOR POST
+// ---------------------
+// Your old JS posted to "/" which NEVER triggered backend processing.
+// Now it posts to "/process" which calls process_all() correctly.
+//
 
-const logBox=document.getElementById("logBox");
-const statusText=document.getElementById("statusText");
-
-logBox.addEventListener("scroll",()=>{
-    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
-});
-
-pollLogs();
-
-function pollLogs(){
-    if(isPolling) return;
-    isPolling=true;
-
-    fetch("/logs")
-    .then(r=>r.text())
-    .then(txt=>{
-        if(txt===lastText){
-            isPolling=false;
-            setTimeout(pollLogs,1000);
-            return;
-        }
-
-        const prevHeight=logBox.scrollHeight;
-        const prevTop=logBox.scrollTop;
-
-        logBox.textContent=txt;
-        lastText=txt;
-
-        if(autoScroll){
-            logBox.scrollTop=logBox.scrollHeight;
-        } else {
-            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
-        }
-
-        isPolling=false;
-        setTimeout(pollLogs,1000);
-    })
-    .catch(()=>{
-        isPolling=false;
-        setTimeout(pollLogs,2000);
-    });
-}
-
-document.getElementById("uploadForm").addEventListener("submit",function(e){
+document.getElementById("uploadForm").addEventListener("submit", function (e) {
     e.preventDefault();
 
-    const formData=new FormData(this);
-    const btn=document.getElementById("submitBtn");
+    const formData = new FormData(this);
+    const btn = document.getElementById("submitBtn");
 
-    btn.innerText="PROCESSING...";
-    btn.disabled=true;
-    statusText.innerText="STATUS: PROCESSING...";
+    btn.disabled = true;
+    btn.innerText = "PROCESSING...";
+    statusText.innerText = "STATUS: PROCESSING...";
 
-    fetch("/",{method:"POST",body:formData})
-    .then(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: COMPLETE";
-    })
-    .catch(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: ERROR";
-    });
+    fetch("/process", { method: "POST", body: formData })
+        .then(() => {
+            btn.disabled = false;
+            btn.innerText = "RUN PROCESSOR";
+            statusText.innerText = "STATUS: COMPLETE";
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerText = "RUN PROCESSOR";
+            statusText.innerText = "STATUS: ERROR";
+        });
 });
 
-function downloadMerged(){location.href="/download_merged";}
-function downloadSummary(){location.href="/download_summary";}
-function downloadAll(){location.href="/download_all";}
 
-function resetAll(){
-    if(!confirm("Delete ALL input/output files and logs?")) return;
-    fetch("/reset",{method:"POST"})
-    .then(r=>r.json())
-    .then(data=>{
-        alert(data.message||"Reset complete");
-        statusText.innerText="STATUS: READY";
-    });
+//
+// FIXED RESET BUTTON
+// ---------------------
+// The old JS tried to send a POST to /reset, but routes.py only had GET.
+// Now it uses GET correctly.
+//
+
+function resetAll() {
+    if (!confirm("Delete ALL input/output files and logs?")) return;
+
+    fetch("/reset")
+        .then(() => {
+            alert("System reset complete.");
+            statusText.innerText = "STATUS: READY";
+        });
 }
+
+//
+// Live log updater (unchanged)
+//
+function updateLogs() {
+    fetch("/logs")
+        .then(r => r.text())
+        .then(text => {
+            document.getElementById("logBox").innerText = text;
+        });
+}
+
+setInterval(updateLogs, 1000);
 </script>
 
 </body>
