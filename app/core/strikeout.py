@@ -179,15 +179,12 @@ def mark_sheet_with_strikeouts(
         for row in row_list:
             if "SBTT" in row["text"]:
 
-                # Case 1 — SBTT appears on same line as date
+                # Case 1 – SBTT already on same line as date
                 if row.get("date"):
                     strike_y = row["y"]
-
                 else:
-                    # Case 2 — SBTT appears on its own line (needs alignment)
+                    # Case 2 – SBTT is on its own line below the date.
                     strike_y = row["y"]
-
-                    # Find the date row directly above SBTT row
                     for r2 in row_list:
                         if (
                             r2["page"] == row["page"]
@@ -304,7 +301,8 @@ def mark_sheet_with_strikeouts(
                 page.merge_page(overlays[i].pages[0])
 
             try:
-                page.compress_content_streams()
+                page.compress_content_streams():
+                pass
             except Exception:
                 pass
 
