@@ -174,14 +174,26 @@ def mark_sheet_with_strikeouts(
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
         # ------------------------------------------------
-        # PATCH: AUTO-STRIKE SBTT EVENTS (ALIGNED TO DATE)
+        # PATCH: AUTO-STRIKE SBTT EVENTS (SMART ALIGNMENT)
         # ------------------------------------------------
         for row in row_list:
             if "SBTT" in row["text"]:
-                strike_y = row["y"]
+
+                # Case 1 — SBTT appears on same line as date
                 if row.get("date"):
+                    strike_y = row["y"]
+
+                else:
+                    # Case 2 — SBTT appears on its own line (needs alignment)
+                    strike_y = row["y"]
+
+                    # Find the date row directly above SBTT row
                     for r2 in row_list:
-                        if r2.get("date") == row["date"] and r2.get("occ_idx") == row["occ_idx"]:
+                        if (
+                            r2["page"] == row["page"]
+                            and r2["y"] > row["y"]
+                            and re.match(r"\d{1,2}/\d{1,2}/\d{4}", r2["text"])
+                        ):
                             strike_y = r2["y"]
                             break
 
