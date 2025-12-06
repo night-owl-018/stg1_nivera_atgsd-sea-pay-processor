@@ -43,7 +43,8 @@ def mark_sheet_with_strikeouts(
     skipped_duplicates,
     skipped_unknown,
     output_path,
-    total_days,
+    extracted_total_days,      # PATCH
+    computed_total_days,       # PATCH
     strike_color="black",
 ):
 
@@ -174,7 +175,7 @@ def mark_sheet_with_strikeouts(
 
 
         # ------------------------------------------------
-        # PATCH: NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
+        # PATCHED NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
         # ------------------------------------------------
         total_row = None
         for row in row_list:
@@ -223,12 +224,19 @@ def mark_sheet_with_strikeouts(
             correct_x_pdf = old_end_x_pdf + three_spaces_width
             strike_end_x = correct_x_pdf - three_spaces_width
 
-            # FIX #4 APPLY COLOR HERE
+            # PATCH — strike only when numbers do NOT match
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
-            c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
 
-            c.drawString(correct_x_pdf, target_y_pdf, str(total_days))
+            if (
+                extracted_total_days is None
+                or computed_total_days is None
+                or extracted_total_days != computed_total_days
+            ):
+                c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
+
+            # Always write the computed total
+            c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
 
             c.save()
             buf.seek(0)
@@ -248,8 +256,6 @@ def mark_sheet_with_strikeouts(
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setLineWidth(0.8)
-
-            # FIX #4 APPLY COLOR HERE
             c.setStrokeColorRGB(*rgb)
 
             for y in ys:
