@@ -96,6 +96,10 @@ def process_all(strike_color="black"):
         → write_summary_files(summary_data) runs BEFORE merge_all_pdfs()
     """
 
+    # Make sure output folders exist before we start
+    os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
+    os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
+
     clear_pg13_folder()
 
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
