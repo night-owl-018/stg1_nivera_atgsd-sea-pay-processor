@@ -173,6 +173,14 @@ def mark_sheet_with_strikeouts(
                     strike_targets.setdefault(row["page"], []).append(row["y"])
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
+        # ------------------------------------------------
+        # PATCH: AUTO-STRIKE SBTT EVENTS
+        # ------------------------------------------------
+        for row in row_list:
+            if "SBTT" in row["text"]:
+                strike_targets.setdefault(row["page"], []).append(row["y"])
+                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} Y={row['y']:.1f}")
+
 
         # ------------------------------------------------
         # PATCHED NUMBER-TO-NUMBER STRIKEOUT (TOTAL DAYS)
@@ -237,7 +245,6 @@ def mark_sheet_with_strikeouts(
                 c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
             # ELSE: do not draw corrected number, do not strike through
 
-
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
@@ -296,6 +303,6 @@ def mark_sheet_with_strikeouts(
         log(f"⚠️ MARKING FAILED → {e}")
         try:
             shutil.copy2(original_pdf, output_path)
-            log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
+            log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
