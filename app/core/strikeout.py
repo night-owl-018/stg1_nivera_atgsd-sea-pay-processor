@@ -18,15 +18,17 @@ from app.core.logger import log
 # DATE VARIANT BUILDER
 # ------------------------------------------------
 
-def _build_date_variants(date_str: str):
+def _build_date_variants(date_str):
     """
-    Build common OCR variants for a given MM/DD/YYYY date string.
-    This helps match slightly different renderings of the same date.
+    Build a small set of date variants to match the same calendar day
+    written in different formats by the OCR.
+
+    For example, '08/04/2025' may also appear as:
+      - '8/4/2025'
+      - '8/4/25'
+      - '08/04/25'
     """
     variants = set()
-    if not date_str:
-        return variants
-
     try:
         dt = datetime.strptime(date_str, "%m/%d/%Y")
     except Exception:
@@ -59,57 +61,58 @@ def mark_sheet_with_strikeouts(
     output_path,
     extracted_total_days,
     computed_total_days,
-    strike_color: str = "black",
+    strike_color="black",
 ):
     """
-    Draw strikeout lines on the TORIS Sea Duty Certification Sheet.
+    Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
+    and (optionally) corrects the 'Total Sea Pay Days' number.
 
-    Behaviour:
-      • Strike rows for skipped_unknown and skipped_duplicates
-      • Auto-strike invalid events (SBTT / MITE / ASTAC MITE / ASW MITE)
-      • Strike at the DATE row Y (single full-width line per date per page)
-      • Adjust 'Total Sea Pay Days for this reporting period' only if the
-        extracted total does NOT match the computed_total_days.
-
-    This function does NOT change any PG13 formatting. It only produces a
-    marked-up copy of the original TORIS sheet.
+    Args:
+        original_pdf: Path to original TORIS sheet.
+        skipped_duplicates: list of dicts with 'date' and 'occ_idx' for dupes.
+        skipped_unknown: list of dicts with 'date' and 'occ_idx' for invalid rows.
+        output_path: Where to write the marked PDF.
+        extracted_total_days: The number parsed from the TORIS text (may be None).
+        computed_total_days: The total valid sea pay days we computed from logic.
+        strike_color: 'black' or 'red' for strike lines.
     """
 
     # ------------------------------------------------
     # COLOR MAP
     # ------------------------------------------------
     color_map = {
-        "black": (0.0, 0.0, 0.0),
-        "red": (1.0, 0.0, 0.0),
+        "black": (0, 0, 0),
+        "red": (1, 0, 0),
     }
-    rgb = color_map.get(strike_color.lower(), (0.0, 0.0, 0.0))
+    rgb = color_map.get(strike_color.lower(), (0, 0, 0))
 
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-        # Build quick lookup sets for invalid / duplicate row keys
+        # Build sets of (date, occ_idx) to identify which rows are invalid/duplicate
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
 
-        # Load pages as images for coordinate work
+        # Convert all pages to images for positional OCR
         pages = convert_from_path(original_pdf)
-        row_list = []          # logical OCR "rows"
-        ocr_tokens = {}        # per-page tokens for later use (totals)
+        row_list = []
 
         # ------------------------------------------------
-        # BUILD ROWS & OCR TOKENS
+        # BUILD ROWS & OCR tokens
         # ------------------------------------------------
-        # Collect all dates we care about from the target lists
-        all_dates = {d for (d, _) in all_targets if d}
+        # Collect all unique dates we need to match
+        all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
+
+        # ocr_tokens[page_index] = list of (text, left, top, w, h)
+        ocr_tokens = {}
 
         for page_index, img in enumerate(pages):
             log(f"  BUILDING ROWS FROM PAGE {page_index + 1}/{len(pages)}")
 
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
             img_w, img_h = img.size
-            # Map image Y → PDF Y
             scale_y = letter[1] / float(img_h)
 
             tokens = []
@@ -127,23 +130,22 @@ def mark_sheet_with_strikeouts(
 
                 page_token_list.append((txt, left, top, width, height))
 
-                # Center of token in image coords
                 center_y_img = top + height / 2.0
                 center_from_bottom_px = img_h - center_y_img
-                y_pdf = center_from_bottom_px * scale_y
+                y = center_from_bottom_px * scale_y
 
-                tokens.append({"text": txt.upper(), "y": y_pdf})
+                tokens.append({"text": txt.upper(), "y": y})
 
             ocr_tokens[page_index] = page_token_list
 
-            # Sort tokens top→bottom in PDF coordinates (higher y = lower on page)
+            # Sort descending by Y (from top of PDF downwards)
             tokens.sort(key=lambda t: -t["y"])
 
-            # Group into "visual rows" by Y closeness
+            # Cluster tokens into visual rows
             visual_rows = []
             current_row = []
             last_y = None
-            threshold = 5.5  # Y-distance tolerance for same row
+            threshold = 5.5  # Vertical tolerance for grouping
 
             for tok in tokens:
                 if last_y is None:
@@ -162,25 +164,23 @@ def mark_sheet_with_strikeouts(
             if current_row:
                 visual_rows.append(current_row)
 
-            # Build row objects
+            # Build row objects with average Y and concatenated text
             tmp_rows = []
             for row in visual_rows:
                 y_avg = sum(t["y"] for t in row) / len(row)
                 text = " ".join(t["text"] for t in row)
-                tmp_rows.append(
-                    {
-                        "page": page_index,
-                        "y": y_avg,
-                        "text": text,
-                        "date": None,
-                        "occ_idx": None,
-                    }
-                )
+                tmp_rows.append({
+                    "page": page_index,
+                    "y": y_avg,
+                    "text": text,
+                    "date": None,
+                    "occ_idx": None,
+                })
 
-            # Sort rows again top→bottom (highest y first)
+            # Sort rows from top to bottom
             tmp_rows.sort(key=lambda r: -r["y"])
 
-            # Assign date / occ_idx based on known dates
+            # Assign date + occurrence index to rows
             date_counters = {d: 0 for d in all_dates}
             for row in tmp_rows:
                 for d in all_dates:
@@ -194,7 +194,25 @@ def mark_sheet_with_strikeouts(
             row_list.extend(tmp_rows)
 
         # ------------------------------------------------
-        # STRIKE TARGET COLLECTION
+        # HELPER: FIND NEAREST DATE ROW ON A PAGE
+        # ------------------------------------------------
+        def _find_nearest_date_row(page_idx, y_target):
+            """Return the row on this page that has a date and is closest in Y."""
+            best = None
+            best_delta = None
+            for r in row_list:
+                if r["page"] != page_idx:
+                    continue
+                if not r.get("date"):
+                    continue
+                delta = abs(r["y"] - y_target)
+                if best is None or delta < best_delta:
+                    best = r
+                    best_delta = delta
+            return best
+
+        # ------------------------------------------------
+        # STRIKEOUT TARGETS (DATE-BASED, ONE PER DATE/PAGE)
         # ------------------------------------------------
         # We want:
         #   • One strike per DATE per PAGE
@@ -212,43 +230,41 @@ def mark_sheet_with_strikeouts(
 
         # 1) Strike rows from skipped_unknown / skipped_duplicates
         for row in row_list:
-            if not row.get("date") or not row.get("occ_idx"):
+            date = row.get("date")
+            occ_idx = row.get("occ_idx")
+            if not date or not occ_idx:
                 continue
-            key = (row["date"], row["occ_idx"])
-            if key in all_targets:
-                _register_strike(row["page"], row["date"], row["y"])
+
+            if (date, occ_idx) in targets_invalid:
+                _register_strike(row["page"], date, row["y"])
                 log(
-                    f"    STRIKEOUT TARGET {row['date']} OCC#{row['occ_idx']} "
+                    f"    STRIKEOUT INVALID DATE {date} OCC#{occ_idx} "
                     f"PAGE {row['page'] + 1} Y={row['y']:.1f}"
                 )
 
-        # 2) Auto-strike invalid MITE / SBTT-type events at DATE-Y
-        INVALID_MARKERS = ("SBTT", "MITE", "ASTAC MITE", "ASW MITE")
-
-        # Build quick map of date rows per page to help align SBTT/MITE rows
-        date_rows_by_page = {}
         for row in row_list:
-            if row.get("date"):
-                date_rows_by_page.setdefault(row["page"], []).append(row)
+            date = row.get("date")
+            occ_idx = row.get("occ_idx")
+            if not date or not occ_idx:
+                continue
 
-        for page_idx, date_rows in date_rows_by_page.items():
-            # sort date rows by Y for stable nearest-row search
-            date_rows.sort(key=lambda r: -r["y"])
-            date_rows_by_page[page_idx] = date_rows
+            if (date, occ_idx) in targets_dup:
+                # Only register if we have not already struck that date on that page
+                _register_strike(row["page"], date, row["y"])
+                log(
+                    f"    STRIKEOUT DUP DATE {date} OCC#{occ_idx} "
+                    f"PAGE {row['page'] + 1} Y={row['y']:.1f}"
+                )
 
-        def _find_nearest_date_row(page_idx: int, y_val: float):
-            """Find the nearest row on the same page which has a date."""
-            rows = date_rows_by_page.get(page_idx, [])
-            if not rows:
-                return None
-            best = None
-            best_dy = None
-            for r in rows:
-                dy = abs(r["y"] - y_val)
-                if best_dy is None or dy < best_dy:
-                    best = r
-                    best_dy = dy
-            return best
+        # ------------------------------------------------
+        # AUTO-STRIKE INVALID TEXT MARKERS (MITE / SBTT / etc.)
+        # ------------------------------------------------
+        INVALID_MARKERS = [
+            "SBTT",
+            "MITE",
+            "ASTAC MITE",
+            "ASW MITE",
+        ]
 
         for row in row_list:
             text = row["text"]
@@ -303,27 +319,23 @@ def mark_sheet_with_strikeouts(
             old_start_x_pdf = None
             old_end_x_pdf = None
 
-            # Try to locate the existing numeric total on the same Y row
+            # Find the existing number position on that line (if present)
             for (txt, left, top, w, h) in tokens_page:
-                token_txt = txt.strip()
-                if not re.fullmatch(r"\d+", token_txt):
-                    continue
+                if re.fullmatch(r"\d+", txt):
+                    center_y_img = top + h / 2.0
+                    center_from_bottom_px = height_img - center_y_img
+                    y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
 
-                center_y_img = top + h / 2.0
-                center_from_bottom_px = height_img - center_y_img
-                y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
+                    if abs(y_pdf - target_y_pdf) < 3:
+                        old_start_x_pdf = left * scale_x
+                        old_end_x_pdf = (left + w) * scale_x
+                        break
 
-                if abs(y_pdf - target_y_pdf) < 3.0:
-                    old_start_x_pdf = left * scale_x
-                    old_end_x_pdf = (left + w) * scale_x
-                    break
-
-            # Fallback coordinates if we cannot detect the number
+            # Fallback guess if we could not find the existing number
             if old_start_x_pdf is None:
                 old_start_x_pdf = 260
                 old_end_x_pdf = 300
 
-            # Prepare overlay canvas
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setFont("Helvetica", 10)
@@ -337,7 +349,11 @@ def mark_sheet_with_strikeouts(
 
             # ---- CLEAN + COMPARE TOTALS ----
             # 1) Clean extracted_total_days (OCR or parser supplied)
-            clean_extracted = re.sub(r"\D", "", str(extracted_total_days or "")).strip()
+            clean_extracted = re.sub(
+                r"\D",
+                "",
+                str(extracted_total_days or "")
+            ).strip()
             computed_str = str(computed_total_days)
 
             # 2) If we still don't have an extracted value, fallback to PDF text
@@ -345,7 +361,12 @@ def mark_sheet_with_strikeouts(
                 try:
                     pdf_reader = PdfReader(original_pdf)
                     page_text = pdf_reader.pages[page_idx].extract_text() or ""
-                    m = re.search(r"Total Sea Pay Days.*?(\d+)", page_text)
+                    # IMPORTANT PATCH: allow newline between label and number
+                    m = re.search(
+                        r"Total\s+Sea\s+Pay\s+Days.*?(\d+)",
+                        page_text,
+                        re.IGNORECASE | re.DOTALL,
+                    )
                     if m:
                         clean_extracted = m.group(1).strip()
                         log(f"PDF TEXT FALLBACK EXTRACTED TOTAL → {clean_extracted}")
@@ -360,25 +381,23 @@ def mark_sheet_with_strikeouts(
                     f"computed={computed_str} (NO STRIKE)"
                 )
             else:
-                # Mismatch or no extracted value → strike old, draw new
+                # Mismatch or no extracted value → strike and rewrite
+                log(
+                    f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
+                    f"computed={computed_str} (STRIKE + CORRECT)"
+                )
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                 c.drawString(correct_x_pdf, target_y_pdf, computed_str)
-                log(
-                    f"TOTAL DAYS MISMATCH → extracted={clean_extracted or 'N/A'} "
-                    f"computed={computed_str} (STRIKE + OVERRIDE)"
-                )
 
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
-        # BUILD PER-PAGE STRIKEOVERLAYS
+        # NORMAL STRIKEOUT LINES (DATE-BASED, FULL-WIDTH)
         # ------------------------------------------------
         overlays = []
-        num_pages = len(pages)
-        for p in range(num_pages):
-            # Get all Y's for this page (unique per date)
+        for p in range(len(pages)):
             date_to_y = strike_targets_by_page.get(p)
             if not date_to_y:
                 overlays.append(None)
@@ -389,8 +408,8 @@ def mark_sheet_with_strikeouts(
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            for y in date_to_y.values():
-                # Full-width line similar to your original implementation
+            for date_str, y in date_to_y.items():
+                # Full-width strike at that row's Y
                 c.line(40, y, 550, y)
 
             c.save()
@@ -398,13 +417,13 @@ def mark_sheet_with_strikeouts(
             overlays.append(PdfReader(buf))
 
         # ------------------------------------------------
-        # APPLY OVERLAYS TO ORIGINAL PDF
+        # APPLY OVERLAYS
         # ------------------------------------------------
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            # Apply total-days overlay on the page where the total row lives
+            # Apply total-days overlay (if any)
             if total_overlay and total_row and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
