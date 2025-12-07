@@ -55,6 +55,22 @@ def process_route():
     reset_progress()
     log("=== PROCESS STARTED ===")
 
+    # PATCH: initialize progress so the UI sees 'processing'
+    set_progress(
+        status="processing",
+        total_files=0,
+        current_file=0,
+        current_step="Preparing input files",
+        percentage=0,
+        details={
+            "files_processed": 0,
+            "valid_days": 0,
+            "invalid_events": 0,
+            "pg13_created": 0,
+            "toris_marked": 0,
+        },
+    )
+
     # Save uploaded TORIS PDFs
     files = request.files.getlist("files")
     for f in files:
@@ -120,6 +136,7 @@ def stream_logs():
 
     return Response(event_stream(), mimetype="text/event-stream")
 
+
 @bp.route("/download_merged")
 def download_merged():
     # PATCH: prevent crash if PACKAGE_FOLDER does not exist
@@ -145,6 +162,7 @@ def download_merged():
         latest,
         as_attachment=True,
     )
+
 
 @bp.route("/download_summary")
 def download_summary():
@@ -262,4 +280,3 @@ def reset_all():
             "status": "reset",
         }
     )
-
