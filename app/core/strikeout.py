@@ -27,7 +27,7 @@ def _build_date_variants(date_str):
 
     variants.add(date_str)
     variants.add(f"{dt.month}/{dt.day}/{dt.year}")
-    variants.add(f"{dt.month}/{dt/day}/{dt.year % 100:02d}")
+    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")  # FIXED TYPO
     variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")
 
     return variants
@@ -156,21 +156,21 @@ def mark_sheet_with_strikeouts(
 
 
         # ------------------------------------------------
-        # DETECT STRIKEOUT TARGETS (invalid + dupes)
+        # DETECT STRIKEOUT TARGETS
         # ------------------------------------------------
         strike_targets = {}
 
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
                 strike_targets.setdefault(row["page"], []).append(row["y"])
-                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
+                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']}")
 
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
                 ys = strike_targets.get(row["page"], [])
                 if not any(abs(y - row["y"]) < 0.1 for y in ys):
                     strike_targets.setdefault(row["page"], []).append(row["y"])
-                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
+                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']}")
 
 
         # ------------------------------------------------
@@ -229,12 +229,27 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
 
             # ------------------------------------------------
-            # PATCH — CLEAN OCR EXTRACTED NUMBER
+            # PATCH PART 1 — CLEAN OCR EXTRACTED VALUE
             # ------------------------------------------------
             clean_extracted = re.sub(r"\D", "", str(extracted_total_days)).strip()
             computed_str = str(computed_total_days)
 
-            # Compare CLEAN extracted value vs computed value
+            # ------------------------------------------------
+            # PATCH PART 2 — PDF TEXT FALLBACK
+            # ------------------------------------------------
+            if not clean_extracted:
+                try:
+                    page_text = PdfReader(original_pdf).pages[page_idx].extract_text() or ""
+                    m = re.search(r"Total Sea Pay Days.*?(\d+)", page_text)
+                    if m:
+                        clean_extracted = m.group(1).strip()
+                        log(f"PDF TEXT FALLBACK EXTRACTED → {clean_extracted}")
+                except Exception as e:
+                    log(f"PDF TEXT FALLBACK ERROR → {e}")
+
+            # ------------------------------------------------
+            # STRIKE ONLY IF DIFFERENT
+            # ------------------------------------------------
             if clean_extracted != computed_str:
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                 c.drawString(correct_x_pdf, target_y_pdf, computed_str)
@@ -291,7 +306,7 @@ def mark_sheet_with_strikeouts(
         with open(output_path, "wb") as f:
             writer.write(f)
 
-        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+        log(f"MARKED SHEET CREATED → {os.path.basename(original_pdf)}")
 
     except Exception as e:
         log(f"⚠️ MARKING FAILED → {e}")
