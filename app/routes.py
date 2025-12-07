@@ -1,14 +1,28 @@
+import threading
+import time
 import os
 import io
 import zipfile
 import shutil
 
 from flask import (
-    Blueprint, render_template, request,
-    jsonify, send_file, send_from_directory
+    Blueprint,
+    render_template,
+    request,
+    jsonify,
+    send_file,
+    send_from_directory,
+    Response,
 )
 
-from .core.logger import LIVE_LOGS, log, clear_logs
+from .core.logger import (
+    LIVE_LOGS,
+    log,
+    clear_logs,
+    get_progress,
+    reset_progress,
+    set_progress,
+)
 from .core.config import (
     DATA_DIR,
     OUTPUT_DIR,
@@ -38,6 +52,7 @@ def home():
 @bp.route("/process", methods=["POST"])
 def process_route():
     clear_logs()
+    reset_progress()
     log("=== PROCESS STARTED ===")
 
     # Save uploaded TORIS PDFs
@@ -62,17 +77,24 @@ def process_route():
 
         # Reload CSV (patched)
         try:
-            rates.load_csv_file(RATE_FILE)
+            rates.load_rates(RATE_FILE)
+            log("RATES RELOADED FROM CSV")
         except Exception as e:
             log(f"CSV RELOAD ERROR → {e}")
 
     strike_color = request.form.get("strike_color", "black")
 
-    process_all(strike_color=strike_color)
+    def _run():
+        try:
+            process_all(strike_color=strike_color)
+        except Exception as e:
+            log(f"PROCESS ERROR → {e}")
+            set_progress(status="error", current_step="Processing error")
 
-    log("=== PROCESS COMPLETE ===")
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
 
-    return jsonify({"status": "OK"})
+    return jsonify({"status": "STARTED"})
 
 
 @bp.route("/logs")
@@ -80,10 +102,30 @@ def get_logs():
     return "\n".join(LIVE_LOGS)
 
 
+@bp.route("/progress")
+def progress_route():
+    return jsonify(get_progress())
+
+
+@bp.route("/stream")
+def stream_logs():
+    def event_stream():
+        last_len = 0
+        while True:
+            current = "\n".join(LIVE_LOGS)
+            if len(current) != last_len:
+                last_len = len(current)
+                yield f"data: {current}\n\n"
+            time.sleep(1)
+
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
 @bp.route("/download_merged")
 def download_merged():
     merged_files = [
-        f for f in os.listdir(PACKAGE_FOLDER)
+        f
+        for f in os.listdir(PACKAGE_FOLDER)
         if f.startswith("MERGED_") and f.endswith(".pdf")
     ]
 
@@ -92,13 +134,13 @@ def download_merged():
 
     latest = max(
         merged_files,
-        key=lambda f: os.path.getmtime(os.path.join(PACKAGE_FOLDER, f))
+        key=lambda f: os.path.getmtime(os.path.join(PACKAGE_FOLDER, f)),
     )
 
     return send_from_directory(
         PACKAGE_FOLDER,
         latest,
-        as_attachment=True
+        as_attachment=True,
     )
 
 
@@ -106,38 +148,48 @@ def download_merged():
 def download_summary():
     mem_zip = io.BytesIO()
     with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        # TXT
+        if os.path.exists(SUMMARY_TXT_FOLDER):
+            for root, _, files in os.walk(SUMMARY_TXT_FOLDER):
+                for f in files:
+                    full = os.path.join(root, f)
+                    arc = os.path.relpath(full, SUMMARY_TXT_FOLDER)
+                    z.write(full, f"SUMMARY_TXT/{arc}")
 
-        # TXT summaries
-        for root, _, files in os.walk(SUMMARY_TXT_FOLDER):
-            for f in files:
-                full = os.path.join(root, f)
-                arc = os.path.relpath(full, SUMMARY_TXT_FOLDER)
-                z.write(full, f"SUMMARY_TXT/{arc}")
-
-        # PDF summaries
-        for root, _, files in os.walk(SUMMARY_PDF_FOLDER):
-            for f in files:
-                full = os.path.join(root, f)
-                arc = os.path.relpath(full, SUMMARY_PDF_FOLDER)
-                z.write(full, f"SUMMARY_PDF/{arc}")
+        # PDF
+        if os.path.exists(SUMMARY_PDF_FOLDER):
+            for root, _, files in os.walk(SUMMARY_PDF_FOLDER):
+                for f in files:
+                    full = os.path.join(root, f)
+                    arc = os.path.relpath(full, SUMMARY_PDF_FOLDER)
+                    z.write(full, f"SUMMARY_PDF/{arc}")
 
     mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="SUMMARY_EXPORT.zip")
+    return send_file(
+        mem_zip,
+        as_attachment=True,
+        download_name="SUMMARY_BUNDLE.zip",
+    )
 
 
 @bp.route("/download_marked_sheets")
 def download_marked_sheets():
     mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
 
-        for root, _, files in os.walk(TORIS_CERT_FOLDER):
-            for f in files:
-                full = os.path.join(root, f)
-                arc = os.path.relpath(full, TORIS_CERT_FOLDER)
-                z.write(full, f"TORIS_SEA_PAY_CERT_SHEET/{arc}")
+    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(TORIS_CERT_FOLDER):
+            for root, _, files in os.walk(TORIS_CERT_FOLDER):
+                for f in files:
+                    full = os.path.join(root, f)
+                    arc = os.path.relpath(full, TORIS_CERT_FOLDER)
+                    z.write(full, f"TORIS_MARKED/{arc}")
 
     mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="TORIS_MARKED_SHEETS.zip")
+    return send_file(
+        mem_zip,
+        as_attachment=True,
+        download_name="TORIS_MARKED_SHEETS.zip",
+    )
 
 
 @bp.route("/download_tracking")
@@ -168,29 +220,31 @@ def download_all():
                 z.write(full, arc)
 
     mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="SEA_PAY_EXPORT_ALL.zip")
+    return send_file(mem_zip, as_attachment=True, download_name="ALL_OUTPUT.zip")
 
 
 @bp.route("/reset", methods=["POST"])
 def reset_all():
-    """Reset input/output folders and logs."""
-
-    # Clean input folder
-    for root, _, files in os.walk(DATA_DIR):
+    # Wipe /data/
+    for root, dirs, files in os.walk(DATA_DIR):
         for f in files:
             try:
                 os.remove(os.path.join(root, f))
             except Exception:
                 pass
+        for d in dirs:
+            try:
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+            except Exception:
+                pass
 
-    # Clean output folder
+    # Wipe /output/
     for root, dirs, files in os.walk(OUTPUT_DIR):
         for f in files:
             try:
                 os.remove(os.path.join(root, f))
             except Exception:
                 pass
-
         for d in dirs:
             try:
                 shutil.rmtree(os.path.join(root, d), ignore_errors=True)
@@ -200,7 +254,9 @@ def reset_all():
     clear_logs()
 
     # PATCH: UI expects "message"
-    return jsonify({
-        "message": "Reset complete",
-        "status": "reset"
-    })
+    return jsonify(
+        {
+            "message": "Reset complete",
+            "status": "reset",
+        }
+    )
