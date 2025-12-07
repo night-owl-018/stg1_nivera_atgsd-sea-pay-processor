@@ -15,6 +15,17 @@ Batch processor for NAVPERS 1070/613 sea pay documentation.
 
 ---
 
+# NOTE FOR UNRAID USERS
+The running application uses the following fixed container paths:
+
+
+These paths are automatically created and do not use the older environment variables  
+(`SEA_PAY_INPUT`, `SEA_PAY_OUTPUT`, `SEA_PAY_TEMPLATE`) found in the legacy scripts.
+
+When mapping Unraid container paths, map your host folders directly to these container paths.
+
+---
+
 ## Overview
 Sea Pay Processor automatically extracts sea duty periods from certification sheets, validates them, normalizes ship names, detects duplicates, and generates NAVPERS 1070/613 PDFs. The system also produces summary files and strike-out PDFs for invalid or skipped events. The entire process is fully automated and containerized for consistent execution across environments.
 
@@ -25,79 +36,13 @@ Sea Pay Processor automatically extracts sea duty periods from certification she
 ### Run Example
 ```bash
 docker run --rm \
-  -e SEA_PAY_INPUT=/inputs \
-  -e SEA_PAY_OUTPUT=/outputs \
-  -e SEA_PAY_TEMPLATE=/templates/NAVPERS_1070_613_TEMPLATE.pdf \
-  -v /mnt/user/SeaPayInput:/inputs \
-  -v /mnt/user/SeaPayOutput:/outputs \
+  -v /mnt/user/SeaPayInput:/data \
+  -v /mnt/user/SeaPayOutput:/output \
   -v /mnt/user/SeaPayTemplates:/templates \
+  -v /mnt/user/SeaPayConfig:/config \
   seapay-processor
-```
 
-### Environment Variables
-| Variable | Description |
-|---------|-------------|
-| `SEA_PAY_INPUT` | Folder containing Sea Duty Certification Sheets |
-| `SEA_PAY_OUTPUT` | Folder where PDFs and summaries are saved |
-| `SEA_PAY_TEMPLATE` | NAVPERS 1070/613 template PDF |
-
----
-
-## Output Structure
-
-```
-/outputs
-│── VALID/
-│     └── <rate>_<name>_<ship>_<dates>.pdf
-│
-│── INVALID/
-│     └── strikeout_<original_file>.pdf
-│
-│── SUMMARY/
-      └── <LAST_NAME>_SUMMARY.txt
-```
-
-### Summary Format
-```
-RATE LAST NAME
-
-VALID SEA PAY PERIODS
-- <Ship> <Start> to <End>
-
-INVALID EVENTS
-- <Reason> <Original Dates>
-
-EVENTS FOLLOWED
-- <List of processed events in order>
-```
-
----
-
-## Unraid Template Description (For Docker Setup)
-
-Sea Pay Processor is an automated batch processor that reads Sea Duty Certification Sheets, validates sea duty periods, normalizes ship names, removes duplicates, and generates:
-
-- Valid NAVPERS 1070/613 PDFs  
-- Strike-out PDFs for invalid or skipped entries  
-- Summary text files  
-
-### Container Paths
-- **/inputs** → Input PDFs  
-- **/outputs** → Generated files  
-- **/templates** → NAVPERS template  
-
-### Recommended Unraid Paths  
-- `/mnt/user/SeaPayInput`  
-- `/mnt/user/SeaPayOutput`  
-- `/mnt/user/SeaPayTemplates`
-
-This container is designed for administrative teams requiring accurate, repeatable processing of sea duty paperwork.
-
----
-
-## Maintainer
-**Ryan Nivera**  
+Ryan Nivera
 U.S. Navy Sonar Technician (Surface)
 
----
 
