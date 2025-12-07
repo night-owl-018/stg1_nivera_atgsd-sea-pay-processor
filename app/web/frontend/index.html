@@ -14,10 +14,10 @@
             --border-subtle: #30363d;
             --text-primary: #c9d1d9;
             --text-muted: #8b949e;
-            --accent-blue: #1f6feb;
-            --accent-blue-soft: #238636;
-            --accent-red: #f85149;
-            --accent-yellow: #d29922;
+            --accent: #58a6ff;
+            --accent-soft: rgba(88, 166, 255, 0.4);
+            --accent-danger: #f85149;
+            --accent-warning: #d29922;
             --status-ready: #656d76;
             --status-processing: #d29922;
             --status-complete: #2ea043;
@@ -51,12 +51,11 @@
         header h1 {
             margin: 0;
             font-size: 18px;
-            letter-spacing: 0.06em;
-            font-weight: 600;
-            color: #58a6ff;
+            letter-spacing: 0.04em;
         }
 
         header .subtitle {
+            margin-top: 2px;
             font-size: 11px;
             color: var(--text-muted);
         }
@@ -64,15 +63,14 @@
         /* LAYOUT */
         .container {
             max-width: 1200px;
-            margin: 18px auto 24px;
+            margin: 16px auto 24px;
             padding: 0 16px;
         }
 
         .grid {
             display: flex;
-            gap: 16px;
             flex-wrap: wrap;
-            align-items: flex-start;
+            gap: 16px;
         }
 
         .left,
@@ -91,201 +89,139 @@
             box-shadow:
                 0 10px 30px rgba(0, 0, 0, 0.45),
                 0 0 0 1px rgba(22, 27, 34, 0.4);
-            transition:
-                transform 0.15s ease-out,
-                box-shadow 0.15s ease-out,
-                border-color 0.15s ease-out,
-                background 0.15s ease-out;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            border-color: #3b82f6;
-            box-shadow:
-                0 16px 40px rgba(0, 0, 0, 0.6),
-                0 0 0 1px rgba(56, 139, 253, 0.4);
         }
 
         .card h3 {
             margin: 0 0 6px;
             font-size: 14px;
-            font-weight: 600;
-            color: var(--text-primary);
         }
 
         .card p {
-            margin: 2px 0;
-            font-size: 13px;
+            margin: 0 0 8px;
+            font-size: 12px;
             color: var(--text-muted);
         }
 
-        /* FILE INPUTS */
-        input[type="file"] {
+        .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        input[type="file"],
+        input[type="text"],
+        select {
             width: 100%;
+            margin-top: 6px;
+            margin-bottom: 6px;
             padding: 6px 8px;
-            background: #010409;
-            border: 1px solid var(--border-subtle);
             border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+            background: #010409;
             color: var(--text-primary);
-            font-size: 13px;
-            cursor: pointer;
+            font-size: 12px;
         }
 
         input[type="file"]::file-selector-button {
-            background: #21262d;
-            color: var(--text-primary);
             border: 1px solid var(--border-subtle);
-            padding: 6px 12px;
-            margin-right: 10px;
+            padding: 4px 10px;
             border-radius: 6px;
+            background: #161b22;
+            color: var(--text-primary);
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         input[type="file"]::file-selector-button:hover {
-            background: #30363d;
+            border-color: var(--accent);
+            color: var(--accent);
         }
 
-        /* BUTTONS / TOOLBAR */
+        /* TOOLBAR BUTTONS */
         .toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
             margin-top: 10px;
         }
 
-        button {
+        .toolbar button {
             border-radius: 999px;
             border: 1px solid var(--border-subtle);
-            padding: 7px 14px;
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            background: #21262d;
+            background: #161b22;
             color: var(--text-primary);
+            padding: 6px 14px;
+            font-size: 11px;
+            cursor: pointer;
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            transition:
-                background 0.15s ease-out,
-                border-color 0.15s ease-out,
-                box-shadow 0.15s ease-out,
-                transform 0.12s ease-out;
+            white-space: nowrap;
         }
 
-        button:hover {
-            background: #30363d;
-            border-color: #8b949e;
-            box-shadow: 0 0 0 1px rgba(99, 110, 123, 0.4);
-            transform: translateY(-1px);
+        .toolbar button.primary {
+            background: #238636;
+            border-color: #2ea043;
         }
 
-        button:active {
-            transform: translateY(0);
-            box-shadow: none;
+        .toolbar button.primary:hover:not(:disabled) {
+            background: #2ea043;
         }
 
-        button.primary {
-            background: var(--accent-blue);
-            border-color: var(--accent-blue);
-            color: #ffffff;
-            box-shadow: 0 0 0 1px rgba(56, 139, 253, 0.5);
-        }
-
-        button.primary:hover {
-            background: #1a5fd3;
-            border-color: #1a5fd3;
-        }
-
-        button.danger {
-            background: #a40e26;
+        .toolbar button.danger {
+            background: #3d1a1b;
             border-color: #f85149;
-            color: #ffffff;
-            box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.5);
+            color: #f85149;
         }
 
-        button.danger:hover {
-            background: #860917;
-            border-color: #ff7b72;
+        .toolbar button:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
 
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.8;
-        }
-
-        /* subtle processing pulse on primary button when disabled */
-        #submitBtn:disabled {
-            animation: btnPulse 0.9s ease-in-out infinite alternate;
-        }
-
-        @keyframes btnPulse {
-            from {
-                box-shadow: 0 0 0 0 rgba(56, 139, 253, 0.4);
-            }
-            to {
-                box-shadow: 0 0 14px 0 rgba(56, 139, 253, 0.75);
-            }
-        }
-
-        /* SELECT */
-        select {
-            font-size: 12px;
-        }
-
-        /* PATHS TEXT */
-        .paths {
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        /* STATUS BADGE (GITHUB-STYLE) */
+        /* STATUS LINE */
         .status {
-            margin-top: 12px;
-            display: inline-flex;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: var(--text-primary);
+            font-size: 11px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            border: 1px solid var(--border-subtle);
+            background: #020711;
         }
 
         .status-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
             color: var(--text-muted);
         }
 
         .status-pill {
             border-radius: 999px;
-            padding: 4px 9px;
-            border: 1px solid transparent;
+            padding: 3px 8px;
             font-size: 11px;
-            font-weight: 600;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
+            border: 1px solid var(--border-subtle);
         }
 
         .status-pill-dot {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            background: currentColor;
+            background: #6e7681;
         }
 
         .status-ready .status-pill {
-            background: rgba(99, 110, 123, 0.16);
-            border-color: rgba(99, 110, 123, 0.5);
+            background: rgba(110, 118, 129, 0.16);
+            border-color: rgba(110, 118, 129, 0.7);
             color: var(--status-ready);
         }
 
         .status-processing .status-pill {
             background: rgba(210, 153, 34, 0.16);
-            border-color: rgba(210, 153, 34, 0.6);
+            border-color: rgba(210, 153, 34, 0.7);
             color: var(--status-processing);
-            animation: statusPulse 0.9s ease-in-out infinite alternate;
         }
 
         .status-complete .status-pill {
@@ -301,12 +237,116 @@
         }
 
         @keyframes statusPulse {
-            from {
-                box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.5);
-            }
-            to {
-                box-shadow: 0 0 14px 0 rgba(210, 153, 34, 0.9);
-            }
+            0%   { opacity: 1;   transform: translateY(0); }
+            50%  { opacity: 0.65; transform: translateY(-0.5px); }
+            100% { opacity: 1;   transform: translateY(0); }
+        }
+
+        .status-processing .status-pill {
+            animation: statusPulse 1.4s ease-in-out infinite;
+        }
+
+        /* PROGRESS CARD & BANNER */
+        .progress-card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 10px;
+            box-shadow:
+                0 10px 30px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(22, 27, 34, 0.4);
+        }
+
+        .progress-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 12px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .progress-label {
+            color: var(--text-muted);
+        }
+
+        .progress-value {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-bar-outer {
+            position: relative;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(110, 118, 129, 0.35);
+            overflow: hidden;
+            margin: 6px 0 4px;
+        }
+
+        .progress-bar-inner {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--accent) 0, var(--accent-soft) 100%);
+            transition: width 0.2s ease-out;
+        }
+
+        .progress-step {
+            font-size: 11px;
+            color: var(--text-muted);
+            min-height: 14px;
+        }
+
+        .banner {
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            border: 1px solid transparent;
+        }
+
+        .banner-success {
+            background: rgba(46, 160, 67, 0.16);
+            border-color: rgba(46, 160, 67, 0.7);
+            color: var(--status-complete);
+        }
+
+        .banner-error {
+            background: rgba(248, 81, 73, 0.16);
+            border-color: rgba(248, 81, 73, 0.7);
+            color: var(--status-error);
+        }
+
+        .banner-hidden {
+            display: none;
+        }
+
+        /* THEME TOGGLE */
+        .theme-toggle {
+            background: transparent;
+            border-radius: 999px;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        body.theme-light {
+            --bg-body: #f4f5f7;
+            --bg-header: #e5e7eb;
+            --bg-card: #ffffff;
+            --bg-card-soft: #f3f4f6;
+            --border-subtle: #d0d7de;
+            --text-primary: #111827;
+            --text-muted: #6b7280;
+            --accent: #2563eb;
+            --accent-soft: rgba(37, 99, 235, 0.35);
         }
 
         /* LOGS SECTION */
@@ -331,50 +371,38 @@
             border: 1px solid var(--border-subtle);
             border-radius: 6px;
             padding: 8px;
-            height: 260px; /* fixed, per your choice */
+            height: 260px;
             overflow-y: auto;
             font-size: 12px;
             white-space: pre-wrap;
             font-family: Consolas, "SF Mono", Menlo, Monaco, monospace;
         }
 
-        /* FOOTER */
         footer {
-            margin-top: 14px;
+            margin-top: 16px;
             font-size: 11px;
             color: var(--text-muted);
-            text-align: center;
-            opacity: 0.8;
-        }
-
-        footer span {
-            color: #58a6ff;
-            font-weight: 500;
-        }
-
-        /* SMALL UTILITIES */
-        .hint {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        ul.howto-list {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-left: 18px;
-            padding-left: 16px;
-        }
-
-        ul.howto-list li {
-            margin-bottom: 2px;
         }
 
         @media (max-width: 768px) {
             header {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 4px;
+                gap: 8px;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar button {
+                width: 100%;
+                justify-content: center;
+            }
+
+            #logBox {
+                height: 220px;
             }
         }
     </style>
@@ -385,6 +413,9 @@
     <div>
         <h1>ATGSD SEA PAY PROCESSOR</h1>
         <div class="subtitle">Local-only tool for TORIS Sea Duty Certification Sheets &amp; NAVPERS 1070/613 generation.</div>
+    </div>
+    <div>
+        <button type="button" class="theme-toggle" onclick="toggleTheme()" id="themeToggle">Dark</button>
     </div>
 </header>
 
@@ -406,33 +437,28 @@
                     <h3>FORM NAVPERS 1070/613 (OPTIONAL)</h3>
                     <p>If you have a NAVPERS 1070/613 PDF, upload it here. Otherwise, the default template is used.</p>
                     <input type="file" name="template_file">
-
-                    <div class="paths">
-                        Default: <code>/templates/NAVPERS_1070_613_TEMPLATE.pdf</code><br>
-                        Current: {{ template_path }}
-                    </div>
+                    <p class="hint">
+                        The template is stored under <code>/templates</code>. Updating it here overwrites the existing one.
+                    </p>
                 </div>
 
                 <div class="card">
-                    <h3>N811 PERSONNEL ROSTER (OPTIONAL)(CSV)</h3>
-                    <p>Upload your latest ATGSD N811 roster to map names to rates for PG13 output and summaries.</p>
+                    <h3>RATES CSV (OPTIONAL)</h3>
+                    <p>Upload the ATGSD rates CSV if you need to update or change names/rates.</p>
                     <input type="file" name="rate_file">
-
-                    <div class="paths">
-                        Default: <code>/config/atgsd_n811.csv</code><br>
-                        Current: {{ rate_path }}
-                    </div>
+                    <p class="hint">
+                        The CSV is stored under <code>/config/atgsd_n811.csv</code>. New uploads overwrite the previous file.
+                    </p>
                 </div>
 
                 <div class="card">
-                    <h3>PROCESS CONTROL</h3>
-
-                    <div style="margin-bottom: 12px;">
-                        <label for="strike_color" style="font-size: 12px; color: var(--text-muted);">Strikeout Color:</label><br>
+                    <h3>OPTIONS</h3>
+                    <div>
+                        <label for="strike_color">Strikeout Color (TORIS Sheet):</label>
                         <select
                             name="strike_color"
                             id="strike_color"
-                            style="margin-top: 4px; padding: 4px 8px; border-radius: 6px; background:#010409; border:1px solid var(--border-subtle); color:var(--text-primary);"
+                            style="margin-top: 4px; padding: 4px; border-radius: 6px; background:#010409; border:1px solid var(--border-subtle); color:var(--text-primary);"
                         >
                             <option value="black" selected>Black (Default)</option>
                             <option value="red">Red</option>
@@ -465,20 +491,43 @@
         <div class="right">
             <div class="card">
                 <h3>HOW IT WORKS</h3>
-                <p>Use this tool for bulk ATGSD sea pay processing against TORIS sheets.</p>
-                <ul class="howto-list">
-                    <li>Upload TORIS Sea Duty Certification Sheet PDFs.</li>
-                    <li>Optionally upload a custom NAVPERS 1070/613 template (or use the default).</li>
-                    <li>Upload your N811 CSV to map member names to rates.</li>
-                    <li>Click <strong>RUN PROCESSOR</strong> to generate:
-                        <ul class="howto-list" style="margin-top:4px;">
-                            <li>SEA PAY PG13s by ship and continuous date range.</li>
-                            <li>TORIS Sea Pay Cert Sheets with invalid events struck out.</li>
-                            <li>PSD-style summary files.</li>
-                            <li>Merged output for printing and export.</li>
+                <p>This tool runs completely inside your Unraid Docker container, without sending data outside.</p>
+                <ul class="hint">
+                    <li>Uploads: Stored in <code>/data</code> inside the container.</li>
+                    <li>Outputs: Written to <code>/output</code>, including:
+                        <ul>
+                            <li>Per-ship NAVPERS 1070/613 PDFs (Sea Pay PG13).</li>
+                            <li>Summary TXT + PDF of valid / invalid days.</li>
+                            <li>TORIS Sea Duty Certification Sheets with invalid rows struck out.</li>
                         </ul>
                     </li>
+                    <li>No network calls are made by this app.</li>
                 </ul>
+            </div>
+
+            <div class="progress-card" id="progressCard">
+                <h3>PROCESS STATUS</h3>
+                <div id="progressBanner" class="banner banner-hidden"></div>
+                <div class="progress-grid">
+                    <div class="progress-label">Files processed</div>
+                    <div class="progress-value"><span id="filesProcessed">0</span> / <span id="filesTotal">0</span></div>
+
+                    <div class="progress-label">Valid days</div>
+                    <div class="progress-value" id="validDays">0</div>
+
+                    <div class="progress-label">Invalid events</div>
+                    <div class="progress-value" id="invalidEvents">0</div>
+
+                    <div class="progress-label">PG13 generated</div>
+                    <div class="progress-value" id="pg13Count">0</div>
+
+                    <div class="progress-label">TORIS marked</div>
+                    <div class="progress-value" id="torisMarked">0</div>
+                </div>
+                <div class="progress-bar-outer">
+                    <div class="progress-bar-inner" id="progressBarInner"></div>
+                </div>
+                <div class="progress-step" id="progressStep">Idle</div>
             </div>
 
             <div class="logs">
@@ -498,19 +547,40 @@
     let autoScroll = true;
     let lastText = "";
 
+    let isProcessing = false;
+    let progressTimer = null;
+
     const logBox = document.getElementById("logBox");
     const statusText = document.getElementById("statusText");
     const submitBtn = document.getElementById("submitBtn");
+    const allToolbarButtons = document.querySelectorAll(".toolbar button");
+
+    const filesProcessedEl = document.getElementById("filesProcessed");
+    const filesTotalEl = document.getElementById("filesTotal");
+    const validDaysEl = document.getElementById("validDays");
+    const invalidEventsEl = document.getElementById("invalidEvents");
+    const pg13CountEl = document.getElementById("pg13Count");
+    const torisMarkedEl = document.getElementById("torisMarked");
+    const progressBarInner = document.getElementById("progressBarInner");
+    const progressStepEl = document.getElementById("progressStep");
+    const progressBanner = document.getElementById("progressBanner");
+    const themeToggle = document.getElementById("themeToggle");
 
     // Maintain auto-scroll behavior
     logBox.addEventListener("scroll", () => {
-        autoScroll = (logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
+        autoScroll =
+            logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 30;
     });
 
     // GitHub-style status setter (text + class)
     function setStatus(state, label) {
         // state: "ready" | "processing" | "complete" | "error"
-        statusText.classList.remove("status-ready", "status-processing", "status-complete", "status-error");
+        statusText.classList.remove(
+            "status-ready",
+            "status-processing",
+            "status-complete",
+            "status-error",
+        );
         if (state === "processing") {
             statusText.classList.add("status-processing");
         } else if (state === "complete") {
@@ -524,17 +594,125 @@
         // Update pill text only (keep label word "Status")
         const pill = statusText.querySelector(".status-pill");
         if (pill) {
-            // Remove existing text nodes except the dot and set label
             const children = pill.childNodes;
-            // children[0] should be dot span; [1] text node or span; we just reset text content after dot
             if (pill.children.length >= 2) {
-                // If we use dot as first, second child is text node/span
-                pill.children[1].textContent = label.replace("STATUS:", "").trim();
+                pill.children[1].textContent = label
+                    .replace("STATUS:", "")
+                    .trim();
             } else {
                 pill.textContent = label.replace("STATUS:", "").trim();
             }
         }
     }
+
+    function setButtonsDisabled(disabled) {
+        allToolbarButtons.forEach((btn) => {
+            btn.disabled = disabled;
+        });
+        submitBtn.disabled = disabled;
+    }
+
+    function updateProgressUI(p) {
+        if (!p) return;
+        const details = p.details || {};
+
+        if (filesTotalEl) filesTotalEl.textContent = p.total_files || 0;
+        if (filesProcessedEl)
+            filesProcessedEl.textContent = details.files_processed || 0;
+        if (validDaysEl) validDaysEl.textContent = details.valid_days || 0;
+        if (invalidEventsEl)
+            invalidEventsEl.textContent = details.invalid_events || 0;
+        if (pg13CountEl)
+            pg13CountEl.textContent = details.pg13_created || 0;
+        if (torisMarkedEl)
+            torisMarkedEl.textContent = details.toris_marked || 0;
+
+        if (progressBarInner) {
+            const pct = p.percentage || 0;
+            progressBarInner.style.width = pct + "%";
+        }
+
+        if (progressStepEl) {
+            progressStepEl.textContent = p.current_step || "";
+        }
+    }
+
+    function showBanner(message, type) {
+        if (!progressBanner) return;
+        progressBanner.textContent = message || "";
+        progressBanner.classList.remove(
+            "banner-hidden",
+            "banner-success",
+            "banner-error",
+        );
+        if (type === "success") {
+            progressBanner.classList.add("banner-success");
+        } else if (type === "error") {
+            progressBanner.classList.add("banner-error");
+        } else {
+            progressBanner.classList.add("banner-hidden");
+        }
+    }
+
+    function startProgressPolling() {
+        if (progressTimer) {
+            return;
+        }
+
+        const poll = () => {
+            fetch("/progress")
+                .then((r) => r.json())
+                .then((data) => {
+                    updateProgressUI(data);
+                    if (data.status === "processing") {
+                        isProcessing = true;
+                        progressTimer = setTimeout(poll, 300);
+                    } else {
+                        isProcessing = false;
+                        progressTimer = null;
+                        setButtonsDisabled(false);
+                        if (data.status === "complete") {
+                            setStatus("complete", "STATUS: COMPLETE");
+                            showBanner("Processing complete", "success");
+                        } else if (data.status === "error") {
+                            setStatus("error", "STATUS: ERROR");
+                            showBanner("Processing error", "error");
+                        }
+                    }
+                })
+                .catch(() => {
+                    progressTimer = setTimeout(poll, 1000);
+                });
+        };
+
+        poll();
+    }
+
+    function toggleTheme() {
+        const body = document.body;
+        const isLight = body.classList.toggle("theme-light");
+        if (themeToggle) {
+            themeToggle.textContent = isLight ? "Light" : "Dark";
+        }
+        try {
+            localStorage.setItem("atgsd_theme", isLight ? "light" : "dark");
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    // Initialize theme from storage
+    (function initTheme() {
+        try {
+            const stored = localStorage.getItem("atgsd_theme");
+            if (stored === "light") {
+                document.body.classList.add("theme-light");
+                if (themeToggle) themeToggle.textContent = "Light";
+            }
+        } catch (e) {
+            // ignore
+        }
+    })();
 
     // Initial poll
     pollLogs();
@@ -544,8 +722,8 @@
         isPolling = true;
 
         fetch("/logs")
-            .then(r => r.text())
-            .then(txt => {
+            .then((r) => r.text())
+            .then((txt) => {
                 if (txt === lastText) {
                     isPolling = false;
                     setTimeout(pollLogs, 1000);
@@ -558,10 +736,11 @@
                 logBox.textContent = txt;
                 lastText = txt;
 
-                if (autoScroll) {
+                if (autoScroll && isProcessing) {
                     logBox.scrollTop = logBox.scrollHeight;
                 } else {
-                    logBox.scrollTop = prevTop + (logBox.scrollHeight - prevHeight);
+                    logBox.scrollTop =
+                        prevTop + (logBox.scrollHeight - prevHeight);
                 }
 
                 isPolling = false;
@@ -573,28 +752,36 @@
             });
     }
 
-    document.getElementById("uploadForm").addEventListener("submit", function (e) {
-        e.preventDefault();
+    document
+        .getElementById("uploadForm")
+        .addEventListener("submit", function (e) {
+            e.preventDefault();
 
-        const formData = new FormData(this);
-        const btn = submitBtn;
+            const formData = new FormData(this);
+            const btn = submitBtn;
 
-        btn.innerText = "PROCESSING...";
-        btn.disabled = true;
-        setStatus("processing", "STATUS: PROCESSING...");
+            isProcessing = true;
+            btn.innerText = "PROCESSING...";
+            setButtonsDisabled(true);
+            setStatus("processing", "STATUS: PROCESSING...");
+            showBanner("", null);
+            startProgressPolling();
 
-        fetch("/process", { method: "POST", body: formData })
-            .then(() => {
-                btn.disabled = false;
-                btn.innerText = "RUN PROCESSOR";
-                setStatus("complete", "STATUS: COMPLETE");
-            })
-            .catch(() => {
-                btn.disabled = false;
-                btn.innerText = "RUN PROCESSOR";
-                setStatus("error", "STATUS: ERROR");
-            });
-    });
+            fetch("/process", { method: "POST", body: formData })
+                .then((res) => {
+                    if (!res.ok) {
+                        throw new Error("Process start failed");
+                    }
+                    // Background thread and /progress will handle completion
+                })
+                .catch(() => {
+                    isProcessing = false;
+                    setButtonsDisabled(false);
+                    btn.innerText = "RUN PROCESSOR";
+                    setStatus("error", "STATUS: ERROR");
+                    showBanner("Failed to start processor", "error");
+                });
+        });
 
     function downloadMerged() {
         location.href = "/download_merged";
@@ -612,8 +799,8 @@
         if (!confirm("Delete ALL input/output files and logs?")) return;
 
         fetch("/reset", { method: "POST" })
-            .then(r => r.json())
-            .then(data => {
+            .then((r) => r.json())
+            .then((data) => {
                 alert(data.message || "Reset complete");
 
                 // Reset status to READY
@@ -625,6 +812,17 @@
                 // Clear log window immediately
                 logBox.textContent = "";
                 lastText = "";
+
+                // Reset progress UI
+                if (filesTotalEl) filesTotalEl.textContent = "0";
+                if (filesProcessedEl) filesProcessedEl.textContent = "0";
+                if (validDaysEl) validDaysEl.textContent = "0";
+                if (invalidEventsEl) invalidEventsEl.textContent = "0";
+                if (pg13CountEl) pg13CountEl.textContent = "0";
+                if (torisMarkedEl) torisMarkedEl.textContent = "0";
+                if (progressBarInner) progressBarInner.style.width = "0%";
+                if (progressStepEl) progressStepEl.textContent = "Idle";
+                showBanner("", null);
             });
     }
 </script>
