@@ -120,9 +120,12 @@ def stream_logs():
 
     return Response(event_stream(), mimetype="text/event-stream")
 
-
 @bp.route("/download_merged")
 def download_merged():
+    # PATCH: prevent crash if PACKAGE_FOLDER does not exist
+    if not os.path.exists(PACKAGE_FOLDER):
+        return "No merged package found. Run processor first.", 404
+
     merged_files = [
         f
         for f in os.listdir(PACKAGE_FOLDER)
@@ -142,7 +145,6 @@ def download_merged():
         latest,
         as_attachment=True,
     )
-
 
 @bp.route("/download_summary")
 def download_summary():
@@ -260,3 +262,4 @@ def reset_all():
             "status": "reset",
         }
     )
+
