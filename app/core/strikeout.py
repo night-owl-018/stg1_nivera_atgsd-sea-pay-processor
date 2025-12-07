@@ -27,7 +27,7 @@ def _build_date_variants(date_str):
 
     variants.add(date_str)
     variants.add(f"{dt.month}/{dt.day}/{dt.year}")
-    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")  # FIXED TYPO
+    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")  # fixed
     variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")
 
     return variants
@@ -47,9 +47,7 @@ def mark_sheet_with_strikeouts(
     strike_color="black",
 ):
 
-    # ------------------------------------------------
     # COLOR MAP
-    # ------------------------------------------------
     color_map = {
         "black": (0, 0, 0),
         "red": (1, 0, 0),
@@ -59,6 +57,7 @@ def mark_sheet_with_strikeouts(
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
+        # Targets based on parser decisions
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
@@ -67,7 +66,7 @@ def mark_sheet_with_strikeouts(
         row_list = []
 
         # ------------------------------------------------
-        # BUILD ROWS & OCR tokens
+        # BUILD ROWS & OCR TOKENS
         # ------------------------------------------------
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
@@ -87,6 +86,7 @@ def mark_sheet_with_strikeouts(
             for j in range(len(data["text"])):
                 txt = data["text"][j].strip()
                 if not txt:
+                # skip empty tokens
                     continue
 
                 left = data["left"][j]
@@ -104,12 +104,13 @@ def mark_sheet_with_strikeouts(
 
             ocr_tokens[page_index] = page_token_list
 
+            # Sort by Y (top = larger Y in PDF coords here)
             tokens.sort(key=lambda t: -t["y"])
 
             visual_rows = []
             current_row = []
             last_y = None
-            threshold = 5.5
+            threshold = 5.5  # row merge tolerance
 
             for tok in tokens:
                 if last_y is None:
@@ -131,7 +132,22 @@ def mark_sheet_with_strikeouts(
             tmp_rows = []
             for row in visual_rows:
                 y_avg = sum(t["y"] for t in row) / len(row)
-                text = " ".join(t["text"] for t in row)
+
+                # A-1 INTERNAL NORMALIZATION ONLY:
+                #  - join tokens
+                #  - remove 'þ'
+                #  - join time pairs 0800 1600 → 0800-1600 (T-1 rule)
+                raw_text = " ".join(t["text"] for t in row)
+
+                # remove checkbox symbol
+                text = raw_text.replace("Þ", "").replace("þ", "")
+
+                # collapse multiple spaces
+                text = re.sub(r"\s+", " ", text).strip()
+
+                # join time blocks: T-1 (always join two 3–4 digit groups)
+                text = re.sub(r"\b(\d{3,4})\s+(\d{3,4})\b", r"\1-\2", text)
+
                 tmp_rows.append({
                     "page": page_index,
                     "y": y_avg,
@@ -140,8 +156,10 @@ def mark_sheet_with_strikeouts(
                     "occ_idx": None,
                 })
 
+            # sort rows top to bottom by y (PDF coords)
             tmp_rows.sort(key=lambda r: -r["y"])
 
+            # assign date + occ_idx per date using variants
             date_counters = {d: 0 for d in all_dates}
             for row in tmp_rows:
                 for d in all_dates:
@@ -154,23 +172,51 @@ def mark_sheet_with_strikeouts(
 
             row_list.extend(tmp_rows)
 
-
         # ------------------------------------------------
-        # DETECT STRIKEOUT TARGETS
+        # STRIKEOUT TARGETS (ONE PER PAGE+DATE)
         # ------------------------------------------------
         strike_targets = {}
 
+        # Anchor Y per (page, date) based on the first row that contains that date
+        date_anchor_y = {}
+        for row in row_list:
+            if row.get("date"):
+                key = (row["page"], row["date"])
+                if key not in date_anchor_y:
+                    date_anchor_y[key] = row["y"]
+
+        def add_strike(page_idx, date_val, fallback_y):
+            """
+            Always strike at the DATE row Y when possible.
+            Only one strike per (page, date) — no doubles.
+            """
+            if date_val is not None:
+                key = (page_idx, date_val)
+                y = date_anchor_y.get(key, fallback_y)
+            else:
+                y = fallback_y
+
+            ys = strike_targets.setdefault(page_idx, [])
+            if not any(abs(existing_y - y) < 0.1 for existing_y in ys):
+                ys.append(y)
+
+        # INVALID / UNKNOWN
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
-                strike_targets.setdefault(row["page"], []).append(row["y"])
-                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']}")
+                add_strike(row["page"], row["date"], row["y"])
+                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
 
+        # DUPLICATES
         for row in row_list:
             if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
-                ys = strike_targets.get(row["page"], [])
-                if not any(abs(y - row["y"]) < 0.1 for y in ys):
-                    strike_targets.setdefault(row["page"], []).append(row["y"])
-                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']}")
+                add_strike(row["page"], row["date"], row["y"])
+                log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
+
+        # SBTT — ALWAYS STRIKE, ANCHORED TO DATE IF AVAILABLE
+        for row in row_list:
+            if "SBTT" in row["text"]:
+                add_strike(row["page"], row.get("date"), row["y"])
+                log(f"    STRIKEOUT SBTT EVENT PAGE {row['page']+1} TEXT={row['text']}")
 
         # ------------------------------------------------
         # FIND TOTAL ROW
@@ -201,6 +247,7 @@ def mark_sheet_with_strikeouts(
             old_start_x_pdf = None
             old_end_x_pdf = None
 
+            # find existing total number on that row to anchor X region
             for (txt, left, top, w, h) in tokens_page:
                 if re.fullmatch(r"\d+", txt):
                     center_y_img = top + h / 2.0
@@ -228,14 +275,12 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
 
             # ------------------------------------------------
-            # PATCH PART 1 — CLEAN OCR EXTRACTED VALUE
+            # CLEAN OCR EXTRACTED VALUE (STRONG VERSION)
             # ------------------------------------------------
             clean_extracted = "".join(re.findall(r"\d+", str(extracted_total_days)))
             computed_str = str(computed_total_days)
 
-            # ------------------------------------------------
-            # PATCH PART 2 — PDF TEXT FALLBACK
-            # ------------------------------------------------
+            # PDF TEXT FALLBACK IF NEEDED
             if not clean_extracted:
                 try:
                     page_text = PdfReader(original_pdf).pages[page_idx].extract_text() or ""
@@ -246,9 +291,7 @@ def mark_sheet_with_strikeouts(
                 except Exception as e:
                     log(f"PDF TEXT FALLBACK ERROR → {e}")
 
-            # ------------------------------------------------
-            # STRIKE ONLY IF DIFFERENT
-            # ------------------------------------------------
+            # ONLY STRIKE AND REWRITE IF DIFFERENT
             if clean_extracted != computed_str:
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                 c.drawString(correct_x_pdf, target_y_pdf, computed_str)
@@ -256,7 +299,6 @@ def mark_sheet_with_strikeouts(
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
-
 
         # ------------------------------------------------
         # NORMAL STRIKEOUT LINES
@@ -279,7 +321,6 @@ def mark_sheet_with_strikeouts(
             c.save()
             buf.seek(0)
             overlays.append(PdfReader(buf))
-
 
         # ------------------------------------------------
         # APPLY OVERLAYS
@@ -305,7 +346,7 @@ def mark_sheet_with_strikeouts(
         with open(output_path, "wb") as f:
             writer.write(f)
 
-        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+        log(f"MARKED SHEET CREATED → {os.path.basename(original_pdf)}")
 
     except Exception as e:
         log(f"⚠️ MARKING FAILED → {e}")
