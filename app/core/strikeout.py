@@ -15,7 +15,7 @@ from app.core.logger import log
 
 
 # ------------------------------------------------
-# DATE VARIANT BUILDER (for matching skipped rows)
+# DATE VARIANT BUILDER
 # ------------------------------------------------
 
 def _build_date_variants(date_str):
@@ -46,16 +46,10 @@ def mark_sheet_with_strikeouts(
     computed_total_days,
     strike_color="black",
 ):
-    """
-    Draws strikeout lines on the TORIS Sea Duty Certification Sheet.
 
-    • Strikes all UNKNOWN / DUPLICATE rows from parsing
-    • Always strikes any row whose text contains 'SBTT'
-    • Strikes once per invalid event, at the DATE row y-position
-    • Total Sea Pay Days is struck/overwritten only if the number is wrong
-    """
-
-    # Color mapping (black / red)
+    # ------------------------------------------------
+    # COLOR MAP
+    # ------------------------------------------------
     color_map = {
         "black": (0, 0, 0),
         "red": (1, 0, 0),
@@ -110,7 +104,6 @@ def mark_sheet_with_strikeouts(
 
             ocr_tokens[page_index] = page_token_list
 
-            # Sort downward
             tokens.sort(key=lambda t: -t["y"])
 
             visual_rows = []
@@ -161,57 +154,27 @@ def mark_sheet_with_strikeouts(
 
             row_list.extend(tmp_rows)
 
-        # ------------------------------------------------
-        # SBTT ALWAYS INVALID
-        # ------------------------------------------------
-        sbtt_counters = {}
-        date_regex = re.compile(r"(\d{1,2}/\d{1,2}/\d{4})")
-
-        for row in row_list:
-            if "SBTT" not in row["text"]:
-                continue
-
-            if not row.get("date"):
-                m = date_regex.search(row["text"])
-                if m:
-                    row["date"] = m.group(1)
-
-            if not row.get("date"):
-                log(f"    SBTT ROW WITHOUT DATE → '{row['text']}'")
-                continue
-
-            if not row.get("occ_idx"):
-                sbtt_counters[row["date"]] = sbtt_counters.get(row["date"], 0) + 1
-                row["occ_idx"] = sbtt_counters[row["date"]]
-
-            all_targets.add((row["date"], row["occ_idx"]))
 
         # ------------------------------------------------
-        # STRIKE TARGETS (use DATE y only)
+        # DETECT STRIKEOUT TARGETS (invalid + dupes)
         # ------------------------------------------------
-        rows_by_key = {}
-        for r in row_list:
-            k = (r.get("date"), r.get("occ_idx"))
-            rows_by_key.setdefault(k, []).append(r)
-
         strike_targets = {}
 
-        for key in all_targets:
-            if not key[0] or not key[1]:
-                continue
+        for row in row_list:
+            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_invalid:
+                strike_targets.setdefault(row["page"], []).append(row["y"])
+                log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
 
-            group = rows_by_key.get(key)
-            if not group:
-                continue
+        for row in row_list:
+            if row["date"] and row["occ_idx"] and (row["date"], row["occ_idx"]) in targets_dup:
+                ys = strike_targets.get(row["page"], [])
+                if not any(abs(y - row["y"]) < 0.1 for y in ys):
+                    strike_targets.setdefault(row["page"], []).append(row["y"])
+                    log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1}")
 
-            date_row = max(group, key=lambda r: r["y"])
-            y_anchor = date_row["y"]
-            page_idx = date_row["page"]
-
-            strike_targets.setdefault(page_idx, []).append(y_anchor)
 
         # ------------------------------------------------
-        # TOTAL SEA PAY DAYS FIX — PATCHED HERE
+        # FIND TOTAL ROW
         # ------------------------------------------------
         total_row = None
         for row in row_list:
@@ -265,12 +228,13 @@ def mark_sheet_with_strikeouts(
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            # ----------------------------
-            # PATCH APPLIED HERE
-            # ----------------------------
+            # ------------------------------------------------
+            # PATCH — CLEAN OCR EXTRACTED NUMBER
+            # ------------------------------------------------
             clean_extracted = re.sub(r"\D", "", str(extracted_total_days)).strip()
             computed_str = str(computed_total_days)
 
+            # Compare CLEAN extracted value vs computed value
             if clean_extracted != computed_str:
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                 c.drawString(correct_x_pdf, target_y_pdf, computed_str)
@@ -278,6 +242,7 @@ def mark_sheet_with_strikeouts(
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
+
 
         # ------------------------------------------------
         # NORMAL STRIKEOUT LINES
@@ -289,22 +254,18 @@ def mark_sheet_with_strikeouts(
                 overlays.append(None)
                 continue
 
-            cleaned = []
-            for y in ys:
-                if not any(abs(y - c) < 0.5 for c in cleaned):
-                    cleaned.append(y)
-
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            for y in cleaned:
+            for y in ys:
                 c.line(40, y, 550, y)
 
             c.save()
             buf.seek(0)
             overlays.append(PdfReader(buf))
+
 
         # ------------------------------------------------
         # APPLY OVERLAYS
