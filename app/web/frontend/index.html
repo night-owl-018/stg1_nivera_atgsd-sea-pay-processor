@@ -1,421 +1,632 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>ATGSD Sea Pay Processor</title>
+    <title>ATGSD Sea Pay Processor</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
-<style>
-body {
-    background: #0e1117;
-    font-family: Inter, Consolas, monospace;
-    margin: 0;
-    color:#c9d1d9;
-}
+    <style>
+        :root {
+            --bg-body: #010409;
+            --bg-header: #161b22;
+            --bg-card: #0d1117;
+            --bg-card-soft: #161b22;
+            --border-subtle: #30363d;
+            --text-primary: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-blue: #1f6feb;
+            --accent-blue-soft: #238636;
+            --accent-red: #f85149;
+            --accent-yellow: #d29922;
+            --status-ready: #656d76;
+            --status-processing: #d29922;
+            --status-complete: #2ea043;
+            --status-error: #f85149;
+        }
 
-/* HEADER */
-header {
-    background:#161b22;
-    padding:16px;
-    border-bottom:1px solid #30363d;
-}
-header h1 {
-    margin:0;
-    color:#58a6ff;
-    font-size:20px;
-}
+        * {
+            box-sizing: border-box;
+        }
 
-/* LAYOUT */
-.container {
-    max-width:1200px;
-    margin:20px auto;
-    padding:10px;
-}
-.grid {
-    display:flex;
-    gap:16px;
-    flex-wrap:wrap;
-}
-.left,
-.right {
-    flex:1;
-    min-width:320px;
-}
-.card {
-    background:#161b22;
-    border:1px solid #30363d;
-    border-radius:8px;
-    padding:16px;
-    margin-bottom:16px;
-}
-.card h3 {
-    margin-top:0;
-    font-size:16px;
-    margin-bottom:8px;
-    color:#c9d1d9;
-}
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #0d1117 0, #010409 55%, #000000 100%);
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--text-primary);
+        }
 
-.card p {
-    margin:4px 0;
-    font-size:13px;
-    color:#8b949e;
-}
+        /* HEADER */
+        header {
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
 
-/* FILE INPUTS */
-input[type="file"] {
-    width:100%;
-    padding:8px;
-    background:#0e1117;
-    border:1px solid #30363d;
-    border-radius:6px;
-    color:#c9d1d9;
-    box-sizing:border-box;
-}
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+            color: #58a6ff;
+        }
 
-input[type="file"]::file-selector-button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:6px 12px;
-    margin-right:10px;
-    border-radius:6px;
-    cursor:pointer;
-    max-width:100%;
-}
+        header .subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
 
-/* BUTTONS */
-.toolbar {
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-top:10px;
-}
-button {
-    background:#21262d;
-    color:#c9d1d9;
-    border:1px solid #30363d;
-    padding:8px 12px;
-    border-radius:6px;
-    font-size:13px;
-    cursor:pointer;
-}
-button:hover {
-    background:#272727;
-    border-color:#3a3a3a;
-    color:white;
-}
+        /* LAYOUT */
+        .container {
+            max-width: 1200px;
+            margin: 18px auto 24px;
+            padding: 0 16px;
+        }
 
-button.primary {
-    background:#0d6efd;
-    border-color:#0d6efd;
-    color:#fff;
-}
+        .grid {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
 
-button.primary:hover {
-    background:#0b5ed7;
-}
+        .left,
+        .right {
+            flex: 1;
+            min-width: 320px;
+        }
 
-button.danger {
-    background:#d9534f;
-    border-color:#d9534f;
-    color:#fff;
-}
+        /* CARDS */
+        .card {
+            background: linear-gradient(145deg, var(--bg-card) 0, var(--bg-card-soft) 100%);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 16px 16px 14px;
+            margin-bottom: 16px;
+            box-shadow:
+                0 10px 30px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(22, 27, 34, 0.4);
+            transition:
+                transform 0.15s ease-out,
+                box-shadow 0.15s ease-out,
+                border-color 0.15s ease-out,
+                background 0.15s ease-out;
+        }
 
-button.danger:hover {
-    background:#c9443f;
-}
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: #3b82f6;
+            box-shadow:
+                0 16px 40px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(56, 139, 253, 0.4);
+        }
 
-/* PATHS */
-.paths {
-    margin-top:6px;
-    font-size:12px;
-    color:#8b949e;
-}
+        .card h3 {
+            margin: 0 0 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
 
-/* PATCH — STATUS BAR REPLACEMENT */
-.status {
-    margin-top:10px;
-    padding:6px 10px;
-    background: transparent !important;
-    border-left:4px solid transparent;
-    border-radius:4px;
-    font-size:13px;
-    position:relative;
-    overflow:hidden;
-}
+        .card p {
+            margin: 2px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
 
-/* PROCESSING — RED + PULSE + RIPPLE */
-.status.processing {
-    background:#7f1d1d !important;
-    border-left:4px solid #dc2626;
-    animation:pulse 1.2s infinite ease-in-out;
-}
+        /* FILE INPUTS */
+        input[type="file"] {
+            width: 100%;
+            padding: 6px 8px;
+            background: #010409;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+        }
 
-@keyframes pulse {
-    0% { background:#7f1d1d; }
-    50% { background:#9a2828; }
-    100% { background:#7f1d1d; }
-}
+        input[type="file"]::file-selector-button {
+            background: #21262d;
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            padding: 6px 12px;
+            margin-right: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
 
-/* RIPPLE EFFECT */
-.status.processing::after {
-    content:"";
-    position:absolute;
-    top:0; left:0; right:0; bottom:0;
-    border-radius:4px;
-    background:rgba(220,38,38,0.25);
-    opacity:0;
-    animation:ripple 1.6s infinite ease-out;
-    pointer-events:none;
-}
+        input[type="file"]::file-selector-button:hover {
+            background: #30363d;
+        }
 
-@keyframes ripple {
-    0% { opacity:0.5; transform:scale(1); }
-    70% { opacity:0; transform:scale(1.15); }
-    100% { opacity:0; transform:scale(1.2); }
-}
+        /* BUTTONS / TOOLBAR */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
 
-/* COMPLETE — BLUE */
-.status.complete {
-    background:#1e3a8a !important;
-    border-left:4px solid #3b82f6;
-}
+        button {
+            border-radius: 999px;
+            border: 1px solid var(--border-subtle);
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #21262d;
+            color: var(--text-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition:
+                background 0.15s ease-out,
+                border-color 0.15s ease-out,
+                box-shadow 0.15s ease-out,
+                transform 0.12s ease-out;
+        }
 
-/* LOGS */
-.logs {
-    background:#161b22;
-    border:1px solid #30363d;
-    border-radius:8px;
-    padding:16px;
-    margin-top:16px;
-}
-.logs h3 {
-    margin-top:0;
-    margin-bottom:8px;
-}
-#logBox {
-    background:#0d1117;
-    border:1px solid #30363d;
-    border-radius:6px;
-    padding:8px;
-    height:260px;
-    overflow-y:auto;
-    font-size:12px;
-    white-space:pre-wrap;
-}
+        button:hover {
+            background: #30363d;
+            border-color: #8b949e;
+            box-shadow: 0 0 0 1px rgba(99, 110, 123, 0.4);
+            transform: translateY(-1px);
+        }
 
-/* FOOTER */
-footer {
-    margin-top:16px;
-    font-size:12px;
-    color:#6e7681;
-    text-align:center;
-}
-</style>
+        button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        button.primary {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #ffffff;
+            box-shadow: 0 0 0 1px rgba(56, 139, 253, 0.5);
+        }
+
+        button.primary:hover {
+            background: #1a5fd3;
+            border-color: #1a5fd3;
+        }
+
+        button.danger {
+            background: #a40e26;
+            border-color: #f85149;
+            color: #ffffff;
+            box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.5);
+        }
+
+        button.danger:hover {
+            background: #860917;
+            border-color: #ff7b72;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        /* subtle processing pulse on primary button when disabled */
+        #submitBtn:disabled {
+            animation: btnPulse 0.9s ease-in-out infinite alternate;
+        }
+
+        @keyframes btnPulse {
+            from {
+                box-shadow: 0 0 0 0 rgba(56, 139, 253, 0.4);
+            }
+            to {
+                box-shadow: 0 0 14px 0 rgba(56, 139, 253, 0.75);
+            }
+        }
+
+        /* SELECT */
+        select {
+            font-size: 12px;
+        }
+
+        /* PATHS TEXT */
+        .paths {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* STATUS BADGE (GITHUB-STYLE) */
+        .status {
+            margin-top: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        .status-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+
+        .status-pill {
+            border-radius: 999px;
+            padding: 4px 9px;
+            border: 1px solid transparent;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-pill-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-ready .status-pill {
+            background: rgba(99, 110, 123, 0.16);
+            border-color: rgba(99, 110, 123, 0.5);
+            color: var(--status-ready);
+        }
+
+        .status-processing .status-pill {
+            background: rgba(210, 153, 34, 0.16);
+            border-color: rgba(210, 153, 34, 0.6);
+            color: var(--status-processing);
+            animation: statusPulse 0.9s ease-in-out infinite alternate;
+        }
+
+        .status-complete .status-pill {
+            background: rgba(46, 160, 67, 0.16);
+            border-color: rgba(46, 160, 67, 0.7);
+            color: var(--status-complete);
+        }
+
+        .status-error .status-pill {
+            background: rgba(248, 81, 73, 0.16);
+            border-color: rgba(248, 81, 73, 0.7);
+            color: var(--status-error);
+        }
+
+        @keyframes statusPulse {
+            from {
+                box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.5);
+            }
+            to {
+                box-shadow: 0 0 14px 0 rgba(210, 153, 34, 0.9);
+            }
+        }
+
+        /* LOGS SECTION */
+        .logs {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid var(--border-subtle);
+            margin-top: 10px;
+            box-shadow:
+                0 10px 30px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(22, 27, 34, 0.4);
+        }
+
+        .logs h3 {
+            margin: 0 0 6px;
+            font-size: 14px;
+        }
+
+        #logBox {
+            background: #02040a;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 8px;
+            height: 260px; /* fixed, per your choice */
+            overflow-y: auto;
+            font-size: 12px;
+            white-space: pre-wrap;
+            font-family: Consolas, "SF Mono", Menlo, Monaco, monospace;
+        }
+
+        /* FOOTER */
+        footer {
+            margin-top: 14px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        footer span {
+            color: #58a6ff;
+            font-weight: 500;
+        }
+
+        /* SMALL UTILITIES */
+        .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        ul.howto-list {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-left: 18px;
+            padding-left: 16px;
+        }
+
+        ul.howto-list li {
+            margin-bottom: 2px;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+        }
+    </style>
 </head>
 <body>
 
 <header>
-    <h1>ATGSD SEA PAY PROCESSOR</h1>
+    <div>
+        <h1>ATGSD SEA PAY PROCESSOR</h1>
+        <div class="subtitle">Local-only tool for TORIS Sea Duty Certification Sheets &amp; NAVPERS 1070/613 generation.</div>
+    </div>
 </header>
 
 <div class="container">
+    <div class="grid">
+        <div class="left">
+            <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data">
 
-<div class="grid">
-    <div class="left">
+                <div class="card">
+                    <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
+                    <p>Select one or more PDFs exported from TORIS "Sea Duty Certification Sheet".</p>
+                    <input type="file" name="files" multiple required>
+                    <p class="hint">
+                        All PDFs will be saved to the container's <code>/data</code> directory, then processed.
+                    </p>
+                </div>
 
-        <form id="uploadForm" action="/process" method="POST" enctype="multipart/form-data">
+                <div class="card">
+                    <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
+                    <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
+                    <input type="file" name="template_file">
 
-        <div class="card">
-            <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
-            <p>Select one or more PDFs exported from TORIS "Sea Duty Certification Sheet".</p>
-            <input type="file" name="files" multiple required>
-            <p style="font-size:12px;color:#8b949e;margin-top:6px;">
-                All PDFs will be saved to the container's /data directory, then processed.
-            </p>
+                    <div class="paths">
+                        Default template stored in container: <code>/templates/NAVPERS_1070_613_TEMPLATE.pdf</code><br>
+                        Current: {{ template_path }}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>N811 PERSONNEL ROSTER (CSV)</h3>
+                    <p>Upload your latest ATGSD N811 roster to map names to rates for PG13 output and summaries.</p>
+                    <input type="file" name="rate_file">
+
+                    <div class="paths">
+                        Default: <code>/config/atgsd_n811.csv</code><br>
+                        Current: {{ rate_path }}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>PROCESS CONTROL</h3>
+
+                    <div style="margin-bottom: 12px;">
+                        <label for="strike_color" style="font-size: 12px; color: var(--text-muted);">Strikeout Color:</label><br>
+                        <select
+                            name="strike_color"
+                            id="strike_color"
+                            style="margin-top: 4px; padding: 4px 8px; border-radius: 6px; background:#010409; border:1px solid var(--border-subtle); color:var(--text-primary);"
+                        >
+                            <option value="black" selected>Black (Default)</option>
+                            <option value="red">Red</option>
+                        </select>
+                    </div>
+
+                    <div class="toolbar">
+                        <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
+                        <button type="button" onclick="downloadMerged()">MERGED SEA PAY PG13</button>
+                        <button type="button" onclick="downloadSummary()">MERGED SUMMARY</button>
+                        <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
+
+                        <button type="button" onclick="location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
+                        <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
+
+                        <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
+                    </div>
+
+                    <div class="status status-ready" id="statusText">
+                        <span class="status-label">Status</span>
+                        <span class="status-pill">
+                            <span class="status-pill-dot"></span>
+                            READY
+                        </span>
+                    </div>
+                </div>
+            </form>
         </div>
 
-        <div class="card">
-            <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
-            <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
-            <input type="file" name="template_file">
-
-            <div class="paths">
-                Default template stored in container: /templates/NAVPERS_1070_613_TEMPLATE.pdf<br>
-                Current: {{ template_path }}
+        <div class="right">
+            <div class="card">
+                <h3>HOW IT WORKS</h3>
+                <p>Use this tool for bulk ATGSD sea pay processing against TORIS sheets.</p>
+                <ul class="howto-list">
+                    <li>Upload TORIS Sea Duty Certification Sheet PDFs.</li>
+                    <li>Optionally upload a custom NAVPERS 1070/613 template (or use the default).</li>
+                    <li>Upload your N811 CSV to map member names to rates.</li>
+                    <li>Click <strong>RUN PROCESSOR</strong> to generate:
+                        <ul class="howto-list" style="margin-top:4px;">
+                            <li>SEA PAY PG13s by ship and continuous date range.</li>
+                            <li>TORIS Sea Pay Cert Sheets with invalid events struck out.</li>
+                            <li>PSD-style summary files.</li>
+                            <li>Merged output for printing and export.</li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
+
+            <div class="logs">
+                <h3>LIVE OPERATION LOG</h3>
+                <div id="logBox"></div>
+            </div>
+
+            <footer>
+                <span>ATGSD SEA PAY PROCESSOR</span> &nbsp;|&nbsp; For internal training / admin use only.
+            </footer>
         </div>
-
-        <div class="card">
-            <h3>N811 PERSONNEL ROSTER (CSV)</h3>
-            <input type="file" name="rate_file">
-
-            <div class="paths">
-                Default: /config/atgsd_n811.csv<br>
-                Current: {{ rate_path }}
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>PROCESS CONTROL</h3>
-
-            <div style="margin-bottom:12px;">
-                <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
-                <select name="strike_color" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
-                    <option value="black" selected>Black (Default)</option>
-                    <option value="red">Red</option>
-                </select>
-            </div>
-
-            <div class="toolbar">
-                <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
-                <button type="button" onclick="downloadMerged()">MERGED SEA PAY PG13</button>
-                <button type="button" onclick="downloadSummary()">MERGED SUMMARY</button>
-                <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
-                
-                <button type="button" onclick="location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
-                <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
-
-                <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
-            </div>
-
-            <div class="status" id="statusText">STATUS: READY</div>
-        </div>
-
     </div>
-
-    <div class="right">
-        <div class="card">
-            <h3>HOW IT WORKS</h3>
-            <p>1. Upload TORIS Sea Duty Certification Sheet PDFs.</p>
-            <p>2. Optionally upload a custom NAVPERS 1070/613 template (otherwise the default template is used).</p>
-            <p>3. Upload your N811 CSV to map names to rates.</p>
-            <p>4. Click "RUN PROCESSOR" to generate:</p>
-            <ul style="font-size:13px;color:#8b949e;margin-left:18px;">
-                <li>SEA PAY PG13s by ship and continuous date range.</li>
-                <li>TORIS Sea Pay Cert Sheets (with invalid lines struck out).</li>
-                <li>PSD-style summary files.</li>
-                <li>Merged files for printing/export.</li>
-            </ul>
-        </div>
-
-        <div class="logs">
-            <h3>LIVE OPERATION LOG</h3>
-            <div id="logBox"></div>
-        </div>
-
-        <footer>
-            ATGSD SEA PAY PROCESSOR – For internal training / admin use only.
-        </footer>
-    </div>
-</div>
-
-</form>
-
 </div>
 
 <script>
-let isPolling=false;
-let autoScroll=true;
-let lastText="";
+    let isPolling = false;
+    let autoScroll = true;
+    let lastText = "";
 
-const logBox=document.getElementById("logBox");
-const statusText=document.getElementById("statusText");
+    const logBox = document.getElementById("logBox");
+    const statusText = document.getElementById("statusText");
+    const submitBtn = document.getElementById("submitBtn");
 
-logBox.addEventListener("scroll",()=>{
-    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
-});
+    // Maintain auto-scroll behavior
+    logBox.addEventListener("scroll", () => {
+        autoScroll = (logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
+    });
 
-pollLogs();
-
-function pollLogs(){
-    if(isPolling) return;
-    isPolling=true;
-
-    fetch("/logs")
-    .then(r=>r.text())
-    .then(txt=>{
-        if(txt===lastText){
-            isPolling=false;
-            setTimeout(pollLogs,1000);
-            return;
-        }
-
-        const prevHeight=logBox.scrollHeight;
-        const prevTop=logBox.scrollTop;
-
-        logBox.textContent=txt;
-        lastText=txt;
-
-        if(autoScroll){
-            logBox.scrollTop=logBox.scrollHeight;
+    // GitHub-style status setter (text + class)
+    function setStatus(state, label) {
+        // state: "ready" | "processing" | "complete" | "error"
+        statusText.classList.remove("status-ready", "status-processing", "status-complete", "status-error");
+        if (state === "processing") {
+            statusText.classList.add("status-processing");
+        } else if (state === "complete") {
+            statusText.classList.add("status-complete");
+        } else if (state === "error") {
+            statusText.classList.add("status-error");
         } else {
-            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
+            statusText.classList.add("status-ready");
         }
 
-        isPolling=false;
-        setTimeout(pollLogs,1000);
-    })
-    .catch(()=>{
-        isPolling=false;
-        setTimeout(pollLogs,2000);
+        // Update pill text only (keep label word "Status")
+        const pill = statusText.querySelector(".status-pill");
+        if (pill) {
+            // Remove existing text nodes except the dot and set label
+            const children = pill.childNodes;
+            // children[0] should be dot span; [1] text node or span; we just reset text content after dot
+            if (pill.children.length >= 2) {
+                // If we use dot as first, second child is text node/span
+                pill.children[1].textContent = label.replace("STATUS:", "").trim();
+            } else {
+                pill.textContent = label.replace("STATUS:", "").trim();
+            }
+        }
+    }
+
+    // Initial poll
+    pollLogs();
+
+    function pollLogs() {
+        if (isPolling) return;
+        isPolling = true;
+
+        fetch("/logs")
+            .then(r => r.text())
+            .then(txt => {
+                if (txt === lastText) {
+                    isPolling = false;
+                    setTimeout(pollLogs, 1000);
+                    return;
+                }
+
+                const prevHeight = logBox.scrollHeight;
+                const prevTop = logBox.scrollTop;
+
+                logBox.textContent = txt;
+                lastText = txt;
+
+                if (autoScroll) {
+                    logBox.scrollTop = logBox.scrollHeight;
+                } else {
+                    logBox.scrollTop = prevTop + (logBox.scrollHeight - prevHeight);
+                }
+
+                isPolling = false;
+                setTimeout(pollLogs, 1000);
+            })
+            .catch(() => {
+                isPolling = false;
+                setTimeout(pollLogs, 2000);
+            });
+    }
+
+    document.getElementById("uploadForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const btn = submitBtn;
+
+        btn.innerText = "PROCESSING...";
+        btn.disabled = true;
+        setStatus("processing", "STATUS: PROCESSING...");
+
+        fetch("/process", { method: "POST", body: formData })
+            .then(() => {
+                btn.disabled = false;
+                btn.innerText = "RUN PROCESSOR";
+                setStatus("complete", "STATUS: COMPLETE");
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.innerText = "RUN PROCESSOR";
+                setStatus("error", "STATUS: ERROR");
+            });
     });
-}
 
-document.getElementById("uploadForm").addEventListener("submit",function(e){
-    e.preventDefault();
+    function downloadMerged() {
+        location.href = "/download_merged";
+    }
 
-    const formData=new FormData(this);
-    const btn=document.getElementById("submitBtn");
+    function downloadSummary() {
+        location.href = "/download_summary";
+    }
 
-    btn.innerText="PROCESSING...";
-    btn.disabled=true;
-    statusText.innerText="STATUS: PROCESSING...";
+    function downloadAll() {
+        location.href = "/download_all";
+    }
 
-    /* PATCH — enable red processing state */
-    statusText.classList.remove("complete");
-    statusText.classList.add("processing");
+    function resetAll() {
+        if (!confirm("Delete ALL input/output files and logs?")) return;
 
-    fetch("/process",{method:"POST",body:formData})
-    .then(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: COMPLETE";
+        fetch("/reset", { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message || "Reset complete");
 
-        /* PATCH — switch to blue complete state */
-        statusText.classList.remove("processing");
-        statusText.classList.add("complete");
-    })
-    .catch(()=>{
-        btn.disabled=false;
-        btn.innerText="RUN PROCESSOR";
-        statusText.innerText="STATUS: ERROR";
-    });
-});
+                // Reset status to READY
+                setStatus("ready", "STATUS: READY");
 
-function downloadMerged(){location.href="/download_merged";}
-function downloadSummary(){location.href="/download_summary";}
-function downloadAll(){location.href="/download_all";}
+                // Reset strike color to default
+                document.getElementById("strike_color").value = "black";
 
-function resetAll(){
-    if(!confirm("Delete ALL input/output files and logs?")) return;
-
-    fetch("/reset",{method:"POST"})
-    .then(r=>r.json())
-    .then(data=>{
-        alert(data.message || "Reset complete");
-
-        statusText.innerText = "STATUS: READY";
-
-        statusText.classList.remove("processing");
-        statusText.classList.remove("complete");
-
-        document.getElementById("strike_color").value = "black";
-
-        document.getElementById("logBox").textContent = "";
-        lastText = "";
-    });
-}
+                // Clear log window immediately
+                logBox.textContent = "";
+                lastText = "";
+            });
+    }
 </script>
 
 </body>
