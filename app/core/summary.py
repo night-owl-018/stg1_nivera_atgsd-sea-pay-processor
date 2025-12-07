@@ -1,214 +1,158 @@
 import os
 from datetime import datetime
-
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-
 from app.core.logger import log
-from app.core.config import (
-    SUMMARY_TXT_FOLDER,
-    SUMMARY_PDF_FOLDER,
-    PACKAGE_FOLDER,
-)
 
-
-def _fmt_date(dt):
-    if not dt or not hasattr(dt, "strftime"):
+# ---------------------------------------------------------
+# FORMAT DATE MM-DD-YYYY
+# ---------------------------------------------------------
+def fmt(d):
+    if not d:
         return "UNKNOWN"
-    return dt.strftime("%m-%d-%Y")
+    return datetime.strftime(d, "%m-%d-%Y")
 
 
-def _build_psd_summary_text(sd):
-    rate = sd.get("rate", "").strip()
-    first = sd.get("first", "").strip()
-    last = sd.get("last", "").strip()
-    name = f"{first} {last}".strip()
-
-    rp = sd.get("reporting_periods", []) or []
-    valid_starts = [r["start"] for r in rp if r.get("start")]
-    valid_ends = [r["end"] for r in rp if r.get("end")]
-
-    header_from = _fmt_date(min(valid_starts)) if valid_starts else "UNKNOWN"
-    header_to = _fmt_date(max(valid_ends)) if valid_ends else "UNKNOWN"
-
-    periods = sorted(
-        sd.get("periods", []),
-        key=lambda p: p.get("start") or datetime.min,
-    )
-
-    invalid_rows = []
-
-    # -------------------------------------------------------------------------
-    # UPDATED INVALID / MITE NORMALIZATION BLOCK (OS → ASTAC MITE, STG → ASW MITE)
-    # -------------------------------------------------------------------------
-    for e in sd.get("skipped_unknown", []):
-        date = e.get("date", "UNKNOWN")
-        raw = (e.get("raw") or "").strip()
-        up = raw.upper()
-
-        sailor_rate = (sd.get("rate") or "").upper()
-
-        # SBTT stays unchanged
-        if "SBTT" in up:
-            cleaned = raw or "SBTT"
-            reason = "SBTT / Training Event"
-
-        # MITE logic (updated rules)
-        elif "MITE" in up:
-
-            # Rule 1: OS rates → ASTAC MITE
-            if sailor_rate.startswith("OS"):
-                cleaned = "ASTAC MITE"
-
-            # Rule 2: STG rates → ASW MITE
-            elif sailor_rate.startswith("STG"):
-                cleaned = "ASW MITE"
-
-            else:
-                # Non-OS / Non-STG logic
-                if "ASTAC" in up:
-                    cleaned = "ASTAC MITE"
-                elif "ASW" in up:
-                    cleaned = "ASW MITE"
-                else:
-                    # "MITE" alone → decide by rate
-                    if sailor_rate.startswith("OS"):
-                        cleaned = "ASTAC MITE"
-                    elif sailor_rate.startswith("STG"):
-                        cleaned = "ASW MITE"
-                    else:
-                        cleaned = "MITE"
-
-            reason = "MITE / Not Sea Pay Qualified"
-
-        # Everything else = Unknown / Not Sea Pay Qualified
-        else:
-            cleaned = raw or "UNKNOWN"
-            reason = "Unknown / Not Sea Pay Qualified"
-
-        invalid_rows.append({
-            "date": date,
-            "raw": cleaned,
-            "reason": reason,
-        })
-    # -------------------------------------------------------------------------
-
-    # Duplicate rows stay the same behavior
-    for e in sd.get("skipped_dupe", []):
-        date = e.get("date", "UNKNOWN")
-        ship = e.get("ship") or "UNKNOWN SHIP"
-        reason = "Duplicate entry for date"
-        invalid_rows.append({
-            "date": date,
-            "raw": ship,
-            "reason": reason,
-        })
-
-    pg13_count = len(periods)
-
-    # Build output lines
-    lines = []
-    lines.append("PSD SEA PAY SUMMARY")
-    lines.append("")
-    member_line = f"{rate} {name}".strip() if rate else name
-    lines.append(f"Member: {member_line}")
-    lines.append(f"Documented Period: {header_from} to {header_to}")
-    lines.append("")
-
-    lines.append("VALID SEA PAY PERIODS (PAY AUTHORIZED):")
-    if periods:
-        for p in periods:
-            ship = (p.get("ship") or "UNKNOWN").upper()
-            s = _fmt_date(p.get("start"))
-            e = _fmt_date(p.get("end"))
-            lines.append(f"- {ship} | {s} TO {e}")
-    else:
-        lines.append("- None")
-    lines.append("")
-
-    lines.append("INVALID / NON-PAYABLE ENTRIES:")
-    if invalid_rows:
-        for r in invalid_rows:
-            lines.append(f"- {r['raw']} | {r['date']} | {r['reason']}")
-    else:
-        lines.append("- None")
-    lines.append("")
-
-    lines.append("DOCUMENTS PROVIDED:")
-    lines.append(f"- Generated Sea Pay PG13 ({pg13_count})")
-    lines.append("- TORIS Sea Pay Cert Sheet")
-    lines.append("- Summary PDF")
-    lines.append("")
-
-    lines.append("NOTES FOR PSD:")
-    lines.append("- Valid events confirmed using continuous-date logic.")
-    lines.append("- Non-platform, SBTT, and invalid rows removed per policy.")
-    lines.append("- TORIS sheet corrected and annotated.")
-    lines.append("")
-    lines.append("Generated by STG1 NIVERA – ATGSD SEA PAY PROCESSOR")
-
-    return "\n".join(lines)
-
-
-def _write_member_pdf(text, out_path):
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    c = canvas.Canvas(out_path, pagesize=letter)
-    width, height = letter
-    x = 40
-    y = height - 40
-    for line in text.split("\n"):
-        if y < 60:
-            c.showPage()
-            y = height - 40
-        c.setFont("Helvetica", 10)
-        c.drawString(x, y, line)
-        y -= 14
-    c.save()
-
-
+# ---------------------------------------------------------
+# WRITE SUMMARY FILES
+# ---------------------------------------------------------
 def write_summary_files(summary_data):
-    os.makedirs(SUMMARY_TXT_FOLDER, exist_ok=True)
-    os.makedirs(SUMMARY_PDF_FOLDER, exist_ok=True)
-    os.makedirs(PACKAGE_FOLDER, exist_ok=True)
+    """
+    Writes PSD-style text summaries.
 
-    master_lines = []
-    members = sorted(summary_data.keys())
+    PATCHES APPLIED:
+    - Add day counts to valid periods
+    - Add Total Valid Days
+    - Add Total Invalid Days
+    - Add conditional NOTES FOR PSD
+    """
 
-    for key in members:
-        sd = summary_data[key]
-        text = _build_psd_summary_text(sd)
+    for member_key, info in summary_data.items():
 
-        rate = (sd.get("rate") or "").strip()
-        last = (sd.get("last") or "").strip()
-        first = (sd.get("first") or "").strip()
+        rate = info.get("rate", "UNK")
+        last = info.get("last", "UNK")
+        first = info.get("first", "")
 
-        base = f"{rate}_{last}_{first}".strip("_").replace(" ", "_")
-        if not base:
-            base = key.replace(" ", "_").replace(",", "_")
+        # Determine documented period (min start, max end)
+        rp = info.get("reporting_periods", [])
+        if rp:
+            min_s = min(r["start"] for r in rp if r["start"])
+            max_e = max(r["end"] for r in rp if r["end"])
+        else:
+            min_s = None
+            max_e = None
 
-        txt_path = os.path.join(SUMMARY_TXT_FOLDER, f"{base}__SUMMARY.txt")
-        pdf_path = os.path.join(SUMMARY_PDF_FOLDER, f"{base}__SUMMARY.pdf")
+        # VALID periods (already aggregated in processing.py)
+        valid_periods = info.get("periods", [])
 
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(text)
+        # INVALID items
+        invalid_unknown = info.get("skipped_unknown", [])
+        invalid_dupe = info.get("skipped_dupe", [])
 
-        _write_member_pdf(text, pdf_path)
+        # Build summary text
+        out = []
+        out.append("PSD SEA PAY SUMMARY\n")
+        out.append(f"Member: {rate} {last}\n")
+        out.append(f"Documented Period: {fmt(min_s)} to {fmt(max_e)}\n")
 
-        master_lines.append(text)
-        master_lines.append("")
+        # ----------------------------
+        # VALID SEA PAY PERIODS
+        # ----------------------------
+        out.append("\nVALID SEA PAY PERIODS (PAY AUTHORIZED):")
 
-    # Master Summary → store in same folders (not PACKAGE)
-    if master_lines:
-        master_text = "\n".join(master_lines)
-    else:
-        master_text = "NO DATA"
+        total_valid_days = 0  # PATCH
 
-    master_txt_path = os.path.join(SUMMARY_TXT_FOLDER, "MASTER_SUMMARY.txt")
-    master_pdf_path = os.path.join(SUMMARY_PDF_FOLDER, "MASTER_SUMMARY.pdf")
+        for p in valid_periods:
+            ship = p["ship"]
+            s = p["start"]
+            e = p["end"]
+            days = (e - s).days + 1
 
-    with open(master_txt_path, "w", encoding="utf-8") as f:
-        f.write(master_text)
+            total_valid_days += days
 
-    _write_member_pdf(master_text, master_pdf_path)
+            out.append(
+                f"\n- {ship} | {fmt(s)} TO {fmt(e)} | {days} Day" +
+                ("s" if days != 1 else "")
+            )
 
-    log("SUMMARY FILES (TXT/PDF) UPDATED")
+        out.append(f"\n\nTotal Valid Days: {total_valid_days}\n")
+
+        # ----------------------------
+        # INVALID / NON-PAYABLE
+        # ----------------------------
+        out.append("\nINVALID / NON-PAYABLE ENTRIES:")
+
+        invalid_items = []
+
+        # Unknown rows
+        for u in invalid_unknown:
+            reason = u.get("reason", "Invalid event")
+            ship = u.get("ship", "UNK")
+            d = u.get("date", "")
+            invalid_items.append((ship, d, reason))
+
+        # Duplicate rows
+        for d in invalid_dupe:
+            ship = d.get("ship", "UNK")
+            day = d.get("date", "")
+            invalid_items.append((ship, day, "Duplicate entry for date"))
+
+        # Sort invalids by ship then date
+        invalid_items.sort(key=lambda x: (x[0], x[1]))
+
+        unique_invalid_days = set()
+
+        for ship, d, reason in invalid_items:
+            out.append(f"\n- {ship} | {d} | {reason}")
+            # PATCH: track unique invalid days
+            unique_invalid_days.add(d)
+
+        out.append(f"\n\nTotal Invalid Days: {len(unique_invalid_days)}\n")
+
+        # ----------------------------
+        # DOCUMENTS PROVIDED
+        # ----------------------------
+        out.append("\nDOCUMENTS PROVIDED:")
+        out.append("\n- Generated Sea Pay PG13")
+        out.append("\n- TORIS Sea Pay Cert Sheet")
+        out.append("\n- Summary PDF\n")
+
+        # ----------------------------
+        # CONDITIONAL NOTES FOR PSD
+        # ----------------------------
+        notes = []
+
+        # Note 1 — continuous date logic used?
+        if len(valid_periods) > 1:
+            notes.append("Valid events confirmed using continuous-date logic.")
+
+        # Note 2 — invalid items removed?
+        if len(unique_invalid_days) > 0:
+            notes.append(
+                "Non-platform, SBTT, and invalid rows removed per policy."
+            )
+
+        # Note 3 — sheet corrected?
+        # If there were ANY invalids, duplicates, SBTT, MITE, or corrections
+        if len(unique_invalid_days) > 0:
+            notes.append("TORIS sheet corrected and annotated.")
+
+        if notes:
+            out.append("\nNOTES FOR PSD:")
+            for n in notes:
+                out.append(f"\n- {n}")
+            out.append("\n")
+
+        # ----------------------------
+        # SIGNATURE LINE
+        # ----------------------------
+        out.append("\nGenerated by STG1 NIVERA – ATGSD SEA PAY PROCESSOR\n")
+
+        # Save file
+        summary_path = os.path.join(
+            "/output",
+            f"{rate}_{last}_{first}_SUMMARY.txt".replace(" ", "_")
+        )
+
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write("".join(out))
+
+        log(f"SUMMARY WRITTEN → {summary_path}")
