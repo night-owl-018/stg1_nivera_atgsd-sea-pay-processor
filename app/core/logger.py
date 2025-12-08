@@ -41,7 +41,7 @@ def reset_progress():
     """
     PROGRESS.update(
         {
-            # "status" removed from reset
+            "status": "idle",
             "total_files": 0,
             "current_file": 0,
             "current_step": "",
@@ -62,3 +62,4 @@ def add_progress_detail(name: str, delta: int = 1):
 
 def get_progress():
     return PROGRESS
+
