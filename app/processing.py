@@ -17,9 +17,6 @@ from app.core.merge import merge_all_pdfs
 from app.core.rates import resolve_identity
 
 
-# -------------------------------------------------------------------------
-# Extract reporting period from TORIS header / filename
-# -------------------------------------------------------------------------
 def extract_reporting_period(text, filename=""):
     pattern = r"From:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\s*To:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})"
     match = re.search(pattern, text, re.IGNORECASE)
@@ -34,7 +31,6 @@ def extract_reporting_period(text, filename=""):
             return None, None, ""
         return start, end, f"{from_raw} - {to_raw}"
 
-    # Fallback: filename pattern
     alt_pattern = r"(\d{1,2}_\d{1,2}_\d{4})\s*-\s*(\d{1,2}_\d{1,2}_\d{4})"
     m2 = re.search(alt_pattern, filename)
     if m2:
@@ -47,9 +43,6 @@ def extract_reporting_period(text, filename=""):
     return None, None, ""
 
 
-# -------------------------------------------------------------------------
-# Clear PG13 output folder
-# -------------------------------------------------------------------------
 def clear_pg13_folder():
     try:
         if not os.path.isdir(SEA_PAY_PG13_FOLDER):
@@ -62,9 +55,6 @@ def clear_pg13_folder():
         log(f"PG13 CLEAR ERROR → {e}")
 
 
-# -------------------------------------------------------------------------
-# Main processing pipeline
-# -------------------------------------------------------------------------
 def process_all(strike_color="black"):
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
@@ -103,6 +93,16 @@ def process_all(strike_color="black"):
     log("=== PROCESS STARTED ===")
     summary_data = {}
 
+    # --------------------------
+    # NEW TOTAL COUNTERS
+    # --------------------------
+    files_processed_total = 0
+    valid_days_total = 0
+    invalid_events_total = 0
+    pg13_total = 0
+    toris_total = 0
+    # --------------------------
+
     for idx, file in enumerate(sorted(files), start=1):
         path = os.path.join(DATA_DIR, file)
         set_progress(
@@ -114,10 +114,8 @@ def process_all(strike_color="black"):
 
         raw = strip_times(ocr_pdf(path))
 
-        # Reporting range from sheet
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
-        # Name extraction
         try:
             name = extract_member_name(raw)
             log(f"NAME → {name}")
@@ -127,16 +125,21 @@ def process_all(strike_color="black"):
 
         year = extract_year_from_filename(file)
 
-        # Parse rows
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # Group valid periods
         groups = group_by_ship(rows)
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
+
+        # --------------------------
+        # UPDATE TOTALS
+        # --------------------------
+        valid_days_total += total_days
+        invalid_events_total += len(skipped_dupe) + len(skipped_unknown)
+        # --------------------------
+
         add_progress_detail("valid_days", total_days)
         add_progress_detail("invalid_events", len(skipped_dupe) + len(skipped_unknown))
 
-        # Resolve CSV identity
         rate, last, first = resolve_identity(name)
         key = f"{rate} {last},{first}"
 
@@ -153,16 +156,10 @@ def process_all(strike_color="black"):
 
         sd = summary_data[key]
 
-        # Save reporting period
         sd["reporting_periods"].append(
-            {
-                "start": sheet_start,
-                "end": sheet_end,
-                "file": file,
-            }
+            {"start": sheet_start, "end": sheet_end, "file": file}
         )
 
-        # Store valid sea pay periods
         for g in groups:
             sd["periods"].append(
                 {
@@ -174,11 +171,9 @@ def process_all(strike_color="black"):
                 }
             )
 
-        # Store skipped
         sd["skipped_unknown"].extend(skipped_unknown)
         sd["skipped_dupe"].extend(skipped_dupe)
 
-        # Build TORIS output filename
         hf = sheet_start.strftime("%m-%d-%Y") if sheet_start else "UNKNOWN"
         ht = sheet_end.strftime("%m-%d-%Y") if sheet_end else "UNKNOWN"
         toris_filename = (
@@ -186,7 +181,6 @@ def process_all(strike_color="black"):
         ).replace(" ", "_")
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
 
-        # Totals for strikeout
         extracted_total_days = None
         computed_total_days = total_days
 
@@ -200,9 +194,10 @@ def process_all(strike_color="black"):
             computed_total_days,
             strike_color=strike_color,
         )
-        add_progress_detail("toris_marked", 1)
 
-        # Create PG13 PDFs (one per ship, multiple periods)
+        add_progress_detail("toris_marked", 1)
+        toris_total += 1
+
         ship_map = {}
         for g in groups:
             ship_map.setdefault(g["ship"], []).append(g)
@@ -211,18 +206,32 @@ def process_all(strike_color="black"):
             set_progress(current_step=f"Generating PG13 for {ship}")
             make_pdf_for_ship(ship, ship_periods, name)
             add_progress_detail("pg13_created", 1)
+            pg13_total += 1
 
         add_progress_detail("files_processed", 1)
+        files_processed_total += 1
+
         set_progress(
             current_step=f"Completed file: {file}",
             percentage=int((idx / max(total_files, 1)) * 100),
         )
 
-    # Write summary
+    # -----------------------------------
+    # WRITE FINAL TOTALS INTO PROGRESS
+    # -----------------------------------
+    final_details = {
+        "files_processed": files_processed_total,
+        "valid_days": valid_days_total,
+        "invalid_events": invalid_events_total,
+        "pg13_created": pg13_total,
+        "toris_marked": toris_total,
+    }
+    set_progress(details=final_details)
+    # -----------------------------------
+
     set_progress(current_step="Writing summary files")
     write_summary_files(summary_data)
 
-    # Merge package
     set_progress(current_step="Merging output package", percentage=100)
     merge_all_pdfs()
 
