@@ -214,9 +214,6 @@ def mark_sheet_with_strikeouts(
         # ------------------------------------------------
         # STRIKEOUT TARGETS (DATE-BASED, ONE PER DATE/PAGE)
         # ------------------------------------------------
-        # We want:
-        #   • One strike per DATE per PAGE
-        #   • At the DATE row Y position
         strike_targets_by_page = {}   # page_index -> {date: y}
         already_struck_date = set()   # global set of (page, date) to avoid duplicates
 
@@ -249,7 +246,6 @@ def mark_sheet_with_strikeouts(
                 continue
 
             if (date, occ_idx) in targets_dup:
-                # Only register if we have not already struck that date on that page
                 _register_strike(row["page"], date, row["y"])
                 log(
                     f"    STRIKEOUT DUP DATE {date} OCC#{occ_idx} "
@@ -257,7 +253,7 @@ def mark_sheet_with_strikeouts(
                 )
 
         # ------------------------------------------------
-        # AUTO-STRIKE INVALID TEXT MARKERS (MITE / SBTT / etc.)
+        # AUTO-STRIKE INVALID TEXT MARKERS
         # ------------------------------------------------
         INVALID_MARKERS = [
             "SBTT",
@@ -269,18 +265,15 @@ def mark_sheet_with_strikeouts(
         for row in row_list:
             text = row["text"]
             if any(marker in text for marker in INVALID_MARKERS):
-                # If row already has a date, use that
                 if row.get("date"):
                     target_date = row["date"]
                     target_y = row["y"]
                 else:
-                    # Otherwise snap to nearest date row on this page
                     nearest = _find_nearest_date_row(row["page"], row["y"])
                     if nearest and nearest.get("date"):
                         target_date = nearest["date"]
                         target_y = nearest["y"]
                     else:
-                        # As a last resort, strike exactly at this row's Y
                         target_date = f"SBTT_MITE_ROW_{row['page']}_{row['y']:.1f}"
                         target_y = row["y"]
 
@@ -319,7 +312,6 @@ def mark_sheet_with_strikeouts(
             old_start_x_pdf = None
             old_end_x_pdf = None
 
-            # Find the existing number position on that line (if present)
             for (txt, left, top, w, h) in tokens_page:
                 if re.fullmatch(r"\d+", txt):
                     center_y_img = top + h / 2.0
@@ -331,7 +323,6 @@ def mark_sheet_with_strikeouts(
                         old_end_x_pdf = (left + w) * scale_x
                         break
 
-            # Fallback guess if we could not find the existing number
             if old_start_x_pdf is None:
                 old_start_x_pdf = 260
                 old_end_x_pdf = 300
@@ -348,20 +339,24 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
 
             # ---- CLEAN + COMPARE TOTALS ----
-            # 1) Clean extracted_total_days (OCR or parser supplied)
             clean_extracted = re.sub(
                 r"\D",
                 "",
                 str(extracted_total_days or "")
             ).strip()
+
             computed_str = str(computed_total_days)
 
-            # 2) If we still don't have an extracted value, fallback to PDF text
+            # ------------------------------------------------
+            # PATCHED SECTION — SAFE READ OF EXISTING PDF
+            # ------------------------------------------------
             if not clean_extracted:
                 try:
-                    pdf_reader = PdfReader(original_pdf)
+                    safe_pdf_path = output_path if os.path.exists(output_path) else original_pdf
+
+                    pdf_reader = PdfReader(safe_pdf_path)
                     page_text = pdf_reader.pages[page_idx].extract_text() or ""
-                    # IMPORTANT PATCH: allow newline between label and number
+
                     m = re.search(
                         r"Total\s+Sea\s+Pay\s+Days.*?(\d+)",
                         page_text,
@@ -370,18 +365,17 @@ def mark_sheet_with_strikeouts(
                     if m:
                         clean_extracted = m.group(1).strip()
                         log(f"PDF TEXT FALLBACK EXTRACTED TOTAL → {clean_extracted}")
+
                 except Exception as e:
                     log(f"PDF TEXT FALLBACK ERROR → {e}")
+            # ------------------------------------------------
 
-            # 3) Only strike/override when numbers DIFFER
             if clean_extracted and clean_extracted == computed_str:
-                # Numbers match → do nothing
                 log(
                     f"TOTAL DAYS MATCH → extracted={clean_extracted} "
                     f"computed={computed_str} (NO STRIKE)"
                 )
             else:
-                # Mismatch or no extracted value → strike and rewrite
                 log(
                     f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
                     f"computed={computed_str} (STRIKE + CORRECT)"
@@ -394,7 +388,7 @@ def mark_sheet_with_strikeouts(
             total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES (DATE-BASED, FULL-WIDTH)
+        # NORMAL STRIKEOUT LINES
         # ------------------------------------------------
         overlays = []
         for p in range(len(pages)):
@@ -409,7 +403,6 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
 
             for date_str, y in date_to_y.items():
-                # Full-width strike at that row's Y
                 c.line(40, y, 550, y)
 
             c.save()
@@ -423,18 +416,15 @@ def mark_sheet_with_strikeouts(
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            # Apply total-days overlay (if any)
             if total_overlay and total_row and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
-            # Apply normal strikeout overlays
             if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
 
             try:
                 page.compress_content_streams()
             except Exception:
-                # Some PDFs cannot be compressed safely; ignore
                 pass
 
             writer.add_page(page)
