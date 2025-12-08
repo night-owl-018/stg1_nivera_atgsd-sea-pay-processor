@@ -1,13 +1,13 @@
-from flask import Flask
 import os
+from flask import Flask
 
 def create_app():
-    # Resolve absolute path to THIS folder (app/)
-    base_dir = os.path.abspath(os.path.dirname(__file__))
+    # Base directory of the project
+    base_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
-    # Point Flask to your actual index.html folder
-    template_path = os.path.join(base_dir, "web", "frontend")
-    static_path = template_path   # index.html + icon.png located here
+    # Correct paths to your frontend
+    template_path = os.path.join(base_dir, "app", "web", "frontend")
+    static_path = template_path  # icon.png is also here
 
     app = Flask(
         __name__,
@@ -15,8 +15,8 @@ def create_app():
         static_folder=static_path
     )
 
-    # Register routes AFTER creating the app
-    from .routes import bp
+    # Register routes AFTER app is created
+    from app.routes import bp
     app.register_blueprint(bp)
 
     return app
