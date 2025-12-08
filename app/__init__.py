@@ -1,24 +1,19 @@
-# app/__init__.py
-
-import os
 from flask import Flask
-
+import os
 
 def create_app():
-    # Absolute path to THIS file's directory: /app/app
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    TEMPLATE_DIR = os.path.join(BASE_DIR, "web", "frontend")
 
-    # This matches your structure: /app/app/web/frontend/index.html
-    template_dir = os.path.join(base_dir, "web", "frontend")
-
-    # Use that directory for both templates and static files (CSS/JS in same file)
     app = Flask(
         __name__,
-        template_folder=template_dir,
-        static_folder=template_dir,
+        template_folder=TEMPLATE_DIR,
+        static_folder=TEMPLATE_DIR  # so CSS/JS/images also work
     )
 
-    from .routes import bp as routes_bp
-    app.register_blueprint(routes_bp)
+    from .routes import bp
+    app.register_blueprint(bp)
 
     return app
+
+
