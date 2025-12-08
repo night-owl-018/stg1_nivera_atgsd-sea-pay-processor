@@ -15,12 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY . .
 
-# ✅ ADD THIS PART — DO NOT REMOVE ANYTHING ABOVE
+# ✅ REQUIRED — do NOT remove anything above
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 8080
 
-# ✅ REPLACE CMD LINE ONLY
+# ✅ REQUIRED — only replacing CMD, nothing else touched
 CMD ["/entrypoint.sh"]
-
