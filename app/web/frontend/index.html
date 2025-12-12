@@ -265,15 +265,90 @@ setInterval(async () => {
 const logDiv = document.getElementById("log");
 const evt = new EventSource("/stream");
 
-/* ✅ FIXED: append log lines instead of overwriting */
 evt.onmessage = e => {
     logDiv.textContent += e.data + "\n";
     logDiv.scrollTop = logDiv.scrollHeight;
 };
 
-/* ---------------- REVIEW UI ---------------- */
-/* (UNCHANGED — omitted for brevity, same as your file) */
+/* =====================================================
+   ✅ REVIEW & OVERRIDE DATA LOADER (PATCH)
+   ===================================================== */
 
+const memberSelect = document.getElementById("reviewMember");
+const sheetSelect  = document.getElementById("reviewSheet");
+const validBody    = document.querySelector("#reviewRows tbody");
+const invalidBody  = document.querySelector("#reviewInvalid tbody");
+
+async function loadMembers() {
+    const res = await fetch("/api/members");
+    const members = await res.json();
+
+    memberSelect.innerHTML = "<option value=''>Select member</option>";
+    sheetSelect.innerHTML = "<option value=''>Select sheet</option>";
+    validBody.innerHTML = "";
+    invalidBody.innerHTML = "";
+
+    for (const m of members) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        memberSelect.appendChild(opt);
+    }
+}
+
+memberSelect.addEventListener("change", async () => {
+    const member = memberSelect.value;
+    sheetSelect.innerHTML = "<option value=''>Select sheet</option>";
+    validBody.innerHTML = "";
+    invalidBody.innerHTML = "";
+
+    if (!member) return;
+
+    const res = await fetch(`/api/member/${encodeURIComponent(member)}/sheets`);
+    const sheets = await res.json();
+    sheetSelect._data = sheets;
+
+    for (const s of sheets) {
+        const opt = document.createElement("option");
+        opt.value = s.sheet_id;
+        opt.textContent = s.sheet_id;
+        sheetSelect.appendChild(opt);
+    }
+});
+
+sheetSelect.addEventListener("change", () => {
+    validBody.innerHTML = "";
+    invalidBody.innerHTML = "";
+
+    const sheet = sheetSelect._data?.find(
+        s => s.sheet_id === sheetSelect.value
+    );
+    if (!sheet) return;
+
+    for (const r of sheet.valid_rows || []) {
+        renderRow(validBody, r, true);
+    }
+    for (const r of sheet.invalid_rows || []) {
+        renderRow(invalidBody, r, false);
+    }
+});
+
+function renderRow(tbody, row, isValid) {
+    const tr = document.createElement("tr");
+    tr.className = row.overridden ? "overridden" : (isValid ? "valid" : "invalid");
+    tr.innerHTML = `
+        <td>${row.date}</td>
+        <td>${row.ship}</td>
+        <td>${row.final}</td>
+        <td>${row.override || ""}</td>
+        <td>${row.reason || ""}</td>
+        <td></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+/* Auto-load members shortly after processing */
+setTimeout(loadMembers, 1200);
 </script>
 
 </body>
