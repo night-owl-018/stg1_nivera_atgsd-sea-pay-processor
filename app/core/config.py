@@ -1,59 +1,66 @@
 import os
 
 # -----------------------------------
-# Base paths
+# DIRECTORY ROOTS
 # -----------------------------------
 
-# This file lives in app/core/, so:
-# BASE_DIR      = app/core
-# PROJECT_ROOT  = repo root (ATGSD-SEA-PAY-PROCESSOR)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))          # /app/core
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))  # repo root
 
 # -----------------------------------
-# Existing temp/output locations
-# (KEPT EXACTLY AS BEFORE)
+# REQUIRED ORIGINAL PATHS (UI + ROUTES)
 # -----------------------------------
 
-TEMP_DIR = os.path.join(PROJECT_ROOT, "temp")
+# Template for PG-13 merge and TORIS
+TEMPLATE = os.path.join(PROJECT_ROOT, "pdf_template", "NAVPERS_1070_613_TEMPLATE.pdf")
+
+# Output root
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
-PDF_TEMPLATE = os.path.join(
-    PROJECT_ROOT,
-    "pdf_template",
-    "NAVPERS_1070_613_TEMPLATE.pdf",
-)
+# Subfolders required by route logic
+PACKAGE_FOLDER = os.path.join(OUTPUT_DIR, "PACKAGE")
+SUMMARY_TXT_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_TXT")
+SUMMARY_PDF_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_PDF")
+TORIS_CERT_FOLDER = os.path.join(OUTPUT_DIR, "TORIS_CERT")
+SEA_PAY_PG13_FOLDER = os.path.join(OUTPUT_DIR, "SEA_PAY_PG13")
 
+# -----------------------------------
+# CSV FILE
+# -----------------------------------
 RATE_FILE = os.path.join(PROJECT_ROOT, "config", "atgsd_n811.csv")
-LOGGER_NAME = "sea_pay_logger"
-
-# Ensure existing directories still exist
-os.makedirs(TEMP_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # -----------------------------------
-# NEW: Data directories for the
-# upgraded Sea Pay Processor
+# NEW — DATA MODEL + JSON OUTPUT
 # -----------------------------------
 
-# Root data directory for all structured outputs
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-
-# Parsed JSON per sheet owner
 PARSED_DIR = os.path.join(DATA_DIR, "parsed")
-
-# Manual overrides per sheet owner
 OVERRIDES_DIR = os.path.join(DATA_DIR, "overrides")
-
-# Validation reports (per member or global)
 REPORTS_DIR = os.path.join(DATA_DIR, "reports")
-
-# Preview artifacts (PG-13 text, 1070/613 text or PDFs)
 PREVIEWS_DIR = os.path.join(DATA_DIR, "previews")
 
-# Ensure new data directories exist
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(PARSED_DIR, exist_ok=True)
-os.makedirs(OVERRIDES_DIR, exist_ok=True)
-os.makedirs(REPORTS_DIR, exist_ok=True)
-os.makedirs(PREVIEWS_DIR, exist_ok=True)
+REVIEW_JSON_PATH = os.path.join(OUTPUT_DIR, "SEA_PAY_REVIEW.json")
+
+# -----------------------------------
+# FONT SETTINGS (used by pdf_writer)
+# -----------------------------------
+FONT_NAME = "Times-Roman"
+FONT_SIZE = 12
+
+# -----------------------------------
+# ENSURE DIRECTORIES EXIST
+# -----------------------------------
+for p in [
+    OUTPUT_DIR,
+    PACKAGE_FOLDER,
+    SUMMARY_TXT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    TORIS_CERT_FOLDER,
+    SEA_PAY_PG13_FOLDER,
+    DATA_DIR,
+    PARSED_DIR,
+    OVERRIDES_DIR,
+    REPORTS_DIR,
+    PREVIEWS_DIR,
+]:
+    os.makedirs(p, exist_ok=True)
