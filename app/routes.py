@@ -152,15 +152,23 @@ def stream_logs():
 
 
 # ---------------------------------------------------------
-# REVIEW / OVERRIDE API (PATCHED – ADAPTER ONLY)
+# REVIEW / OVERRIDE API (MINIMAL ADAPTER FIX)
 # ---------------------------------------------------------
 
 def _load_review_state():
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
+
     try:
         with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+
+        # 🔑 ONLY FIX: unwrap "members" if present
+        if isinstance(data, dict) and "members" in data:
+            return data["members"]
+
+        return data
+
     except Exception as e:
         log(f"REVIEW JSON READ ERROR → {e}")
         return {}
@@ -193,14 +201,17 @@ def api_member_sheets(member_key):
 def api_override_save():
     payload = request.get_json(silent=True) or {}
     save_override(**payload)
+
     state = _load_review_state()
     state[payload["member_key"]] = apply_overrides(
         payload["member_key"],
         state[payload["member_key"]],
     )
+
     os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
     with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, default=str)
+        json.dump({"members": state}, f, indent=2, default=str)
+
     return jsonify({"status": "override_saved"})
 
 
