@@ -34,9 +34,10 @@ from .core.config import (
     SUMMARY_PDF_FOLDER,
     TORIS_CERT_FOLDER,
     REVIEW_JSON_PATH,
+    OVERRIDES_DIR,
 )
+
 from .processing import process_all
-import app.core.rates as rates
 
 from app.core.overrides import (
     save_override,
@@ -44,182 +45,241 @@ from app.core.overrides import (
     apply_overrides,
 )
 
-bp = Blueprint("routes", __name__)
+bp = Blueprint("bp", __name__, template_folder="web/frontend", static_folder="web/frontend")
+
 
 # ---------------------------------------------------------
-# UI ROUTES
+# FRONTEND ROUTES
 # ---------------------------------------------------------
 
-@bp.route("/", methods=["GET"])
-def home():
-    return render_template(
-        "index.html",
-        template_path=TEMPLATE,
-        rate_path=RATE_FILE,
-    )
+@bp.route("/")
+def index():
+    return send_from_directory(bp.static_folder, "index.html")
+
+
+@bp.route("/icon.png")
+def icon():
+    return send_from_directory(bp.static_folder, "icon.png")
+
+
+# ---------------------------------------------------------
+# PROGRESS / LOG ROUTES
+# ---------------------------------------------------------
+
+@bp.route("/progress")
+def progress():
+    return jsonify(get_progress())
+
+
+@bp.route("/logs")
+def logs():
+    return jsonify({"logs": LIVE_LOGS})
+
+
+@bp.route("/clear_logs", methods=["POST"])
+def clear_logs_route():
+    clear_logs()
+    return jsonify({"status": "cleared"})
+
+
+# ---------------------------------------------------------
+# PROCESS ROUTES
+# ---------------------------------------------------------
+
+_process_thread = None
 
 
 @bp.route("/process", methods=["POST"])
-def process_route():
-    clear_logs()
+def start_process():
+    global _process_thread
+
+    if _process_thread and _process_thread.is_alive():
+        return jsonify({"error": "Process already running"}), 400
+
     reset_progress()
-    log("=== PROCESS STARTED ===")
+    clear_logs()
 
-    set_progress(
-        status="processing",
-        total_files=0,
-        current_file=0,
-        current_step="Preparing input files",
-        percentage=0,
-        details={
-            "files_processed": 0,
-            "valid_days": 0,
-            "invalid_events": 0,
-            "pg13_created": 0,
-            "toris_marked": 0,
-        },
-    )
+    # Save uploaded files to /app/data
+    uploaded_files = request.files.getlist("files")
+    if not uploaded_files:
+        return jsonify({"error": "No files uploaded"}), 400
 
-    files = request.files.getlist("files")
-    for f in files:
-        if f and f.filename:
-            save_path = os.path.join(DATA_DIR, f.filename)
-            f.save(save_path)
-            log(f"SAVED INPUT FILE → {save_path}")
+    os.makedirs(DATA_DIR, exist_ok=True)
 
-    template_file = request.files.get("template_file")
+    saved_paths = []
+    for f in uploaded_files:
+        if not f.filename:
+            continue
+        dest = os.path.join(DATA_DIR, f.filename)
+        f.save(dest)
+        saved_paths.append(dest)
+        log(f"SAVED INPUT FILE → {dest}")
+
+    # Optional: upload updated template
+    template_file = request.files.get("template")
     if template_file and template_file.filename:
         os.makedirs(os.path.dirname(TEMPLATE), exist_ok=True)
         template_file.save(TEMPLATE)
         log(f"UPDATED TEMPLATE → {TEMPLATE}")
 
-    rate_file = request.files.get("rate_file")
-    if rate_file and rate_file.filename:
+    # Optional: upload updated CSV
+    rate_csv = request.files.get("csv")
+    if rate_csv and rate_csv.filename:
         os.makedirs(os.path.dirname(RATE_FILE), exist_ok=True)
-        rate_file.save(RATE_FILE)
+        rate_csv.save(RATE_FILE)
         log(f"UPDATED CSV FILE → {RATE_FILE}")
-
-        try:
-            rates.load_rates(RATE_FILE)
-            log("RATES RELOADED FROM CSV")
-        except Exception as e:
-            log(f"CSV RELOAD ERROR → {e}")
-
-    strike_color = request.form.get("strike_color", "black")
 
     def _run():
         try:
-            process_all(strike_color=strike_color)
-            set_progress(
-                status="complete",
-                current_step="Processing complete",
-                percentage=100,
-            )
+            set_progress(stage="running", pct=0, msg="Processing...")
+            process_all(saved_paths)
+            set_progress(stage="done", pct=100, msg="Complete")
         except Exception as e:
-            log(f"PROCESS ERROR → {e}")
-            set_progress(status="error", current_step="Processing error")
+            log(f"ERROR → {str(e)}")
+            set_progress(stage="error", pct=0, msg=str(e))
 
-    threading.Thread(target=_run, daemon=True).start()
-    return jsonify({"status": "STARTED"})
+    _process_thread = threading.Thread(target=_run, daemon=True)
+    _process_thread.start()
 
-
-@bp.route("/progress")
-def progress_route():
-    return jsonify(get_progress())
-
-
-@bp.route("/stream")
-def stream_logs():
-    def event_stream():
-        yield "data: [CONNECTED]\n\n"
-        last_len = 0
-        while True:
-            current_len = len(LIVE_LOGS)
-            if current_len > last_len:
-                for i in range(last_len, current_len):
-                    yield f"data: {LIVE_LOGS[i]}\n\n"
-                last_len = current_len
-            time.sleep(0.5)
-
-    return Response(
-        event_stream(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return jsonify({"status": "started"})
 
 
 # ---------------------------------------------------------
-# REVIEW / OVERRIDE API (MINIMAL ADAPTER FIX)
+# REVIEW / OVERRIDE ROUTES
 # ---------------------------------------------------------
 
 def _load_review_state():
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
-
     try:
         with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        # 🔑 ONLY FIX: unwrap "members" if present
-        if isinstance(data, dict) and "members" in data:
-            return data["members"]
-
-        return data
-
-    except Exception as e:
-        log(f"REVIEW JSON READ ERROR → {e}")
+            return json.load(f) or {}
+    except Exception:
         return {}
 
 
 @bp.route("/api/members")
 def api_members():
-    return jsonify(sorted(_load_review_state().keys()))
+    state = _load_review_state()
+    return jsonify(sorted(state.keys()))
 
 
 @bp.route("/api/member/<path:member_key>/sheets")
 def api_member_sheets(member_key):
+    """Return a simple list of sheet source filenames for the selected member.
+
+    The UI expects: ["FILE1.pdf", "FILE2.pdf", ...]
+    """
     state = _load_review_state()
     member = state.get(member_key)
     if not member:
         return jsonify([])
 
-    sheets_out = []
-    for s in member.get("sheets", []):
-        sheets_out.append({
-            "sheet_id": s.get("source_file"),
-            "valid_rows": s.get("rows", []),
-            "invalid_rows": s.get("invalid_events", []),
-        })
+    # Apply overrides on-the-fly so the UI always reflects the current override file.
+    member = apply_overrides(member_key, member)
 
-    return jsonify(sheets_out)
+    sheet_ids = []
+    for s in member.get("sheets", []):
+        sf = s.get("source_file")
+        if sf and sf not in sheet_ids:
+            sheet_ids.append(sf)
+
+    return jsonify(sheet_ids)
+
+
+@bp.route("/api/member/<path:member_key>/sheet/<path:sheet_file>")
+def api_member_sheet(member_key, sheet_file):
+    """Return the full sheet payload (valid_rows + invalid_events) for one sheet."""
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify({"valid_rows": [], "invalid_events": []})
+
+    member = apply_overrides(member_key, member)
+
+    for s in member.get("sheets", []):
+        if s.get("source_file") == sheet_file:
+            # Keep the keys the frontend expects.
+            return jsonify({
+                "member_key": member_key,
+                "sheet_file": sheet_file,
+                "valid_rows": s.get("rows", []),
+                "invalid_events": s.get("invalid_events", []),
+                "meta": s.get("meta", {}),
+            })
+
+    return jsonify({"valid_rows": [], "invalid_events": []})
 
 
 @bp.route("/api/override", methods=["POST"])
 def api_override_save():
     payload = request.get_json(silent=True) or {}
     save_override(**payload)
-
     state = _load_review_state()
     state[payload["member_key"]] = apply_overrides(
         payload["member_key"],
         state[payload["member_key"]],
     )
-
     os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
     with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump({"members": state}, f, indent=2, default=str)
-
+        json.dump(state, f, indent=2, default=str)
     return jsonify({"status": "override_saved"})
 
 
 @bp.route("/api/override", methods=["DELETE"])
 def api_override_clear():
+    """Delete overrides.
+
+    - If only member_key is provided: clear ALL overrides for that member.
+    - If member_key + sheet_file + event_index are provided: delete ONLY that one override.
+    """
     payload = request.get_json(silent=True) or {}
-    clear_overrides(payload["member_key"])
-    return jsonify({"status": "overrides_cleared"})
+    member_key = payload.get("member_key")
+    if not member_key:
+        return jsonify({"error": "member_key is required"}), 400
+
+    sheet_file = payload.get("sheet_file")
+    event_index = payload.get("event_index")
+
+    # Helper: same safe naming as overrides.py
+    def _override_path_local(mk: str) -> str:
+        safe = mk.replace(" ", "_").replace(",", "_")
+        return os.path.join(OVERRIDES_DIR, f"{safe}.json")
+
+    if sheet_file is None or event_index is None:
+        # Clear all overrides for this member
+        clear_overrides(member_key)
+    else:
+        # Remove one specific override entry
+        path = _override_path_local(member_key)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f) or {}
+            except Exception:
+                data = {}
+
+            ovs = data.get("overrides", [])
+            new_ovs = []
+            for ov in ovs:
+                if ov.get("sheet_file") == sheet_file and ov.get("event_index") == event_index:
+                    continue
+                new_ovs.append(ov)
+            data["overrides"] = new_ovs
+
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+
+    # Re-apply overrides to review state and write it back so the UI stays in sync.
+    state = _load_review_state()
+    if member_key in state:
+        state[member_key] = apply_overrides(member_key, state[member_key])
+        os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
+        with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, default=str)
+
+    return jsonify({"status": "override_deleted"})
 
 
 # ---------------------------------------------------------
@@ -228,52 +288,53 @@ def api_override_clear():
 
 @bp.route("/download_merged")
 def download_merged():
+    path = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
+    if not os.path.exists(path):
+        return jsonify({"error": "Merged file not found"}), 404
+    return send_file(path, as_attachment=True)
+
+
+@bp.route("/download_package")
+def download_package():
     if not os.path.exists(PACKAGE_FOLDER):
-        return "No merged package found.", 404
-    merged_files = [
-        f for f in os.listdir(PACKAGE_FOLDER)
-        if f.startswith("MERGED_") and f.endswith(".pdf")
-    ]
-    if not merged_files:
-        return "No merged files found.", 404
-    latest = max(
-        merged_files,
-        key=lambda f: os.path.getmtime(os.path.join(PACKAGE_FOLDER, f)),
-    )
-    return send_from_directory(PACKAGE_FOLDER, latest, as_attachment=True)
+        return jsonify({"error": "Package folder not found"}), 404
 
-
-@bp.route("/download_all")
-def download_all():
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(OUTPUT_DIR):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(PACKAGE_FOLDER):
             for f in files:
                 full = os.path.join(root, f)
-                z.write(full, os.path.relpath(full, OUTPUT_DIR))
-    mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="ALL_OUTPUT.zip")
+                rel = os.path.relpath(full, PACKAGE_FOLDER)
+                z.write(full, rel)
+
+    buf.seek(0)
+    return send_file(buf, mimetype="application/zip", as_attachment=True, download_name="SEA_PAY_PACKAGE.zip")
 
 
 @bp.route("/reset", methods=["POST"])
-def reset_all():
-    for root, dirs, files in os.walk(DATA_DIR):
-        for f in files:
-            try:
-                os.remove(os.path.join(root, f))
-            except Exception:
-                pass
-        for d in dirs:
-            shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+def reset():
+    # Clear output folders only
+    try:
+        for folder in [
+            OUTPUT_DIR,
+            PACKAGE_FOLDER,
+            SUMMARY_TXT_FOLDER,
+            SUMMARY_PDF_FOLDER,
+            TORIS_CERT_FOLDER,
+        ]:
+            if os.path.exists(folder):
+                shutil.rmtree(folder, ignore_errors=True)
+            os.makedirs(folder, exist_ok=True)
 
-    for root, dirs, files in os.walk(OUTPUT_DIR):
-        for f in files:
-            try:
-                os.remove(os.path.join(root, f))
-            except Exception:
-                pass
-        for d in dirs:
-            shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+        # Keep DATA_DIR but clear old PDFs
+        if os.path.exists(DATA_DIR):
+            for f in os.listdir(DATA_DIR):
+                fp = os.path.join(DATA_DIR, f)
+                if os.path.isfile(fp) and fp.lower().endswith(".pdf"):
+                    os.remove(fp)
 
-    clear_logs()
-    return jsonify({"status": "reset"})
+        reset_progress()
+        clear_logs()
+        return jsonify({"status": "reset_complete"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
