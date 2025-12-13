@@ -1,355 +1,433 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>ATGSD Sea Pay Processor</title>
-
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #f4f6f8;
-            margin: 0;
-            padding: 0;
-        }
-
-        header {
-            background: #0b3c5d;
-            color: #fff;
-            padding: 14px 20px;
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        main {
-            display: grid;
-            grid-template-columns: 420px 1fr;
-            gap: 16px;
-            padding: 16px;
-        }
-
-        .card {
-            background: #fff;
-            border: 1px solid #dcdcdc;
-            border-radius: 4px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-
-        h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #444;
-            display: block;
-            margin-top: 8px;
-        }
-
-        select, input[type="file"], input[type="text"], button {
-            width: 100%;
-            padding: 6px;
-            margin-top: 4px;
-            font-size: 12px;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: #0b3c5d;
-            color: #fff;
-            border: none;
-        }
-
-        .btn-danger {
-            background: #b30000;
-            color: #fff;
-            border: none;
-        }
-
-        .progress {
-            font-size: 12px;
-            margin-top: 6px;
-        }
-
-        .log {
-            font-family: monospace;
-            font-size: 11px;
-            height: 260px;
-            overflow-y: auto;
-            background: #000;
-            color: #0f0;
-            padding: 6px;
-            white-space: pre-wrap;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }
-
-        th, td {
-            border: 1px solid #ccc;
-            padding: 4px;
-            text-align: left;
-        }
-
-        th {
-            background: #eee;
-        }
-
-        .valid {
-            background: #e6f6e6;
-        }
-
-        .invalid {
-            background: #f6e6e6;
-        }
-
-        .overridden {
-            background: #fff3cd;
-        }
-
-        footer {
-            text-align: center;
-            font-size: 11px;
-            padding: 8px;
-            color: #666;
-        }
-    </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ATGSD Sea Pay Processor</title>
+  <style>
+    :root{--navy:#0b4c6b;--border:#d9d9d9;--bg:#f6f7f9;--panel:#fff;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#111;}
+    header{background:var(--navy);color:#fff;padding:14px 18px;font-weight:700;}
+    .wrap{padding:16px 18px;}
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start;}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:4px;}
+    .card h3{margin:0;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;letter-spacing:.02em;}
+    .card .body{padding:12px;}
+    label{display:block;font-size:12px;margin:10px 0 6px;}
+    input[type=file], select{width:100%;}
+    button{width:100%;padding:9px 10px;border:1px solid #1a4f6b;background:var(--navy);color:#fff;border-radius:2px;font-weight:700;cursor:pointer;}
+    button.secondary{background:#fff;color:#111;border:1px solid var(--border);font-weight:600;}
+    button.danger{background:#b00000;border-color:#8a0000;}
+    .stack > * + *{margin-top:10px;}
+    .status{font-size:13px;}
+    .logbox{height:260px;overflow:auto;background:#000;color:#35ff57;font-family:var(--mono);font-size:12px;line-height:1.35;padding:10px;white-space:pre;}
+    .review-controls{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;}
+    .review-controls select{height:32px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th,td{border:1px solid var(--border);padding:6px 8px;vertical-align:middle;}
+    th{background:#eee;text-align:left;}
+    tr.valid{background:#eaffea;}
+    tr.invalid{background:#ffecec;}
+    .override-cell{min-width:240px;}
+    .override-wrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .override-wrap select{width:150px;height:28px;}
+    .override-wrap input{flex:1;min-width:160px;height:26px;padding:0 6px;}
+    .small{font-size:12px;color:#444;}
+    footer{padding:10px;text-align:center;color:#777;font-size:11px;}
+  </style>
 </head>
-
 <body>
+<header>ATGSD Sea Pay Processor</header>
 
-<header>
-    ATGSD Sea Pay Processor
-</header>
+<div class="wrap">
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <h3>INPUT</h3>
+        <div class="body">
+          <form id="processForm" class="stack">
+            <div>
+              <label>SEA DUTY CERTIFICATION SHEETS (PDF)</label>
+              <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
+            </div>
 
-<main>
+            <div>
+              <label>RATE CSV</label>
+              <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
+            </div>
 
-    <!-- LEFT COLUMN -->
-    <div>
+            <div>
+              <label>NAVPERS 1070/613 TEMPLATE</label>
+              <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+            </div>
 
-        <div class="card">
-            <h3>INPUT</h3>
-            <label>SEA DUTY CERTIFICATION SHEETS (PDF)</label>
-            <input type="file" id="files" multiple>
+            <div>
+              <label>Strikeout Color</label>
+              <select id="strikeColor" name="strikeout_color">
+                <option value="Black" selected>Black</option>
+                <option value="Red">Red</option>
+              </select>
+            </div>
 
-            <label>RATE CSV</label>
-            <input type="file" id="rate_file">
-
-            <label>NAVPERS 1070/613 TEMPLATE</label>
-            <input type="file" id="template_file">
-
-            <label>Strikeout Color</label>
-            <select id="strike_color">
-                <option value="black">Black</option>
-                <option value="red">Red</option>
-            </select>
-
-            <button class="btn-primary" onclick="startProcess()">PROCESS</button>
+            <button type="submit" id="processBtn">PROCESS</button>
+          </form>
         </div>
+      </div>
 
-        <div class="card">
-            <h3>STATUS</h3>
-            <div id="progress" class="progress">Idle</div>
+      <div class="card">
+        <h3>STATUS</h3>
+        <div class="body">
+          <div class="status" id="statusText">Idle</div>
         </div>
+      </div>
 
-        <div class="card">
-            <h3>DOWNLOADS</h3>
-            <button onclick="location.href='/download_merged'">Merged Package</button>
-            <button onclick="location.href='/download_summary'">Summary</button>
-            <button onclick="location.href='/download_marked_sheets'">Marked Sheets</button>
-            <button onclick="location.href='/download_tracking'">Tracker</button>
-            <button onclick="location.href='/download_all'">Download All</button>
+      <div class="card">
+        <h3>DOWNLOADS</h3>
+        <div class="body">
+          <button class="secondary" type="button" id="btnMerged">Merged Package</button>
+          <button class="secondary" type="button" id="btnAll" style="margin-top:8px;">Download All</button>
+          <div class="small" style="margin-top:8px;">(If a download is empty, run PROCESS first.)</div>
         </div>
+      </div>
 
-        <div class="card">
-            <button class="btn-danger" onclick="resetAll()">RESET ALL</button>
+      <div class="card">
+        <div class="body">
+          <button class="danger" type="button" id="btnReset">RESET ALL</button>
         </div>
-
+      </div>
     </div>
 
-    <!-- RIGHT COLUMN -->
-    <div>
-
-        <div class="card">
-            <h3>LIVE LOG</h3>
-            <div id="log" class="log"></div>
+    <div class="stack">
+      <div class="card">
+        <h3>LIVE LOG</h3>
+        <div class="body">
+          <div id="liveLog" class="logbox"></div>
         </div>
+      </div>
 
-        <div class="card">
-            <h3>REVIEW & OVERRIDE</h3>
+      <div class="card">
+        <h3>REVIEW &amp; OVERRIDE</h3>
+        <div class="body">
+          <div class="review-controls">
+            <div>
+              <label>Member</label>
+              <select id="memberSelect">
+                <option value="">Select member</option>
+              </select>
+            </div>
+            <div>
+              <label>Sheet</label>
+              <select id="sheetSelect" disabled>
+                <option value="">Select sheet</option>
+              </select>
+            </div>
+          </div>
 
-            <label>Member</label>
-            <select id="reviewMember"></select>
+          <div class="small" id="reviewHint">Pick a member and a sheet to edit auto results.</div>
 
-            <label>Sheet</label>
-            <select id="reviewSheet"></select>
-
-            <h3>Valid Rows</h3>
-            <table id="reviewRows">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Ship</th>
-                        <th>Final</th>
-                        <th>Override</th>
-                        <th>Reason</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
+          <div style="margin-top:10px;">
+            <div style="font-weight:700;font-size:12px;margin:6px 0;">Valid Rows</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:220px;">Ship</th>
+                  <th style="width:110px;">Final</th>
+                  <th class="override-cell">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="validBody"></tbody>
             </table>
+          </div>
 
-            <h3 style="margin-top:10px;">Invalid Events</h3>
-            <table id="reviewInvalid">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Ship</th>
-                        <th>Final</th>
-                        <th>Override</th>
-                        <th>Reason</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
+          <div style="margin-top:12px;">
+            <div style="font-weight:700;font-size:12px;margin:6px 0;">Invalid Events</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:220px;">Ship</th>
+                  <th style="width:110px;">Final</th>
+                  <th class="override-cell">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="invalidBody"></tbody>
             </table>
+          </div>
 
         </div>
+      </div>
 
+      <footer>ATGSD Sea Pay Processor</footer>
     </div>
-
-</main>
-
-<footer>
-    ATGSD Sea Pay Processor
-</footer>
+  </div>
+</div>
 
 <script>
-/* ---------------- PROCESS ---------------- */
+  const $ = (id) => document.getElementById(id);
 
-function startProcess() {
-    const form = new FormData();
-    for (const f of document.getElementById("files").files) form.append("files", f);
-    if (rate_file.files[0]) form.append("rate_file", rate_file.files[0]);
-    if (template_file.files[0]) form.append("template_file", template_file.files[0]);
-    form.append("strike_color", document.getElementById("strike_color").value);
+  function safeText(v) {
+    if (v === null || v === undefined) return "";
+    if (typeof v === "object") return JSON.stringify(v);
+    return String(v);
+  }
 
-    fetch("/process", { method: "POST", body: form });
-}
+  function pick(obj, keys, fallback="") {
+    if (!obj) return fallback;
+    for (const k of keys) {
+      if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+    }
+    return fallback;
+  }
 
-function resetAll() {
-    if (!confirm("Reset all data?")) return;
-    fetch("/reset", { method: "POST" });
-}
+  async function jget(url) {
+    const r = await fetch(url, {cache:"no-store"});
+    if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
+    return await r.json();
+  }
 
-/* ---------------- PROGRESS + LOGS ---------------- */
+  async function jpost(url, payload) {
+    const r = await fetch(url, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(()=> "");
+      throw new Error("POST " + url + " -> " + r.status + " " + t);
+    }
+    return await r.json();
+  }
 
-setInterval(async () => {
-    const p = await fetch("/progress").then(r => r.json());
-    document.getElementById("progress").innerText =
-        `${p.current_step || ""} (${p.percentage || 0}%)`;
-}, 1000);
+  async function jdel(url, payload) {
+    const r = await fetch(url, {
+      method:"DELETE",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(()=> "");
+      throw new Error("DELETE " + url + " -> " + r.status + " " + t);
+    }
+    return await r.json();
+  }
 
-const logDiv = document.getElementById("log");
-const evt = new EventSource("/stream");
+  // ----- LIVE LOG -----
+  async function pollProgress() {
+    try {
+      const data = await jget("/progress");
+      const pct = pick(data, ["percent","progress","pct"], null);
+      const status = pick(data, ["status","state","message"], "Idle");
+      const log = pick(data, ["log","lines","text"], "");
 
-evt.onmessage = e => {
-    logDiv.textContent += e.data + "\n";
-    logDiv.scrollTop = logDiv.scrollHeight;
-};
+      if (pct !== null && pct !== undefined) {
+        $("statusText").textContent = status + " (" + pct + "%)";
+      } else {
+        $("statusText").textContent = status;
+      }
 
-/* =====================================================
-   ✅ REVIEW & OVERRIDE DATA LOADER (PATCH)
-   ===================================================== */
+      if (typeof log === "string") {
+        $("liveLog").textContent = log;
+        $("liveLog").scrollTop = $("liveLog").scrollHeight;
+      }
+    } catch (e) {}
+  }
+  setInterval(pollProgress, 1000);
+  pollProgress();
 
-const memberSelect = document.getElementById("reviewMember");
-const sheetSelect  = document.getElementById("reviewSheet");
-const validBody    = document.querySelector("#reviewRows tbody");
-const invalidBody  = document.querySelector("#reviewInvalid tbody");
+  // ----- PROCESS -----
+  $("processForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    for (const f of $("pdfs").files) fd.append("pdfs", f);
+    if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
+    if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
+    fd.append("strikeout_color", $("strikeColor").value);
 
-async function loadMembers() {
-    const res = await fetch("/api/members");
-    const members = await res.json();
+    $("processBtn").disabled = true;
+    try {
+      const r = await fetch("/process", {method:"POST", body: fd});
+      if (!r.ok) throw new Error("Process failed: " + r.status);
+      await refreshReviewLists();
+    } catch (err) {
+      alert(err.message || String(err));
+    } finally {
+      $("processBtn").disabled = false;
+    }
+  });
 
-    memberSelect.innerHTML = "<option value=''>Select member</option>";
-    sheetSelect.innerHTML = "<option value=''>Select sheet</option>";
-    validBody.innerHTML = "";
-    invalidBody.innerHTML = "";
+  // ----- DOWNLOADS -----
+  $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
+  $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
 
-    for (const m of members) {
+  // ----- RESET -----
+  $("btnReset").addEventListener("click", async () => {
+    if (!confirm("Reset all output and overrides?")) return;
+    try {
+      const r = await fetch("/reset", {method:"POST"});
+      if (!r.ok) throw new Error("Reset failed: " + r.status);
+      $("memberSelect").innerHTML = '<option value="">Select member</option>';
+      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+      $("sheetSelect").disabled = true;
+      $("validBody").innerHTML = "";
+      $("invalidBody").innerHTML = "";
+      $("reviewHint").textContent = "Pick a member and a sheet to edit auto results.";
+    } catch (err) {
+      alert(err.message || String(err));
+    }
+  });
+
+  // ----- REVIEW & OVERRIDE (Option A: Navy-proof) -----
+  async function refreshReviewLists() {
+    try {
+      const members = await jget("/api/members");
+      const sel = $("memberSelect");
+      const current = sel.value;
+      sel.innerHTML = '<option value="">Select member</option>';
+      for (const m of members) {
         const opt = document.createElement("option");
         opt.value = m;
         opt.textContent = m;
-        memberSelect.appendChild(opt);
-    }
-}
+        sel.appendChild(opt);
+      }
+      if (current && members.includes(current)) sel.value = current;
+    } catch (e) {}
+  }
 
-memberSelect.addEventListener("change", async () => {
-    const member = memberSelect.value;
-    sheetSelect.innerHTML = "<option value=''>Select sheet</option>";
-    validBody.innerHTML = "";
-    invalidBody.innerHTML = "";
+  async function loadSheetsForMember(memberKey) {
+    $("sheetSelect").disabled = true;
+    $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+    $("validBody").innerHTML = "";
+    $("invalidBody").innerHTML = "";
+    if (!memberKey) return;
 
-    if (!member) return;
-
-    const res = await fetch(`/api/member/${encodeURIComponent(member)}/sheets`);
-    const sheets = await res.json();
-    sheetSelect._data = sheets;
-
+    const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
+    const sel = $("sheetSelect");
     for (const s of sheets) {
-        const opt = document.createElement("option");
-        opt.value = s.sheet_id;
-        opt.textContent = s.sheet_id;
-        sheetSelect.appendChild(opt);
+      const opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = s;
+      sel.appendChild(opt);
     }
-});
+    sel.disabled = false;
+  }
 
-sheetSelect.addEventListener("change", () => {
-    validBody.innerHTML = "";
-    invalidBody.innerHTML = "";
+  function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
+    const wrap = document.createElement("div");
+    wrap.className = "override-wrap";
 
-    const sheet = sheetSelect._data?.find(
-        s => s.sheet_id === sheetSelect.value
-    );
-    if (!sheet) return;
-
-    for (const r of sheet.valid_rows || []) {
-        renderRow(validBody, r, true);
+    const sel = document.createElement("select");
+    const options = [
+      {v:"", t:"Auto"},
+      {v:"valid", t:"Force Valid"},
+      {v:"invalid", t:"Force Invalid"},
+    ];
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = o.v;
+      opt.textContent = o.t;
+      sel.appendChild(opt);
     }
-    for (const r of sheet.invalid_rows || []) {
-        renderRow(invalidBody, r, false);
-    }
-});
+    sel.value = currentStatus || "";
 
-function renderRow(tbody, row, isValid) {
-    const tr = document.createElement("tr");
-    tr.className = row.overridden ? "overridden" : (isValid ? "valid" : "invalid");
-    tr.innerHTML = `
-        <td>${row.date}</td>
-        <td>${row.ship}</td>
-        <td>${row.final}</td>
-        <td>${row.override || ""}</td>
-        <td>${row.reason || ""}</td>
-        <td></td>
-    `;
-    tbody.appendChild(tr);
-}
+    const reason = document.createElement("input");
+    reason.type = "text";
+    reason.placeholder = "Reason (optional)";
+    reason.value = currentReason || "";
 
-/* Auto-load members shortly after processing */
-setTimeout(loadMembers, 1200);
+    const save = async () => {
+      const st = sel.value || null;
+      try {
+        if (st === null && !(reason.value || "").trim()) {
+          await jdel("/api/override", {
+            member_key: memberKey,
+            sheet_file: sheetFile,
+            event_index: eventIndex
+          });
+        } else {
+          await jpost("/api/override", {
+            member_key: memberKey,
+            sheet_file: sheetFile,
+            event_index: eventIndex,
+            status: st,
+            reason: reason.value || "",
+            source: source || ""
+          });
+        }
+        await loadSheet(memberKey, sheetFile);
+      } catch (e) {
+        alert(e.message || String(e));
+      }
+    };
+
+    sel.addEventListener("change", save);
+    reason.addEventListener("change", save);
+
+    wrap.appendChild(sel);
+    wrap.appendChild(reason);
+    return wrap;
+  }
+
+  function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
+    tbody.innerHTML = "";
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    rows.forEach((row, idx) => {
+      const tr = document.createElement("tr");
+      tr.className = rowClass || "";
+
+      const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
+      const ship = pick(row, ["ship","Ship","event","Event","ship_name"], "");
+      const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
+      const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
+
+      const ov = row.override || row.Override || null;
+      const ovStatus = pick(ov || row, ["status","override_status","override"], "");
+      const ovReason = pick(ov || row, ["reason","override_reason"], "");
+      const source = pick(ov || row, ["source","override_source"], "");
+      const eventIndex = pick(row, ["event_index","index","i"], idx);
+
+      const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
+      const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
+      const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
+
+      const tdOverride = document.createElement("td");
+      tdOverride.className = "override-cell";
+      tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
+
+      const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
+
+      tr.appendChild(tdDate);
+      tr.appendChild(tdShip);
+      tr.appendChild(tdFinal);
+      tr.appendChild(tdOverride);
+      tr.appendChild(tdReason);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function loadSheet(memberKey, sheetFile) {
+    if (!memberKey || !sheetFile) return;
+    const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
+    const validRows = data.valid_rows || data.valid || data.rows_valid || [];
+    const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
+
+    $("reviewHint").textContent = "";
+    renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
+    renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
+  }
+
+  $("memberSelect").addEventListener("change", async () => {
+    await loadSheetsForMember($("memberSelect").value);
+  });
+
+  $("sheetSelect").addEventListener("change", async () => {
+    await loadSheet($("memberSelect").value, $("sheetSelect").value);
+  });
+
+  refreshReviewLists();
 </script>
-
 </body>
 </html>
