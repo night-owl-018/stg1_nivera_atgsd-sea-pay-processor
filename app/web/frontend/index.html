@@ -268,12 +268,19 @@
     try {
       const r = await fetch("/reset", {method:"POST"});
       if (!r.ok) throw new Error("Reset failed: " + r.status);
+      
+      // Clear form inputs
+      $("processForm").reset();
+      
+      // Clear review UI
       $("memberSelect").innerHTML = '<option value="">Select member</option>';
       $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("sheetSelect").disabled = true;
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
       $("reviewHint").textContent = "Pick a member and a sheet to edit auto results.";
+      
+      alert("Reset complete!");
     } catch (err) {
       alert(err.message || String(err));
     }
