@@ -1,91 +1,144 @@
+import os
 import time
-from collections import deque
-from threading import Lock
+import threading
 
-# ==============================
-# INTERNAL STATE (UNCHANGED)
-# ==============================
-
-LIVE_LOGS = deque(maxlen=2000)
+LOG_FILE = os.path.join("/app/output", "app.log")
 
 PROGRESS = {
-    "status": "idle",
+    "status": "IDLE",
     "percentage": 0,
-    "current_step": "",
-    "details": [],
+    "logs": [],
 }
 
-_LOCK = Lock()
+PROGRESS_LOCK = threading.Lock()
 
 
-# ==============================
-# LOGGING (UNCHANGED)
-# ==============================
+# =========================================================
+# Legacy helper (kept as-is)
+# =========================================================
+...
+def add_progress_detail(message):
+    with PROGRESS_LOCK:
+        PROGRESS["logs"].append(message)
+
+
+# =========================================================
+# PATCH: UI log + progress helpers (minimal, backwards-safe)
+# =========================================================
+
+# Keep an in-memory rolling log for the UI (and for /progress).
+_LOG_LINES = []
+_LOG_LOCK = threading.Lock()
+_MAX_LOG_LINES = 2000
+
+
+def _timestamp() -> str:
+    return time.strftime("%H:%M:%S")
+
+
+def _ensure_progress_keys():
+    # Normalize keys used across older/newer code paths.
+    with PROGRESS_LOCK:
+        if "logs" not in PROGRESS:
+            PROGRESS["logs"] = []
+        if "log" not in PROGRESS:
+            PROGRESS["log"] = PROGRESS["logs"]
+        if "percentage" in PROGRESS and "percent" not in PROGRESS:
+            PROGRESS["percent"] = PROGRESS.get("percentage", 0)
+        if "percent" in PROGRESS and "percentage" not in PROGRESS:
+            PROGRESS["percentage"] = PROGRESS.get("percent", 0)
+        if "status" not in PROGRESS:
+            PROGRESS["status"] = "IDLE"
+
 
 def log(message: str):
-    ts = time.strftime("[%H:%M:%S]")
-    line = f"{ts} {message}"
+    # Add a log line for Live Log + /progress polling (and also app.log best-effort).
+    line = str(message)
+    if not line.startswith("["):
+        line = f"[{_timestamp()}] {line}"
 
-    print(line, flush=True)
+    with _LOG_LOCK:
+        _LOG_LINES.append(line)
+        if len(_LOG_LINES) > _MAX_LOG_LINES:
+            del _LOG_LINES[: len(_LOG_LINES) - _MAX_LOG_LINES]
 
-    with _LOCK:
-        LIVE_LOGS.append(line)
+    _ensure_progress_keys()
+    with PROGRESS_LOCK:
+        PROGRESS["logs"].append(line)
+        PROGRESS["log"] = PROGRESS["logs"]
+
+        if len(PROGRESS["logs"]) > _MAX_LOG_LINES:
+            del PROGRESS["logs"][: len(PROGRESS["logs"]) - _MAX_LOG_LINES]
+            PROGRESS["log"] = PROGRESS["logs"]
+
+    # Best-effort file write (never crash the app if disk is read-only, etc.)
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
 
 
 def clear_logs():
-    with _LOCK:
-        LIVE_LOGS.clear()
+    # Clear in-memory logs and truncate on-disk log file.
+    with _LOG_LOCK:
+        _LOG_LINES.clear()
+
+    _ensure_progress_keys()
+    with PROGRESS_LOCK:
+        PROGRESS["logs"].clear()
+        PROGRESS["log"] = PROGRESS["logs"]
+
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        with open(LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("")
+    except Exception:
+        pass
 
 
-# ==============================
-# PROGRESS (UNCHANGED)
-# ==============================
-
-def reset_progress():
-    with _LOCK:
-        PROGRESS["status"] = "idle"
-        PROGRESS["percentage"] = 0
-        PROGRESS["current_step"] = ""
-        PROGRESS["details"] = []
+def get_logs():
+    # Return rolling in-memory log as a list of lines.
+    with _LOG_LOCK:
+        return list(_LOG_LINES)
 
 
-def set_progress(status=None, percentage=None, current_step=None):
-    with _LOCK:
+def set_progress(status=None, percent=None, percentage=None):
+    # Update progress in a way that's compatible with both "percent" and "percentage".
+    _ensure_progress_keys()
+    with PROGRESS_LOCK:
         if status is not None:
             PROGRESS["status"] = status
-        if percentage is not None:
-            PROGRESS["percentage"] = percentage
-        if current_step is not None:
-            PROGRESS["current_step"] = current_step
+
+        if percent is None and percentage is not None:
+            percent = percentage
+
+        if percent is not None:
+            try:
+                p = int(percent)
+            except Exception:
+                p = 0
+            p = max(0, min(100, p))
+            PROGRESS["percent"] = p
+            PROGRESS["percentage"] = p
 
 
-def add_progress_detail(detail: str):
-    with _LOCK:
-        PROGRESS["details"].append(detail)
+def reset_progress():
+    # Reset progress (does not wipe logs unless clear_logs is also called).
+    _ensure_progress_keys()
+    with PROGRESS_LOCK:
+        PROGRESS["status"] = "IDLE"
+        PROGRESS["percent"] = 0
+        PROGRESS["percentage"] = 0
 
 
 def get_progress():
-    with _LOCK:
+    # Progress payload used by /progress.
+    _ensure_progress_keys()
+    with PROGRESS_LOCK:
         return {
-            "status": PROGRESS["status"],
-            "percentage": PROGRESS["percentage"],
-            "current_step": PROGRESS["current_step"],
-            "details": list(PROGRESS["details"]),
-        }
-
-
-# ======================================================
-# 🔧 UI ADAPTER (PATCH — READ ONLY, SAFE)
-# ======================================================
-
-def get_ui_progress():
-    """
-    Adapter for index.html.
-    Does NOT change internal logger behavior.
-    """
-    with _LOCK:
-        return {
-            "status": PROGRESS.get("status", "idle"),
-            "percent": PROGRESS.get("percentage", 0),
-            "log": "\n".join(LIVE_LOGS),
+            "status": PROGRESS.get("status", "IDLE"),
+            "percent": int(PROGRESS.get("percent", PROGRESS.get("percentage", 0)) or 0),
+            "log": list(PROGRESS.get("logs", [])),
         }
