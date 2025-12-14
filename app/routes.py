@@ -1,5 +1,4 @@
 import threading
-import time
 import os
 import io
 import zipfile
@@ -12,16 +11,15 @@ from flask import (
     jsonify,
     send_file,
     send_from_directory,
-    Response,
 )
 
 from app.core.logger import (
-    LIVE_LOGS,
     log,
     clear_logs,
     get_progress,
     reset_progress,
     set_progress,
+    LIVE_LOGS,
 )
 
 from app.core.config import (
@@ -44,18 +42,18 @@ from app.core.overrides import (
 bp = Blueprint("routes", __name__)
 
 # =========================================================
-# UI ROUTE (PATCHED — STATIC FILE, NO TEMPLATE ENGINE)
+# UI (STATIC — DO NOT TOUCH INDEX.HTML)
 # =========================================================
 
 @bp.route("/", methods=["GET"])
 def home():
     return send_from_directory(
         os.path.join(os.path.dirname(__file__), "web", "frontend"),
-        "index.html"
+        "index.html",
     )
 
 # =========================================================
-# PROCESS ROUTE (UNCHANGED)
+# PROCESS
 # =========================================================
 
 @bp.route("/process", methods=["POST"])
@@ -64,52 +62,58 @@ def process_route():
     reset_progress()
     log("=== PROCESS STARTED ===")
 
-    set_progress(
-        status="processing",
-        percentage=0,
-    )
+    set_progress(status="PROCESSING", percent=0)
 
-    files = request.files.getlist("files") or request.files.getlist("pdfs")
+    files = request.files.getlist("pdfs") or request.files.getlist("files")
     for f in files:
         if f and f.filename:
-            save_path = os.path.join(DATA_DIR, f.filename)
-            f.save(save_path)
-            log(f"SAVED INPUT FILE → {save_path}")
+            path = os.path.join(DATA_DIR, f.filename)
+            f.save(path)
+            log(f"SAVED INPUT FILE → {path}")
 
-    template_file = request.files.get("template_pdf")
-    if template_file and template_file.filename:
-        template_file.save(TEMPLATE)
-        log(f"UPDATED TEMPLATE → {TEMPLATE}")
+    if "template_pdf" in request.files:
+        t = request.files["template_pdf"]
+        if t.filename:
+            t.save(TEMPLATE)
+            log(f"UPDATED TEMPLATE → {TEMPLATE}")
 
-    rate_file = request.files.get("rates_csv")
-    if rate_file and rate_file.filename:
-        rate_file.save(RATE_FILE)
-        rates.load_rates()
-        log("RATES RELOADED")
+    if "rates_csv" in request.files:
+        r = request.files["rates_csv"]
+        if r.filename:
+            r.save(RATE_FILE)
+            rates.load_rates()
+            log("RATES RELOADED")
 
     strike_color = request.form.get("strikeout_color", "Black")
 
     def _run():
         try:
             process_all(strike_color=strike_color)
-            set_progress(status="complete", percentage=100)
+            set_progress(status="COMPLETE", percent=100)
         except Exception as e:
             log(f"PROCESS ERROR → {e}")
-            set_progress(status="error")
+            set_progress(status="ERROR", percent=0)
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
 
 # =========================================================
-# PROGRESS
+# PROGRESS (PATCHED FOR UI COMPATIBILITY)
 # =========================================================
 
 @bp.route("/progress")
 def progress_route():
-    return jsonify(get_progress())
+    p = get_progress()
+
+    # Normalize for index.html expectations
+    return jsonify({
+        "status": p.get("status", "Idle"),
+        "percent": p.get("percent", p.get("percentage", 0)),
+        "log": "\n".join(LIVE_LOGS),
+    })
 
 # =========================================================
-# REVIEW / OVERRIDE
+# REVIEW / OVERRIDE (UNCHANGED LOGIC)
 # =========================================================
 
 def _load_review_state():
@@ -122,7 +126,6 @@ def _load_review_state():
 def api_members():
     return jsonify(sorted(_load_review_state().keys()))
 
-# 🔧 PATCH: RETURN FILENAMES ONLY
 @bp.route("/api/member/<path:member_key>/sheets")
 def api_member_sheets(member_key):
     state = _load_review_state()
@@ -136,7 +139,6 @@ def api_member_sheets(member_key):
         if s.get("source_file")
     ])
 
-# 🔧 PATCH 2: SINGLE SHEET ENDPOINT
 @bp.route("/api/member/<path:member_key>/sheet/<path:sheet_id>")
 def api_single_sheet(member_key, sheet_id):
     state = _load_review_state()
@@ -176,7 +178,7 @@ def api_override_clear():
     return jsonify({"status": "cleared"})
 
 # =========================================================
-# DOWNLOAD / RESET (UNCHANGED)
+# DOWNLOAD / RESET
 # =========================================================
 
 @bp.route("/download_all")
