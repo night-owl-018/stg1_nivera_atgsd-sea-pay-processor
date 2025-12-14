@@ -16,8 +16,6 @@ from flask import (
 from app.core.logger import (
     log,
     clear_logs,
-    get_logs,
-    clear_logs,
     get_progress,
     reset_progress,
     set_progress,
@@ -43,7 +41,7 @@ from app.core.overrides import (
 bp = Blueprint("routes", __name__)
 
 # =========================================================
-# UI ROUTE (UNCHANGED LOOK, FIXED 404)
+# UI ROUTE (UNCHANGED)
 # =========================================================
 
 @bp.route("/", methods=["GET"])
@@ -54,7 +52,7 @@ def home():
     )
 
 # =========================================================
-# PROCESS ROUTE (UNCHANGED)
+# PROCESS ROUTE (UNCHANGED LOGIC)
 # =========================================================
 
 @bp.route("/process", methods=["POST"])
@@ -98,27 +96,25 @@ def process_route():
     return jsonify({"status": "STARTED"})
 
 # =========================================================
-# PROGRESS (FIXED FOR YOUR UI)
+# PROGRESS (FIXED — NO NEW IMPORTS)
 # =========================================================
 
 @bp.route("/progress")
 def progress_route():
     p = get_progress() or {}
-    logs = get_logs() or []
+
+    logs = p.get("log", [])
+    if isinstance(logs, list):
+        logs = "\n".join(logs)
 
     return jsonify({
-        # index.html reads this
         "status": p.get("status", "Idle"),
-
-        # index.html reads this
         "percent": p.get("percent", 0),
-
-        # index.html reads this
-        "log": "\n".join(logs),
+        "log": logs,
     })
 
 # =========================================================
-# REVIEW / OVERRIDE (PATCH 2 – SINGLE SHEET FIX)
+# REVIEW / OVERRIDE (PATCH 2 — SINGLE SHEET)
 # =========================================================
 
 def _load_review_state():
@@ -144,7 +140,6 @@ def api_member_sheets(member_key):
         if sheet.get("source_file")
     ])
 
-# 🔧 PATCH 2: missing endpoint your UI calls
 @bp.route("/api/member/<path:member_key>/sheet/<path:sheet_id>")
 def api_single_sheet(member_key, sheet_id):
     state = _load_review_state()
