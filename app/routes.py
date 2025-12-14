@@ -158,7 +158,12 @@ def api_single_sheet(member_key, sheet_file):
 
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_file:
-            return jsonify(sheet)
+            # 🔹 Adapter: match UI contract without changing data
+            return jsonify({
+                **sheet,
+                "valid_rows": sheet.get("rows", []),
+                "invalid_events": sheet.get("invalid_events", []),
+            })
 
     return jsonify({}), 404
 
@@ -222,3 +227,4 @@ def reset():
     clear_logs()
     reset_progress()
     return jsonify({"status": "reset"})
+
