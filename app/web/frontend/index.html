@@ -157,6 +157,14 @@
             </table>
           </div>
 
+          <!-- PATCH: explicit Save button (does not change layout, just adds button) -->
+          <div style="margin-top: 10px; text-align: right;">
+            <button id="saveOverridesBtn" type="button" onclick="saveOverrides()">
+              Save Overrides
+            </button>
+          </div>
+          <!-- END PATCH -->
+
         </div>
       </div>
 
@@ -169,6 +177,11 @@
   const $ = (id) => document.getElementById(id);
   
   let lastStatus = null;
+
+  // PATCH: queue overrides locally until user hits Save
+  // key format: memberKey|sheetFile|eventIndex
+  let pendingOverrides = {};
+  // END PATCH
 
   function safeText(v) {
     if (v === null || v === undefined) return "";
@@ -287,6 +300,10 @@
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
       $("reviewHint").textContent = "Pick a member and a sheet to edit auto results.";
+
+      // PATCH: also clear queued overrides
+      pendingOverrides = {};
+      // END PATCH
       
       alert("Reset complete!");
     } catch (err) {
@@ -352,33 +369,22 @@
     reason.placeholder = "Reason (optional)";
     reason.value = currentReason || "";
 
-    const save = async () => {
-      const st = sel.value || null;
-      try {
-        if (st === null && !(reason.value || "").trim()) {
-          await jdel("/api/override", {
-            member_key: memberKey,
-            sheet_file: sheetFile,
-            event_index: eventIndex
-          });
-        } else {
-          await jpost("/api/override", {
-            member_key: memberKey,
-            sheet_file: sheetFile,
-            event_index: eventIndex,
-            status: st,
-            reason: reason.value || "",
-            source: source || ""
-          });
-        }
-        await loadSheet(memberKey, sheetFile);
-      } catch (e) {
-        alert(e.message || String(e));
-      }
+    // PATCH: queue changes locally (do NOT auto-save)
+    const queue = () => {
+      const key = memberKey + "|" + sheetFile + "|" + String(eventIndex);
+      pendingOverrides[key] = {
+        member_key: memberKey,
+        sheet_file: sheetFile,
+        event_index: eventIndex,
+        status: sel.value || null,
+        reason: reason.value || "",
+        source: "manual"
+      };
     };
 
-    sel.addEventListener("change", save);
-    reason.addEventListener("change", save);
+    sel.addEventListener("change", queue);
+    reason.addEventListener("input", queue);
+    // END PATCH
 
     wrap.appendChild(sel);
     wrap.appendChild(reason);
@@ -438,6 +444,54 @@
     renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
   }
+
+  // PATCH: Save button action (commit all queued overrides)
+  async function saveOverrides() {
+    try {
+      const keys = Object.keys(pendingOverrides);
+      if (keys.length === 0) {
+        alert("No changes to save.");
+        return;
+      }
+
+      // Commit each queued change
+      for (const k of keys) {
+        const payload = pendingOverrides[k];
+
+        const st = payload.status;
+        const rsn = (payload.reason || "").trim();
+
+        // If user set Auto and blank reason => clear override
+        if ((st === null || st === "") && rsn === "") {
+          await jdel("/api/override", {
+            member_key: payload.member_key,
+            sheet_file: payload.sheet_file,
+            event_index: payload.event_index
+          });
+        } else {
+          await jpost("/api/override", {
+            member_key: payload.member_key,
+            sheet_file: payload.sheet_file,
+            event_index: payload.event_index,
+            status: st,
+            reason: payload.reason || "",
+            source: "manual"
+          });
+        }
+      }
+
+      // Clear queue after save
+      pendingOverrides = {};
+
+      // Reload current sheet to reflect server-side changes
+      await loadSheet($("memberSelect").value, $("sheetSelect").value);
+
+      alert("Overrides saved.");
+    } catch (e) {
+      alert(e.message || String(e));
+    }
+  }
+  // END PATCH
 
   $("memberSelect").addEventListener("change", async () => {
     await loadSheetsForMember($("memberSelect").value);
