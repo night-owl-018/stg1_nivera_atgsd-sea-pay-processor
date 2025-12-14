@@ -220,11 +220,23 @@ def download_all():
 
 @bp.route("/reset", methods=["POST"])
 def reset():
-    shutil.rmtree(DATA_DIR, ignore_errors=True)
-    shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Clear INPUT files but keep folder structure
+    for root, _, files in os.walk(DATA_DIR):
+        for f in files:
+            try:
+                os.remove(os.path.join(root, f))
+            except Exception as e:
+                log(f"RESET INPUT FILE ERROR → {e}")
+
+    # Clear OUTPUT files but keep all folders
+    for root, _, files in os.walk(OUTPUT_DIR):
+        for f in files:
+            try:
+                os.remove(os.path.join(root, f))
+            except Exception as e:
+                log(f"RESET OUTPUT FILE ERROR → {e}")
+
     clear_logs()
     reset_progress()
+    log("RESET COMPLETE (files cleared, folders preserved)")
     return jsonify({"status": "reset"})
-
