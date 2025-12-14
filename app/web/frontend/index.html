@@ -1,331 +1,433 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>ATGSD Sea Pay Processor</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 16px; }
-    h1 { margin: 0 0 12px 0; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; }
-    .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; min-width: 320px; flex: 1; }
-    .btn { padding: 8px 12px; cursor: pointer; }
-    .muted { color: #666; }
-    .status { font-weight: bold; }
-    .bar { height: 12px; border: 1px solid #999; border-radius: 999px; overflow: hidden; }
-    .bar > div { height: 100%; width: 0%; background: #2b78ff; transition: width 150ms linear; }
-    pre { background: #0b0b0b; color: #e6e6e6; padding: 10px; border-radius: 8px; max-height: 360px; overflow: auto; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
-    th { background: #f5f5f5; }
-    input[type="text"] { width: 100%; box-sizing: border-box; }
-    select { width: 100%; }
+    :root{--navy:#0b4c6b;--border:#d9d9d9;--bg:#f6f7f9;--panel:#fff;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#111;}
+    header{background:var(--navy);color:#fff;padding:14px 18px;font-weight:700;}
+    .wrap{padding:16px 18px;}
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start;}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:4px;}
+    .card h3{margin:0;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;letter-spacing:.02em;}
+    .card .body{padding:12px;}
+    label{display:block;font-size:12px;margin:10px 0 6px;}
+    input[type=file], select{width:100%;}
+    button{width:100%;padding:9px 10px;border:1px solid #1a4f6b;background:var(--navy);color:#fff;border-radius:2px;font-weight:700;cursor:pointer;}
+    button.secondary{background:#fff;color:#111;border:1px solid var(--border);font-weight:600;}
+    button.danger{background:#b00000;border-color:#8a0000;}
+    .stack > * + *{margin-top:10px;}
+    .status{font-size:13px;}
+    .logbox{height:260px;overflow:auto;background:#000;color:#35ff57;font-family:var(--mono);font-size:12px;line-height:1.35;padding:10px;white-space:pre;}
+    .review-controls{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;}
+    .review-controls select{height:32px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th,td{border:1px solid var(--border);padding:6px 8px;vertical-align:middle;}
+    th{background:#eee;text-align:left;}
+    tr.valid{background:#eaffea;}
+    tr.invalid{background:#ffecec;}
+    .override-cell{min-width:240px;}
+    .override-wrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .override-wrap select{width:150px;height:28px;}
+    .override-wrap input{flex:1;min-width:160px;height:26px;padding:0 6px;}
+    .small{font-size:12px;color:#444;}
+    footer{padding:10px;text-align:center;color:#777;font-size:11px;}
   </style>
 </head>
 <body>
-  <h1>ATGSD Sea Pay Processor</h1>
+<header>ATGSD Sea Pay Processor</header>
 
-  <div class="row">
-    <div class="card">
-      <h2>Upload & Process</h2>
-      <input id="fileInput" type="file" multiple accept=".pdf" />
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-        <button class="btn" id="btnProcess">Process</button>
-        <button class="btn" id="btnClearLogs">Clear Logs</button>
-      </div>
+<div class="wrap">
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <h3>INPUT</h3>
+        <div class="body">
+          <form id="processForm" class="stack">
+            <div>
+              <label>SEA DUTY CERTIFICATION SHEETS (PDF)</label>
+              <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
+            </div>
 
-      <div style="margin-top:12px;">
-        <div class="status" id="statusText">Status: Idle</div>
-        <div class="muted" id="statusDetail"></div>
-        <div style="margin-top:8px;" class="bar"><div id="progressBar"></div></div>
-      </div>
-    </div>
+            <div>
+              <label>RATE CSV</label>
+              <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
+            </div>
 
-    <div class="card">
-      <h2>Live Log</h2>
-      <pre id="liveLog">(waiting...)</pre>
-    </div>
-  </div>
+            <div>
+              <label>NAVPERS 1070/613 TEMPLATE</label>
+              <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+            </div>
 
-  <div class="card" style="margin-top:12px;">
-    <h2>Review & Override</h2>
+            <div>
+              <label>Strikeout Color</label>
+              <select id="strikeColor" name="strikeout_color">
+                <option value="Black" selected>Black</option>
+                <option value="Red">Red</option>
+              </select>
+            </div>
 
-    <div class="row">
-      <div style="min-width:320px;flex:0 0 320px;">
-        <label class="muted">Member</label>
-        <select id="memberSelect"></select>
-        <div style="margin-top:10px;display:flex;gap:8px;">
-          <button class="btn" id="btnLoadSheets">Load Sheets</button>
-          <button class="btn" id="btnSaveSheets">Save Changes</button>
+            <button type="submit" id="processBtn">PROCESS</button>
+          </form>
         </div>
-        <div class="muted" style="margin-top:8px;" id="reviewHint"></div>
       </div>
 
-      <div style="flex:1;min-width:420px;">
-        <div id="sheetsContainer" class="muted">No sheets loaded.</div>
+      <div class="card">
+        <h3>STATUS</h3>
+        <div class="body">
+          <div class="status" id="statusText">Idle</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>DOWNLOADS</h3>
+        <div class="body">
+          <button class="secondary" type="button" id="btnMerged">Merged Package</button>
+          <button class="secondary" type="button" id="btnAll" style="margin-top:8px;">Download All</button>
+          <div class="small" style="margin-top:8px;">(If a download is empty, run PROCESS first.)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="body">
+          <button class="danger" type="button" id="btnReset">RESET ALL</button>
+        </div>
       </div>
     </div>
+
+    <div class="stack">
+      <div class="card">
+        <h3>LIVE LOG</h3>
+        <div class="body">
+          <div id="liveLog" class="logbox"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>REVIEW &amp; OVERRIDE</h3>
+        <div class="body">
+          <div class="review-controls">
+            <div>
+              <label>Member</label>
+              <select id="memberSelect">
+                <option value="">Select member</option>
+              </select>
+            </div>
+            <div>
+              <label>Sheet</label>
+              <select id="sheetSelect" disabled>
+                <option value="">Select sheet</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="small" id="reviewHint">Pick a member and a sheet to edit auto results.</div>
+
+          <div style="margin-top:10px;">
+            <div style="font-weight:700;font-size:12px;margin:6px 0;">Valid Rows</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:220px;">Ship</th>
+                  <th style="width:110px;">Final</th>
+                  <th class="override-cell">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="validBody"></tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:12px;">
+            <div style="font-weight:700;font-size:12px;margin:6px 0;">Invalid Events</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:220px;">Ship</th>
+                  <th style="width:110px;">Final</th>
+                  <th class="override-cell">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="invalidBody"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+      <footer>ATGSD Sea Pay Processor</footer>
+    </div>
   </div>
+</div>
 
 <script>
   const $ = (id) => document.getElementById(id);
 
-  async function jget(url) {
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
+  function safeText(v) {
+    if (v === null || v === undefined) return "";
+    if (typeof v === "object") return JSON.stringify(v);
+    return String(v);
   }
 
-  async function jpost(url, bodyObj) {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyObj)
-    });
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
-  }
-
-  async function postForm(url, formData) {
-    const r = await fetch(url, { method: "POST", body: formData });
-    if (!r.ok) throw new Error(await r.text());
-    return r.json();
-  }
-
-  // ----- Progress + Live Log -----
-  function renderProgress(p) {
-    const status = p.status || "idle";
-    const percent = (p.percent ?? 0);
-
-    $("statusText").textContent = `Status: ${status.toUpperCase()} (${percent}%)`;
-    $("progressBar").style.width = `${Math.max(0, Math.min(100, percent))}%`;
-
-    const total = p.total_files ?? 0;
-    const done = p.done_files ?? 0;
-    const msg = p.message || "";
-    const err = p.error ? ` | ERROR: ${p.error}` : "";
-    $("statusDetail").textContent = total ? `${msg} (${done}/${total})${err}` : `${msg}${err}`;
-
-    if (Array.isArray(p.lines)) {
-      $("liveLog").textContent = p.lines.join("\n") || "(no logs yet)";
-      // auto-scroll
-      $("liveLog").scrollTop = $("liveLog").scrollHeight;
+  function pick(obj, keys, fallback="") {
+    if (!obj) return fallback;
+    for (const k of keys) {
+      if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
     }
+    return fallback;
   }
 
+  async function jget(url) {
+    const r = await fetch(url, {cache:"no-store"});
+    if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
+    return await r.json();
+  }
+
+  async function jpost(url, payload) {
+    const r = await fetch(url, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(()=> "");
+      throw new Error("POST " + url + " -> " + r.status + " " + t);
+    }
+    return await r.json();
+  }
+
+  async function jdel(url, payload) {
+    const r = await fetch(url, {
+      method:"DELETE",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(()=> "");
+      throw new Error("DELETE " + url + " -> " + r.status + " " + t);
+    }
+    return await r.json();
+  }
+
+  // ----- LIVE LOG -----
   async function pollProgress() {
     try {
-      const p = await jget("/progress");
-      renderProgress(p);
-    } catch (e) {
-      $("statusText").textContent = "Status: ERROR";
-      $("statusDetail").textContent = String(e);
-    }
-  }
+      const data = await jget("/progress");
+      const pct = pick(data, ["percent","progress","pct"], null);
+      const status = pick(data, ["status","state","message"], "Idle");
+      const log = pick(data, ["log","lines","text"], "");
 
-  setInterval(pollProgress, 500);
+      if (pct !== null && pct !== undefined) {
+        $("statusText").textContent = status + " (" + pct + "%)";
+      } else {
+        $("statusText").textContent = status;
+      }
+
+      if (typeof log === "string") {
+        $("liveLog").textContent = log;
+        $("liveLog").scrollTop = $("liveLog").scrollHeight;
+      }
+    } catch (e) {}
+  }
+  setInterval(pollProgress, 1000);
   pollProgress();
 
-  $("btnClearLogs").addEventListener("click", async () => {
-    await fetch("/logs/clear", { method: "POST" });
-    pollProgress();
-  });
-
-  $("btnProcess").addEventListener("click", async () => {
-    const files = $("fileInput").files;
-    if (!files || files.length === 0) {
-      alert("Select PDFs first.");
-      return;
-    }
+  // ----- PROCESS -----
+  $("processForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
     const fd = new FormData();
-    for (const f of files) fd.append("files", f);
-    await postForm("/process", fd);
-    pollProgress();
+    for (const f of $("pdfs").files) fd.append("pdfs", f);
+    if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
+    if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
+    fd.append("strikeout_color", $("strikeColor").value);
+
+    $("processBtn").disabled = true;
+    try {
+      const r = await fetch("/process", {method:"POST", body: fd});
+      if (!r.ok) throw new Error("Process failed: " + r.status);
+      await refreshReviewLists();
+    } catch (err) {
+      alert(err.message || String(err));
+    } finally {
+      $("processBtn").disabled = false;
+    }
   });
 
-  // ----- Review & Override -----
-  let CURRENT_MEMBER = "";
-  let CURRENT_SHEETS = [];
+  // ----- DOWNLOADS -----
+  $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
+  $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
 
-  async function loadMembers() {
-    $("memberSelect").innerHTML = "";
-    const data = await jget("/api/members");
-    const members = data.members || [];
-    if (members.length === 0) {
-      $("memberSelect").innerHTML = `<option value="">(no members found yet)</option>`;
-      $("reviewHint").textContent = "Run processing first so SEA_PAY_REVIEW.json exists.";
-      return;
+  // ----- RESET -----
+  $("btnReset").addEventListener("click", async () => {
+    if (!confirm("Reset all output and overrides?")) return;
+    try {
+      const r = await fetch("/reset", {method:"POST"});
+      if (!r.ok) throw new Error("Reset failed: " + r.status);
+      $("memberSelect").innerHTML = '<option value="">Select member</option>';
+      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+      $("sheetSelect").disabled = true;
+      $("validBody").innerHTML = "";
+      $("invalidBody").innerHTML = "";
+      $("reviewHint").textContent = "Pick a member and a sheet to edit auto results.";
+    } catch (err) {
+      alert(err.message || String(err));
     }
-    $("reviewHint").textContent = "Select a member, Load Sheets, edit fields, then Save Changes.";
-    for (const m of members) {
+  });
+
+  // ----- REVIEW & OVERRIDE (Option A: Navy-proof) -----
+  async function refreshReviewLists() {
+    try {
+      const members = await jget("/api/members");
+      const sel = $("memberSelect");
+      const current = sel.value;
+      sel.innerHTML = '<option value="">Select member</option>';
+      for (const m of members) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+      }
+      if (current && members.includes(current)) sel.value = current;
+    } catch (e) {}
+  }
+
+  async function loadSheetsForMember(memberKey) {
+    $("sheetSelect").disabled = true;
+    $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+    $("validBody").innerHTML = "";
+    $("invalidBody").innerHTML = "";
+    if (!memberKey) return;
+
+    const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
+    const sel = $("sheetSelect");
+    for (const s of sheets) {
       const opt = document.createElement("option");
-      opt.value = m;
-      opt.textContent = m;
-      $("memberSelect").appendChild(opt);
+      opt.value = s;
+      opt.textContent = s;
+      sel.appendChild(opt);
     }
-    CURRENT_MEMBER = $("memberSelect").value;
+    sel.disabled = false;
   }
 
-  function normalizeSheets(sheets) {
-    // sheets can be:
-    // - list of objects
-    // - list of rows
-    // We keep it as-is but ensure array.
-    if (!Array.isArray(sheets)) return [];
-    return sheets;
-  }
+  function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
+    const wrap = document.createElement("div");
+    wrap.className = "override-wrap";
 
-  function renderSheets() {
-    const c = $("sheetsContainer");
-    if (!CURRENT_SHEETS || CURRENT_SHEETS.length === 0) {
-      c.textContent = "No sheets for this member.";
-      return;
+    const sel = document.createElement("select");
+    const options = [
+      {v:"", t:"Auto"},
+      {v:"valid", t:"Force Valid"},
+      {v:"invalid", t:"Force Invalid"},
+    ];
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = o.v;
+      opt.textContent = o.t;
+      sel.appendChild(opt);
     }
+    sel.value = currentStatus || "";
 
-    // Render a simple editable table for each sheet
-    c.innerHTML = "";
-    CURRENT_SHEETS.forEach((sheet, sheetIdx) => {
-      const wrap = document.createElement("div");
-      wrap.style.marginBottom = "14px";
+    const reason = document.createElement("input");
+    reason.type = "text";
+    reason.placeholder = "Reason (optional)";
+    reason.value = currentReason || "";
 
-      const title = document.createElement("div");
-      title.style.fontWeight = "bold";
-      title.style.marginBottom = "6px";
-
-      const sheetName =
-        sheet.sheet_name || sheet.filename || sheet.title || sheet.sheet || `Sheet ${sheetIdx + 1}`;
-      title.textContent = sheetName;
-
-      wrap.appendChild(title);
-
-      const rows = sheet.rows || sheet.items || sheet.data || sheet.entries || [];
-      if (!Array.isArray(rows) || rows.length === 0) {
-        const p = document.createElement("div");
-        p.className = "muted";
-        p.textContent = "No rows found in this sheet object.";
-        wrap.appendChild(p);
-        c.appendChild(wrap);
-        return;
+    const save = async () => {
+      const st = sel.value || null;
+      try {
+        if (st === null && !(reason.value || "").trim()) {
+          await jdel("/api/override", {
+            member_key: memberKey,
+            sheet_file: sheetFile,
+            event_index: eventIndex
+          });
+        } else {
+          await jpost("/api/override", {
+            member_key: memberKey,
+            sheet_file: sheetFile,
+            event_index: eventIndex,
+            status: st,
+            reason: reason.value || "",
+            source: source || ""
+          });
+        }
+        await loadSheet(memberKey, sheetFile);
+      } catch (e) {
+        alert(e.message || String(e));
       }
+    };
 
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      thead.innerHTML = `
-        <tr>
-          <th style="width:120px;">Date</th>
-          <th>Event / Ship</th>
-          <th style="width:120px;">Status</th>
-          <th style="width:240px;">Reason</th>
-        </tr>
-      `;
-      table.appendChild(thead);
+    sel.addEventListener("change", save);
+    reason.addEventListener("change", save);
 
-      const tbody = document.createElement("tbody");
+    wrap.appendChild(sel);
+    wrap.appendChild(reason);
+    return wrap;
+  }
 
-      rows.forEach((r, rowIdx) => {
-        const dateVal = r.date || r.event_date || r.day || "";
-        const eventVal = r.event || r.ship || r.description || "";
-        const statusVal = (r.status || (r.valid === true ? "valid" : (r.valid === false ? "invalid" : ""))) || "";
-        const reasonVal = r.reason || r.invalid_reason || "";
+  function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
+    tbody.innerHTML = "";
+    if (!Array.isArray(rows) || rows.length === 0) return;
 
-        const tr = document.createElement("tr");
+    rows.forEach((row, idx) => {
+      const tr = document.createElement("tr");
+      tr.className = rowClass || "";
 
-        tr.innerHTML = `
-          <td><input type="text" data-sheet="${sheetIdx}" data-row="${rowIdx}" data-field="date" value="${escapeHtml(String(dateVal))}"></td>
-          <td><input type="text" data-sheet="${sheetIdx}" data-row="${rowIdx}" data-field="event" value="${escapeHtml(String(eventVal))}"></td>
-          <td>
-            <select data-sheet="${sheetIdx}" data-row="${rowIdx}" data-field="status">
-              <option value=""></option>
-              <option value="valid">valid</option>
-              <option value="invalid">invalid</option>
-            </select>
-          </td>
-          <td><input type="text" data-sheet="${sheetIdx}" data-row="${rowIdx}" data-field="reason" value="${escapeHtml(String(reasonVal))}"></td>
-        `;
+      const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
+      const ship = pick(row, ["ship","Ship","event","Event","ship_name"], "");
+      const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
+      const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
 
-        tbody.appendChild(tr);
+      const ov = row.override || row.Override || null;
+      const ovStatus = pick(ov || row, ["status","override_status","override"], "");
+      const ovReason = pick(ov || row, ["reason","override_reason"], "");
+      const source = pick(ov || row, ["source","override_source"], "");
+      const eventIndex = pick(row, ["event_index","index","i"], idx);
 
-        // Set select after insert
-        const sel = tr.querySelector('select[data-field="status"]');
-        if (sel) sel.value = String(statusVal).toLowerCase();
-      });
+      const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
+      const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
+      const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
 
-      table.appendChild(tbody);
-      wrap.appendChild(table);
-      c.appendChild(wrap);
+      const tdOverride = document.createElement("td");
+      tdOverride.className = "override-cell";
+      tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
+
+      const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
+
+      tr.appendChild(tdDate);
+      tr.appendChild(tdShip);
+      tr.appendChild(tdFinal);
+      tr.appendChild(tdOverride);
+      tr.appendChild(tdReason);
+      tbody.appendChild(tr);
     });
   }
 
-  function escapeHtml(s) {
-    return s.replaceAll("&", "&amp;")
-            .replaceAll("<", "&lt;")
-            .replaceAll(">", "&gt;")
-            .replaceAll('"', "&quot;")
-            .replaceAll("'", "&#039;");
+  async function loadSheet(memberKey, sheetFile) {
+    if (!memberKey || !sheetFile) return;
+    const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
+    const validRows = data.valid_rows || data.valid || data.rows_valid || [];
+    const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
+
+    $("reviewHint").textContent = "";
+    renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
+    renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
   }
 
-  function applyEditsToSheets() {
-    const inputs = document.querySelectorAll("#sheetsContainer input, #sheetsContainer select");
-    for (const el of inputs) {
-      const sheetIdx = parseInt(el.getAttribute("data-sheet"), 10);
-      const rowIdx = parseInt(el.getAttribute("data-row"), 10);
-      const field = el.getAttribute("data-field");
-
-      const sheet = CURRENT_SHEETS[sheetIdx];
-      if (!sheet) continue;
-
-      const rows = sheet.rows || sheet.items || sheet.data || sheet.entries;
-      if (!Array.isArray(rows) || !rows[rowIdx]) continue;
-
-      const row = rows[rowIdx];
-      const val = el.value;
-
-      if (field === "date") row.date = val;
-      if (field === "event") row.event = val;
-      if (field === "status") {
-        // keep both 'status' and boolean 'valid' if your pipeline expects either
-        row.status = val;
-        if (val === "valid") row.valid = true;
-        else if (val === "invalid") row.valid = false;
-      }
-      if (field === "reason") {
-        row.reason = val;
-        row.invalid_reason = val; // keep both forms
-      }
-    }
-  }
-
-  $("btnLoadSheets").addEventListener("click", async () => {
-    const member = $("memberSelect").value;
-    if (!member) return;
-
-    CURRENT_MEMBER = member;
-
-    const data = await jget(`/api/sheets?member=${encodeURIComponent(member)}`);
-    CURRENT_SHEETS = normalizeSheets(data.sheets || []);
-    renderSheets();
+  $("memberSelect").addEventListener("change", async () => {
+    await loadSheetsForMember($("memberSelect").value);
   });
 
-  $("btnSaveSheets").addEventListener("click", async () => {
-    if (!CURRENT_MEMBER) {
-      alert("Pick a member first.");
-      return;
-    }
-    applyEditsToSheets();
-
-    await jpost("/api/sheets/save", {
-      member: CURRENT_MEMBER,
-      sheets: CURRENT_SHEETS
-    });
-
-    alert("Saved to SEA_PAY_REVIEW.json");
+  $("sheetSelect").addEventListener("change", async () => {
+    await loadSheet($("memberSelect").value, $("sheetSelect").value);
   });
 
-  $("memberSelect").addEventListener("change", () => {
-    CURRENT_MEMBER = $("memberSelect").value;
-  });
-
-  loadMembers().catch(() => {});
+  refreshReviewLists();
 </script>
 </body>
 </html>
