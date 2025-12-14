@@ -167,6 +167,8 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  
+  let lastStatus = null;
 
   function safeText(v) {
     if (v === null || v === undefined) return "";
@@ -222,6 +224,12 @@
       const status = pick(data, ["status","state","message"], "Idle");
       const log = pick(data, ["log","lines","text"], "");
 
+      // Detect transition to COMPLETE and refresh Review list once
+      if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
+        refreshReviewLists();
+      }
+      lastStatus = status;
+        
       if (pct !== null && pct !== undefined) {
         $("statusText").textContent = status + " (" + pct + "%)";
       } else {
