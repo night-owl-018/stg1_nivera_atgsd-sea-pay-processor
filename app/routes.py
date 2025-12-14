@@ -80,32 +80,52 @@ def process_route():
         },
     )
 
-    files = request.files.getlist("files")
+    # -------------------------------------------------
+    # PATCH 1 — ACCEPT BOTH UI + BACKEND FIELD NAMES
+    # -------------------------------------------------
+
+    files = (
+        request.files.getlist("files")
+        or request.files.getlist("pdfs")
+    )
+
     for f in files:
         if f and f.filename:
             save_path = os.path.join(DATA_DIR, f.filename)
             f.save(save_path)
             log(f"SAVED INPUT FILE → {save_path}")
 
-    template_file = request.files.get("template_file")
+    template_file = (
+        request.files.get("template_file")
+        or request.files.get("template_pdf")
+    )
     if template_file and template_file.filename:
         os.makedirs(os.path.dirname(TEMPLATE), exist_ok=True)
         template_file.save(TEMPLATE)
         log(f"UPDATED TEMPLATE → {TEMPLATE}")
 
-    rate_file = request.files.get("rate_file")
+    rate_file = (
+        request.files.get("rate_file")
+        or request.files.get("rates_csv")
+    )
     if rate_file and rate_file.filename:
         os.makedirs(os.path.dirname(RATE_FILE), exist_ok=True)
         rate_file.save(RATE_FILE)
         log(f"UPDATED CSV FILE → {RATE_FILE}")
 
         try:
-            rates.load_rates(RATE_FILE)
+            rates.load_rates()
             log("RATES RELOADED FROM CSV")
         except Exception as e:
             log(f"CSV RELOAD ERROR → {e}")
 
-    strike_color = request.form.get("strike_color", "black")
+    strike_color = (
+        request.form.get("strike_color")
+        or request.form.get("strikeout_color")
+        or "black"
+    )
+
+    # -------------------------------------------------
 
     def _run():
         try:
@@ -152,7 +172,7 @@ def stream_logs():
 
 
 # ---------------------------------------------------------
-# REVIEW / OVERRIDE API (PATCHED – ADAPTER ONLY)
+# REVIEW / OVERRIDE API
 # ---------------------------------------------------------
 
 def _load_review_state():
@@ -193,14 +213,17 @@ def api_member_sheets(member_key):
 def api_override_save():
     payload = request.get_json(silent=True) or {}
     save_override(**payload)
+
     state = _load_review_state()
     state[payload["member_key"]] = apply_overrides(
         payload["member_key"],
         state[payload["member_key"]],
     )
+
     os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
     with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, default=str)
+
     return jsonify({"status": "override_saved"})
 
 
