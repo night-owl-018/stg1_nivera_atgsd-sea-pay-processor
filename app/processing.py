@@ -110,21 +110,15 @@ def process_all(strike_color: str = "black"):
     if not files:
         log("NO INPUT FILES FOUND")
         set_progress(
-            status="complete",
-            total_files=0,
-            current_file=0,
-            current_step="No input files",
-            percentage=100,
+            status="COMPLETE",
+            percent=100,
         )
         return
 
     total_files = len(files)
     set_progress(
-        status="processing",
-        total_files=total_files,
-        current_file=0,
-        current_step="Initializing",
-        percentage=0,
+        status="PROCESSING",
+        percent=0,
         details={
             "files_processed": 0,
             "valid_days": 0,
@@ -156,9 +150,8 @@ def process_all(strike_color: str = "black"):
         path = os.path.join(DATA_DIR, file)
 
         set_progress(
-            current_file=idx,
             current_step=f"OCR and parse: {file}",
-            percentage=int(((idx - 1) / max(total_files, 1)) * 100),
+            percent=int(((idx - 1) / max(total_files, 1)) * 100),
         )
         log(f"OCR → {file}")
 
@@ -446,10 +439,10 @@ def process_all(strike_color: str = "black"):
 
         add_progress_detail("files_processed", 1)
         files_processed_total += 1
-
+        
         set_progress(
             current_step=f"Completed file: {file}",
-            percentage=int((idx / max(total_files, 1)) * 100),
+            percent=int((idx / max(total_files, 1)) * 100),
         )
 
     # -------------------------------
@@ -488,4 +481,5 @@ def process_all(strike_color: str = "black"):
         log(f"REVIEW JSON ERROR → {e}")
 
     log("PROCESS COMPLETE")
-    set_progress(status="complete", current_step="Processing complete", percentage=100)
+    set_progress(status="COMPLETE", percent=100)
+
