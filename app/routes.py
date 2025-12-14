@@ -67,6 +67,9 @@ def process_route():
     log("=== PROCESS STARTED ===")
     set_progress(status="PROCESSING", percent=1)
 
+    # Ensure DATA_DIR exists before saving files
+    os.makedirs(DATA_DIR, exist_ok=True)
+
     files = request.files.getlist("files") or request.files.getlist("pdfs")
 
     for f in files:
@@ -220,6 +223,11 @@ def download_all():
 def reset():
     shutil.rmtree(DATA_DIR, ignore_errors=True)
     shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
+    
+    # Recreate directories after deletion
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    
     clear_logs()
     reset_progress()
     return jsonify({"status": "reset"})
