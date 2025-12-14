@@ -29,7 +29,10 @@ if os.path.exists("/data"):
 else:
     DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
-if os.path.exists("/output"):
+# Respect explicit SeaPay volume mount if present
+if os.path.exists("/seapay/output"):
+    OUTPUT_DIR = "/seapay/output"
+elif os.path.exists("/output"):
     OUTPUT_DIR = "/output"
 else:
     OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
@@ -112,3 +115,4 @@ for p in [
     PREVIEWS_DIR,
 ]:
     os.makedirs(p, exist_ok=True)
+
