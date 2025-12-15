@@ -162,8 +162,10 @@
             <button id="saveOverridesBtn" type="button" onclick="saveOverrides()">
               Save Overrides
             </button>
+            <button type="button" onclick="rebuildOutputs()" style="margin-top:6px;">
+              Rebuild Outputs
+            </button>
           </div>
-
           <div style="margin-top: 6px; text-align: right;">
             <button class="secondary" type="button" onclick="rebuildOutputs()">
               Rebuild Outputs
@@ -459,6 +461,21 @@
         return;
       }
 
+  // PATCH: Rebuild Outputs button action
+  async function rebuildOutputs() {
+    if (!confirm("Rebuild outputs using current overrides?")) return;
+
+    try {
+      const r = await fetch("/rebuild_outputs", { method: "POST" });
+      if (!r.ok) throw new Error("Rebuild failed");
+
+      alert("Rebuild started. Watch LIVE LOG for progress.");
+    } catch (e) {
+      alert(e.message || String(e));
+    }
+  }
+  // END PATCH
+      
       // Commit each queued change
       for (const k of keys) {
         const payload = pendingOverrides[k];
