@@ -22,6 +22,7 @@ from app.core.config import (
     TEMPLATE,
     RATE_FILE,
     REVIEW_JSON_PATH,
+    PACKAGE_FOLDER,
 )
 
 from app.processing import process_all
@@ -279,4 +280,5 @@ def reset():
     reset_progress()
     log("RESET COMPLETE (files cleared, folders preserved)")
     return jsonify({"status": "reset"})
+
 
