@@ -36,6 +36,7 @@ from app.core.overrides import (
 
 # 🔹 PATCH IMPORT (isolated, no refactor)
 from app.processing import rebuild_outputs_from_review
+from app.core.merge import merge_all_pdfs  # 🔹 PATCH
 
 bp = Blueprint("routes", __name__)
 
@@ -108,6 +109,9 @@ def rebuild_outputs():
     try:
         log("=== REBUILD OUTPUTS STARTED ===")
         rebuild_outputs_from_review()
+
+        merge_all_pdfs()  # 🔹 PATCH: build merged PDFs
+
         log("=== REBUILD OUTPUTS COMPLETE ===")
         return jsonify({"status": "ok"})
     except Exception as e:
@@ -116,7 +120,7 @@ def rebuild_outputs():
 
 
 # =========================================================
-# PROGRESS (UI-CONTRACT SAFE)
+# PROGRESS
 # =========================================================
 
 @bp.route("/progress")
@@ -236,9 +240,6 @@ def download_all():
     mem.seek(0)
     return send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
 
-# =========================================================
-# 🔹 PATCH: DOWNLOAD MERGED PACKAGE
-# =========================================================
 
 @bp.route("/download_merged")
 def download_merged():
@@ -253,11 +254,7 @@ def download_merged():
                 z.write(full, os.path.relpath(full, PACKAGE_FOLDER))
 
     mem.seek(0)
-    return send_file(
-        mem,
-        as_attachment=True,
-        download_name="MERGED_PACKAGE.zip",
-    )
+    return send_file(mem, as_attachment=True, download_name="MERGED_PACKAGE.zip")
 
 
 @bp.route("/reset", methods=["POST"])
@@ -280,5 +277,3 @@ def reset():
     reset_progress()
     log("RESET COMPLETE (files cleared, folders preserved)")
     return jsonify({"status": "reset"})
-
-
