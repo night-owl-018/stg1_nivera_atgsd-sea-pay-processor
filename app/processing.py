@@ -535,7 +535,7 @@ def rebuild_outputs_from_review():
         # LOOP SHEETS
         # =============================
         for sheet in member_data.get("sheets", []):
-            src_file = sheet["source_file"]
+            src_file = os.path.join(DATA_DIR, sheet["source_file"])
 
             final_valid_rows = []
             final_invalid_events = []
@@ -621,5 +621,6 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
 
 
