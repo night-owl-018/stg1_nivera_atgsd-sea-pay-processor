@@ -600,6 +600,7 @@ def rebuild_outputs_from_review():
                 toris_path,
                 None,
                 computed_days,
+                override_valid_rows=final_valid_rows,  # ← this is the fix
             )
 
             toris_total += 1
@@ -620,4 +621,5 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
 
