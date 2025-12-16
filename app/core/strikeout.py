@@ -366,14 +366,35 @@ def mark_sheet_with_strikeouts(
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            # ---- CLEAN + COMPARE TOTALS ----
-            clean_extracted = re.sub(
-                r"\D",
-                "",
-                str(extracted_total_days or "")
-            ).strip()
+            # ------------------------------------------------
+            # REBUILD MODE GUARD — DO NOT TOUCH TOTALS
+            # ------------------------------------------------
+            if extracted_total_days is None:
+                log("TOTAL DAYS SKIP → rebuild mode (no trusted original)")
+                total_overlay = None
+            else:
+                # ---- CLEAN + COMPARE TOTALS ----
+                clean_extracted = re.sub(
+                    r"\D",
+                    "",
+                    str(extracted_total_days or "")
+                ).strip()
+            
+                computed_str = str(computed_total_days)
+            
+                if clean_extracted and clean_extracted == computed_str:
+                    log(
+                        f"TOTAL DAYS MATCH → extracted={clean_extracted} "
+                        f"computed={computed_str} (NO STRIKE)"
+                    )
+                else:
+                    log(
+                        f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
+                        f"computed={computed_str} (STRIKE + CORRECT)"
+                    )
+                    c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
+                    c.drawString(correct_x_pdf, target_y_pdf, computed_str)
 
-            computed_str = str(computed_total_days)
 
             # ------------------------------------------------
             # PATCHED SECTION — SAFE READ OF EXISTING PDF
@@ -470,6 +491,7 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
 
 
