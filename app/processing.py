@@ -494,39 +494,33 @@ def rebuild_outputs_from_review():
     """
     Rebuild PG-13, TORIS, summaries, and merged package
     strictly from REVIEW_JSON_PATH.
-
-    This does NOT:
-    - Read DATA_DIR
-    - OCR PDFs
-    - Re-parse rows
     """
 
     if not os.path.exists(REVIEW_JSON_PATH):
         log("REBUILD ERROR → REVIEW JSON NOT FOUND")
         return
 
-    try:
-        with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
-            review_state = json.load(f)
-    except Exception as e:
-        log(f"REBUILD ERROR → FAILED TO READ REVIEW JSON: {e}")
-        return
+    with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+        review_state = json.load(f)
 
     set_progress(status="PROCESSING", percent=0, current_step="Rebuilding outputs")
-    
+
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
-    
+
     summary_data = {}
     pg13_total = 0
     toris_total = 0
-    
+
+    # =============================
+    # LOOP MEMBERS
+    # =============================
     for member_key, member_data in review_state.items():
-        rate = member_data.get("rate")
-        last = member_data.get("last")
-        first = member_data.get("first")
+        rate = member_data["rate"]
+        last = member_data["last"]
+        first = member_data["first"]
         name = f"{first} {last}"
-    
+
         summary_data[member_key] = {
             "rate": rate,
             "last": last,
@@ -536,48 +530,46 @@ def rebuild_outputs_from_review():
             "skipped_dupe": [],
             "reporting_periods": [],
         }
-    
-        # 🔧 PATCH: ensure rebuild starts clean per member
-        summary_data[member_key]["periods"] = []
-    
+
+        # =============================
+        # LOOP SHEETS
+        # =============================
         for sheet in member_data.get("sheets", []):
-            src_file = sheet.get("source_file")
-    
-            # -----------------------------
-            # FINAL CLASSIFICATION SPLIT
-            # -----------------------------
+            src_file = sheet["source_file"]
+
             final_valid_rows = []
             final_invalid_events = []
-    
+
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
                     final_valid_rows.append(r)
                 else:
                     final_invalid_events.append({
-                        "date": r.get("date"),
-                        "ship": r.get("ship"),
-                        "reason": r.get("final_classification", {}).get("reason", "Invalid (override)"),
+                        "date": r["date"],
+                        "ship": r["ship"],
                         "occ_idx": r.get("occ_idx"),
+                        "reason": r.get("final_classification", {}).get("reason"),
                     })
-    
+
             for e in sheet.get("invalid_events", []):
                 if not e.get("final_classification", {}).get("is_valid"):
                     final_invalid_events.append({
-                        "date": e.get("date"),
-                        "ship": e.get("ship"),
-                        "reason": e.get("final_classification", {}).get("reason", "Invalid"),
+                        "date": e["date"],
+                        "ship": e["ship"],
                         "occ_idx": e.get("occ_idx"),
+                        "reason": e.get("final_classification", {}).get("reason"),
                     })
 
-            # -----------------------------
-            # REBUILD PERIODS FROM FINAL
-            # -----------------------------
+            # =============================
+            # REBUILD PERIODS (FINAL VALID)
+            # =============================
             ship_map = {}
             for r in final_valid_rows:
                 ship_map.setdefault(r["ship"], []).append(r)
 
             for ship, ship_rows in ship_map.items():
                 periods = group_by_ship(ship_rows)
+
                 for g in periods:
                     summary_data[member_key]["periods"].append({
                         "ship": ship,
@@ -586,19 +578,20 @@ def rebuild_outputs_from_review():
                         "days": (g["end"] - g["start"]).days + 1,
                         "sheet_file": src_file,
                     })
+
                 make_pdf_for_ship(ship, periods, name)
                 pg13_total += 1
 
-            # -----------------------------
+            # =============================
             # TORIS REBUILD (FINAL INVALID)
-            # -----------------------------
-            toris_name = f"{rate}_{last}_{first}__TORIS_REBUILT.pdf".replace(" ", "_")
+            # =============================
+            toris_name = f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS.pdf".replace(" ", "_")
             toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
 
-            computed_days = sum(
-                (g["end"] - g["start"]).days + 1
-                for g in summary_data[member_key]["periods"]
-            )
+            if os.path.exists(toris_path):
+                os.remove(toris_path)
+
+            computed_days = sum(p["days"] for p in summary_data[member_key]["periods"])
 
             mark_sheet_with_strikeouts(
                 src_file,
@@ -608,8 +601,12 @@ def rebuild_outputs_from_review():
                 None,
                 computed_days,
             )
+
             toris_total += 1
 
+    # =============================
+    # FINALIZE (ONCE)
+    # =============================
     write_summary_files(summary_data)
     merge_all_pdfs()
 
@@ -623,8 +620,4 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
-
-
-
-
 
