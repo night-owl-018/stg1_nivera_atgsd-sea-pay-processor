@@ -539,26 +539,33 @@ def rebuild_outputs_from_review():
 
             final_valid_rows = []
             final_invalid_events = []
-
+            
+            # Build a set of valid (date, occ_idx) after overrides
+            valid_keys = set()
+            
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
                     final_valid_rows.append(r)
-                else:
-                    final_invalid_events.append({
-                        "date": r["date"],
-                        "ship": r["ship"],
-                        "occ_idx": r.get("occ_idx"),
-                        "reason": r.get("final_classification", {}).get("reason"),
-                    })
-
+                    if r.get("date") and r.get("occ_idx"):
+                        valid_keys.add((r["date"], r["occ_idx"]))
+            
+            # Only keep invalid events that were NOT overridden to valid
             for e in sheet.get("invalid_events", []):
-                if not e.get("final_classification", {}).get("is_valid"):
-                    final_invalid_events.append({
-                        "date": e["date"],
-                        "ship": e["ship"],
-                        "occ_idx": e.get("occ_idx"),
-                        "reason": e.get("final_classification", {}).get("reason"),
-                    })
+                key = (e.get("date"), e.get("occ_idx"))
+                if key in valid_keys:
+                    log(
+                        f"REBUILD SKIP INVALID (OVERRIDDEN VALID) → "
+                        f"{e.get('date')} OCC#{e.get('occ_idx')}"
+                    )
+                    continue
+            
+                final_invalid_events.append({
+                    "date": e.get("date"),
+                    "ship": e.get("ship"),
+                    "occ_idx": e.get("occ_idx"),
+                    "reason": e.get("final_classification", {}).get("reason"),
+                })
+
 
             # =============================
             # REBUILD PERIODS (FINAL VALID)
@@ -621,6 +628,7 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
 
 
 
