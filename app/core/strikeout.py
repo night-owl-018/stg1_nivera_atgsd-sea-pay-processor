@@ -324,64 +324,63 @@ def mark_sheet_with_strikeouts(
             ):
                 total_row = row
                 break
-
+        
         total_overlay = None
-
+        
         if total_row:
             page_idx = total_row["page"]
             target_y_pdf = total_row["y"]
-
+        
             page_img = pages[page_idx]
             width_img, height_img = page_img.size
             scale_x = letter[0] / float(width_img)
-
+        
             tokens_page = ocr_tokens[page_idx]
-
+        
             old_start_x_pdf = None
             old_end_x_pdf = None
-
+        
             for (txt, left, top, w, h) in tokens_page:
                 if re.fullmatch(r"\d+", txt):
                     center_y_img = top + h / 2.0
                     center_from_bottom_px = height_img - center_y_img
                     y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
-
+        
                     if abs(y_pdf - target_y_pdf) < 3:
                         old_start_x_pdf = left * scale_x
                         old_end_x_pdf = (left + w) * scale_x
                         break
-
+        
             if old_start_x_pdf is None:
                 old_start_x_pdf = 260
                 old_end_x_pdf = 300
-
+        
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setFont("Helvetica", 10)
-
+        
             three_spaces_width = c.stringWidth("   ", "Helvetica", 10)
             correct_x_pdf = old_end_x_pdf + three_spaces_width
             strike_end_x = correct_x_pdf - three_spaces_width
-
+        
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
-
+        
             # ------------------------------------------------
-            # REBUILD MODE GUARD — DO NOT TOUCH TOTALS
+            # REBUILD MODE GUARD — HARD STOP
             # ------------------------------------------------
             if extracted_total_days is None:
                 log("TOTAL DAYS SKIP → rebuild mode (no trusted original)")
                 total_overlay = None
             else:
-                # ---- CLEAN + COMPARE TOTALS ----
                 clean_extracted = re.sub(
                     r"\D",
                     "",
-                    str(extracted_total_days or "")
+                    str(extracted_total_days)
                 ).strip()
-            
+        
                 computed_str = str(computed_total_days)
-            
+        
                 if clean_extracted and clean_extracted == computed_str:
                     log(
                         f"TOTAL DAYS MATCH → extracted={clean_extracted} "
@@ -389,52 +388,16 @@ def mark_sheet_with_strikeouts(
                     )
                 else:
                     log(
-                        f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
+                        f"TOTAL DAYS MISMATCH → extracted={clean_extracted or 'None'} "
                         f"computed={computed_str} (STRIKE + CORRECT)"
                     )
                     c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                     c.drawString(correct_x_pdf, target_y_pdf, computed_str)
+        
+                c.save()
+                buf.seek(0)
+                total_overlay = PdfReader(buf)
 
-
-            # ------------------------------------------------
-            # PATCHED SECTION — SAFE READ OF EXISTING PDF
-            # ------------------------------------------------
-            if not clean_extracted:
-                try:
-                    safe_pdf_path = output_path if os.path.exists(output_path) else original_pdf
-
-                    pdf_reader = PdfReader(safe_pdf_path)
-                    page_text = pdf_reader.pages[page_idx].extract_text() or ""
-
-                    m = re.search(
-                        r"Total\s+Sea\s+Pay\s+Days.*?(\d+)",
-                        page_text,
-                        re.IGNORECASE | re.DOTALL,
-                    )
-                    if m:
-                        clean_extracted = m.group(1).strip()
-                        log(f"PDF TEXT FALLBACK EXTRACTED TOTAL → {clean_extracted}")
-
-                except Exception as e:
-                    log(f"PDF TEXT FALLBACK ERROR → {e}")
-            # ------------------------------------------------
-
-            if clean_extracted and clean_extracted == computed_str:
-                log(
-                    f"TOTAL DAYS MATCH → extracted={clean_extracted} "
-                    f"computed={computed_str} (NO STRIKE)"
-                )
-            else:
-                log(
-                    f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
-                    f"computed={computed_str} (STRIKE + CORRECT)"
-                )
-                c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
-                c.drawString(correct_x_pdf, target_y_pdf, computed_str)
-
-            c.save()
-            buf.seek(0)
-            total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
         # NORMAL STRIKEOUT LINES
@@ -491,6 +454,7 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
 
 
