@@ -276,12 +276,17 @@ def mark_sheet_with_strikeouts(
         for row in row_list:
             text = row["text"]
             if any(marker in text for marker in INVALID_MARKERS):
-                # PATCH — do not auto-strike overridden valid dates
-                if row.get("date") and row["date"] in override_valid_dates:
-                    log(
-                        f"SKIP AUTO-STRIKE (OVERRIDDEN VALID DATE) → {row['date']}"
-                    )
-                    continue
+                # OVERRIDE-AWARE AUTO-STRIKE (FINAL FIX)
+                if override_valid_rows:
+                    # If ANY overridden-valid row exists for this page, skip auto-strike
+                    if row.get("date"):
+                        if row["date"] in override_valid_dates:
+                            log(f"SKIP AUTO-STRIKE (OVERRIDDEN DATE) → {row['date']}")
+                            continue
+                    else:
+                        # Date not detected, but overrides exist — safest action is NO STRIKE
+                        log("SKIP AUTO-STRIKE (OVERRIDE PRESENT, DATE UNKNOWN)")
+                        continue
                       
                 if row.get("date"):
                     target_date = row["date"]
@@ -460,4 +465,5 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
