@@ -95,15 +95,6 @@ def mark_sheet_with_strikeouts(
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
-
-        # PATCH — build override-valid lookup (DATE-ONLY)
-        override_valid_dates = set()
-        if override_valid_rows:
-            for r in override_valid_rows:
-                if r.get("date"):
-                    override_valid_dates.add(r["date"])
-
-
         
         # Convert all pages to images for positional OCR
         pages = convert_from_path(original_pdf)
@@ -208,6 +199,63 @@ def mark_sheet_with_strikeouts(
                         break
 
             row_list.extend(tmp_rows)
+        # ------------------------------------------------
+        # PATCH: MERGE MULTI-LINE EVENTS INTO DATE ROWS (SEQUENTIAL)
+        # ------------------------------------------------
+        CONTINUATION_HINTS = [
+            "SBTT",
+            "MITE",
+            "ASW",
+            "ASTAC",
+            "T-",
+            "M-",
+            "*",
+            "(",
+            ")",
+        ]
+
+        rows_by_page = {}
+        for r in row_list:
+            rows_by_page.setdefault(r["page"], []).append(r)
+
+        for page_idx, rows in rows_by_page.items():
+            rows.sort(key=lambda r: -r["y"])  # top to bottom
+            current_date_row = None
+
+            for r in rows:
+                if r.get("date"):
+                    current_date_row = r
+                    continue
+
+                if not current_date_row:
+                    continue
+
+                txt = (r.get("text") or "").upper()
+                if any(h in txt for h in CONTINUATION_HINTS):
+                    current_date_row["text"] = (
+                        current_date_row["text"] + " " + txt
+                    ).strip()
+                    r["_absorbed"] = True
+                    log(
+                        f"MERGED MULTILINE EVENT → PAGE {page_idx + 1} "
+                        f"DATE {current_date_row['date']} TEXT '{txt[:40]}'"
+                    )
+
+        row_list = [r for r in row_list if not r.get("_absorbed")]
+
+        # ------------------------------------------------
+        # PATCH: APPLY MANUAL OVERRIDES TO ROWS (ROW-LEVEL)
+        # ------------------------------------------------
+        if override_valid_rows:
+            override_dates = {r["date"] for r in override_valid_rows if r.get("date")}
+        
+            for row in row_list:
+                if row.get("date") and row["date"] in override_dates:
+                    row["override"] = True
+                    log(
+                        f"APPLIED OVERRIDE FLAG → DATE={row['date']} "
+                        f"TEXT='{row['text'][:40]}'"
+                    )
 
         # ------------------------------------------------
         # HELPER: FIND NEAREST DATE ROW ON A PAGE
@@ -267,7 +315,7 @@ def mark_sheet_with_strikeouts(
                     f"    STRIKEOUT DUP DATE {date} OCC#{occ_idx} "
                     f"PAGE {row['page'] + 1} Y={row['y']:.1f}"
                 )
-
+        
         # ------------------------------------------------
         # AUTO-STRIKE INVALID TEXT MARKERS
         # ------------------------------------------------
@@ -277,22 +325,17 @@ def mark_sheet_with_strikeouts(
             "ASTAC MITE",
             "ASW MITE",
         ]
-
+        
         for row in row_list:
+        
+            if row.get("override") is True:
+                log("SKIP AUTO-STRIKE (ROW HAS MANUAL OVERRIDE)")
+                continue
+        
             text = row["text"]
+        
             if any(marker in text for marker in INVALID_MARKERS):
-                # OVERRIDE-AWARE AUTO-STRIKE (FINAL FIX)
-                if override_valid_rows:
-                    # If ANY overridden-valid row exists for this page, skip auto-strike
-                    if row.get("date"):
-                        if row["date"] in override_valid_dates:
-                            log(f"SKIP AUTO-STRIKE (OVERRIDDEN DATE) → {row['date']}")
-                            continue
-                    else:
-                        # Date not detected, but overrides exist — safest action is NO STRIKE
-                        log("SKIP AUTO-STRIKE (OVERRIDE PRESENT, DATE UNKNOWN)")
-                        continue
-                      
+        
                 if row.get("date"):
                     target_date = row["date"]
                     target_y = row["y"]
@@ -304,10 +347,11 @@ def mark_sheet_with_strikeouts(
                     else:
                         target_date = f"SBTT_MITE_ROW_{row['page']}_{row['y']:.1f}"
                         target_y = row["y"]
-
+        
                 _register_strike(row["page"], target_date, target_y)
+        
                 log(
-                    f"    STRIKEOUT INVALID TEXT '{text[:40]}' "
+                    f"STRIKEOUT INVALID TEXT '{text[:40]}' "
                     f"PAGE {row['page'] + 1} Y={target_y:.1f}"
                 )
 
@@ -367,95 +411,124 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
         
             # ------------------------------------------------
-            # TOTAL SEA PAY DAYS — FINAL CORRECT LOGIC
+            # TOTAL SEA PAY DAYS — RULES
+            #
+            # Normal processing:
+            # - If totals differ → strike original + write computed
+            # - If OCR missed total → still write computed
+            #
+            # Rebuild/review:
+            # - If overrides cause computed total to differ from original → strike + write computed
+            # - If computed matches original → do nothing
             # ------------------------------------------------
-            if override_valid_rows is not None:
-                # REVIEW / REBUILD MODE → never touch totals
-                log("TOTAL DAYS SKIP → rebuild mode")
+
+            # Extract digits from OCR (may be blank)
+            clean_extracted = re.sub(r"\D", "", str(extracted_total_days or "")).strip()
+            computed_str = str(computed_total_days)
+
+            # If OCR missed it, try a text fallback from the ORIGINAL PDF (not output_path)
+            if not clean_extracted:
+                try:
+                    pdf_reader = PdfReader(original_pdf)
+                    page_text = pdf_reader.pages[page_idx].extract_text() or ""
+                    m = re.search(
+                        r"Total\s+Sea\s+Pay\s+Days.*?(\d+)",
+                        page_text,
+                        re.IGNORECASE | re.DOTALL,
+                    )
+                    if m:
+                        clean_extracted = m.group(1).strip()
+                        log(f"PDF TEXT FALLBACK EXTRACTED TOTAL → {clean_extracted}")
+                except Exception as e:
+                    log(f"PDF TEXT FALLBACK ERROR → {e}")
+
+            # Decide if we should write totals:
+            # - Always in normal processing (override_valid_rows is None)
+            # - In rebuild: only if overrides exist AND totals mismatch
+            in_rebuild = (override_valid_rows is not None)
+            overrides_exist = bool(override_valid_rows)
+
+            totals_match = (clean_extracted and clean_extracted == computed_str)
+
+            if in_rebuild and not overrides_exist:
+                # rebuild called but no overrides provided → don't touch totals
+                log("TOTAL DAYS SKIP → rebuild mode (no overrides)")
                 total_overlay = None
             else:
-                clean_extracted = re.sub(
-                    r"\D",
-                    "",
-                    str(extracted_total_days or "")
-                ).strip()
-            
-                computed_str = str(computed_total_days)
-            
-                if clean_extracted and clean_extracted == computed_str:
+                if totals_match:
                     log(
                         f"TOTAL DAYS MATCH → extracted={clean_extracted} "
                         f"computed={computed_str} (NO STRIKE)"
                     )
                 else:
                     log(
-                        f"TOTAL DAYS MISMATCH → extracted={clean_extracted or 'None'} "
+                        f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
                         f"computed={computed_str} (STRIKE + CORRECT)"
                     )
                     c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                     c.drawString(correct_x_pdf, target_y_pdf, computed_str)
-            
+
                 c.save()
                 buf.seek(0)
                 total_overlay = PdfReader(buf)
 
 
+            # ------------------------------------------------
+            # NORMAL STRIKEOUT LINES
+            # ------------------------------------------------
+            overlays = []
+            for p in range(len(pages)):
+                date_to_y = strike_targets_by_page.get(p)
+                if not date_to_y:
+                    overlays.append(None)
+                    continue
+    
+                buf = io.BytesIO()
+                c = canvas.Canvas(buf, pagesize=letter)
+                c.setLineWidth(0.8)
+                c.setStrokeColorRGB(*rgb)
+    
+                for date_str, y in date_to_y.items():
+                    c.line(40, y, 550, y)
+    
+                c.save()
+                buf.seek(0)
+                overlays.append(PdfReader(buf))
 
-        # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES
-        # ------------------------------------------------
-        overlays = []
-        for p in range(len(pages)):
-            date_to_y = strike_targets_by_page.get(p)
-            if not date_to_y:
-                overlays.append(None)
-                continue
-
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=letter)
-            c.setLineWidth(0.8)
-            c.setStrokeColorRGB(*rgb)
-
-            for date_str, y in date_to_y.items():
-                c.line(40, y, 550, y)
-
-            c.save()
-            buf.seek(0)
-            overlays.append(PdfReader(buf))
-
-        # ------------------------------------------------
-        # APPLY OVERLAYS
-        # ------------------------------------------------
-        reader = PdfReader(original_pdf)
-        writer = PdfWriter()
-
-        for i, page in enumerate(reader.pages):
-            if total_overlay and total_row and i == total_row["page"]:
-                page.merge_page(total_overlay.pages[0])
-
-            if i < len(overlays) and overlays[i] is not None:
-                page.merge_page(overlays[i].pages[0])
-
+            # ------------------------------------------------
+            # APPLY OVERLAYS
+            # ------------------------------------------------
+            reader = PdfReader(original_pdf)
+            writer = PdfWriter()
+    
+            for i, page in enumerate(reader.pages):
+                if total_overlay and total_row and i == total_row["page"]:
+                    page.merge_page(total_overlay.pages[0])
+    
+                if i < len(overlays) and overlays[i] is not None:
+                    page.merge_page(overlays[i].pages[0])
+    
+                try:
+                    page.compress_content_streams()
+                except Exception:
+                    pass
+    
+                writer.add_page(page)
+    
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, "wb") as f:
+                writer.write(f)
+    
+            log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+    
+        except Exception as e:
+            log(f"⚠️ MARKING FAILED → {e}")
             try:
-                page.compress_content_streams()
-            except Exception:
-                pass
+                shutil.copy2(original_pdf, output_path)
+                log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
+            except Exception as e2:
+                log(f"⚠️ FALLBACK COPY FAILED → {e2}")
 
-            writer.add_page(page)
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "wb") as f:
-            writer.write(f)
-
-        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
-
-    except Exception as e:
-        log(f"⚠️ MARKING FAILED → {e}")
-        try:
-            shutil.copy2(original_pdf, output_path)
-            log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
-        except Exception as e2:
-            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
 
 
 
