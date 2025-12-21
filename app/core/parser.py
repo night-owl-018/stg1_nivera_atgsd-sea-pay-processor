@@ -76,7 +76,7 @@ def parse_rows(text, year):
     date_order = []
 
     # --------------------------------------------------
-    # PASS 1 — Group by date
+    # PASS 1 – Group by date (FIX: Multi-line continuation)
     # --------------------------------------------------
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
@@ -88,8 +88,18 @@ def parse_rows(text, year):
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
         raw = line[m.end():]
-        if i + 1 < len(lines):
-            raw += " " + lines[i + 1]
+        
+        # FIX: Look ahead up to 3 lines to capture multi-line events like:
+        # "10/7/2025 OMAHA (ASW"
+        # "SBTT)"
+        # "þ"
+        for j in range(1, 4):
+            if i + j < len(lines):
+                next_line = lines[i + j].strip()
+                # Stop if we hit another date
+                if re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", next_line):
+                    break
+                raw += " " + next_line
 
         cleaned = raw.strip()
         up = cleaned.upper()
@@ -118,14 +128,14 @@ def parse_rows(text, year):
         return any(tag in up for tag in ("M1", "M-1", "M2", "M-2"))
 
     # --------------------------------------------------
-    # PASS 2 — Per-date evaluation
+    # PASS 2 – Per-date evaluation
     # --------------------------------------------------
     for date in date_order:
         entries = per_date_entries[date]
         inport_variant = None
         occ = 0
 
-        # First scan — detect labels, classify ships
+        # First scan – detect labels, classify ships
         for e in entries:
             occ += 1
             e["occ_idx"] = occ
