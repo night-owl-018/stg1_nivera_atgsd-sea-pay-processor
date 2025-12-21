@@ -21,6 +21,17 @@ from app.core.logger import log
 
 
 # ------------------------------------------------
+# CONSTANTS
+# ------------------------------------------------
+VERTICAL_GROUPING_THRESHOLD = 5.5  # Points tolerance for grouping tokens into rows
+Y_COORDINATE_TOLERANCE = 3  # Points tolerance for matching Y coordinates
+FALLBACK_X_START = 260  # Default X start for total number position
+FALLBACK_X_END = 300  # Default X end for total number position
+STRIKE_LINE_X_START = 40  # Left edge of strikeout lines
+STRIKE_LINE_X_END = 550  # Right edge of strikeout lines
+
+
+# ------------------------------------------------
 # DATE VARIANT BUILDER
 # ------------------------------------------------
 
@@ -124,7 +135,7 @@ def mark_sheet_with_strikeouts(
             log(f"  BUILDING ROWS FROM PAGE {page_index + 1}/{len(pages)}")
 
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
-            img_w, img_h = img.size
+            img_h = img.size[1]
             scale_y = letter[1] / float(img_h)
 
             tokens = []
@@ -157,7 +168,6 @@ def mark_sheet_with_strikeouts(
             visual_rows = []
             current_row = []
             last_y = None
-            threshold = 5.5  # Vertical tolerance for grouping
 
             for tok in tokens:
                 if last_y is None:
@@ -165,7 +175,7 @@ def mark_sheet_with_strikeouts(
                     last_y = tok["y"]
                     continue
 
-                if abs(tok["y"] - last_y) <= threshold:
+                if abs(tok["y"] - last_y) <= VERTICAL_GROUPING_THRESHOLD:
                     current_row.append(tok)
                     last_y = tok["y"]
                 else:
@@ -394,25 +404,14 @@ def mark_sheet_with_strikeouts(
                     center_from_bottom_px = height_img - center_y_img
                     y_pdf = center_from_bottom_px * (letter[1] / float(height_img))
         
-                    if abs(y_pdf - target_y_pdf) < 3:
+                    if abs(y_pdf - target_y_pdf) < Y_COORDINATE_TOLERANCE:
                         old_start_x_pdf = left * scale_x
                         old_end_x_pdf = (left + w) * scale_x
                         break
         
             if old_start_x_pdf is None:
-                old_start_x_pdf = 260
-                old_end_x_pdf = 300
-        
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=letter)
-            c.setFont("Helvetica", 10)
-        
-            three_spaces_width = c.stringWidth("   ", "Helvetica", 10)
-            correct_x_pdf = old_end_x_pdf + three_spaces_width
-            strike_end_x = correct_x_pdf - three_spaces_width
-        
-            c.setLineWidth(0.8)
-            c.setStrokeColorRGB(*rgb)
+                old_start_x_pdf = FALLBACK_X_START
+                old_end_x_pdf = FALLBACK_X_END
         
             # ------------------------------------------------
             # TOTAL SEA PAY DAYS — RULES
@@ -458,20 +457,34 @@ def mark_sheet_with_strikeouts(
                 # rebuild called but no overrides provided → don't touch totals
                 log("TOTAL DAYS SKIP → rebuild mode (no overrides)")
                 total_overlay = None
+            elif totals_match:
+                # Totals match, no correction needed
+                log(
+                    f"TOTAL DAYS MATCH → extracted={clean_extracted} "
+                    f"computed={computed_str} (NO STRIKE)"
+                )
+                total_overlay = None
             else:
-                if totals_match:
-                    log(
-                        f"TOTAL DAYS MATCH → extracted={clean_extracted} "
-                        f"computed={computed_str} (NO STRIKE)"
-                    )
-                else:
-                    log(
-                        f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
-                        f"computed={computed_str} (STRIKE + CORRECT)"
-                    )
-                    c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
-                    c.drawString(correct_x_pdf, target_y_pdf, computed_str)
-
+                # Totals don't match or OCR missed it → create correction overlay
+                log(
+                    f"TOTAL DAYS MISMATCH/UNKNOWN → extracted={clean_extracted or 'None'} "
+                    f"computed={computed_str} (STRIKE + CORRECT)"
+                )
+                
+                buf = io.BytesIO()
+                c = canvas.Canvas(buf, pagesize=letter)
+                c.setFont("Helvetica", 10)
+        
+                three_spaces_width = c.stringWidth("   ", "Helvetica", 10)
+                correct_x_pdf = old_end_x_pdf + three_spaces_width
+                strike_end_x = correct_x_pdf - three_spaces_width
+        
+                c.setLineWidth(0.8)
+                c.setStrokeColorRGB(*rgb)
+                
+                c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
+                c.drawString(correct_x_pdf, target_y_pdf, computed_str)
+                
                 c.save()
                 buf.seek(0)
                 total_overlay = PdfReader(buf)
@@ -492,7 +505,7 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
 
             for date_str, y in date_to_y.items():
-                c.line(40, y, 550, y)
+                c.line(STRIKE_LINE_X_START, y, STRIKE_LINE_X_END, y)
 
             c.save()
             buf.seek(0)
