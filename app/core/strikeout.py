@@ -117,19 +117,20 @@ def mark_sheet_with_strikeouts(
         row_list = []
 
         # ------------------------------------------------
-        # BUILD ROWS & OCR tokens
+        # BUILD ROWS & OCR tokens - SCAN ALL DATES
         # ------------------------------------------------
-        # Collect all dates from invalid targets AND overridden-valid rows
-        all_dates = {d for (d, _) in all_targets}
+        # FIX: Scan for ALL dates on the sheet, not just invalid ones
+        # This allows auto-strike to catch SBTT/MITE that parser missed
+        all_dates_from_targets = {d for (d, _) in all_targets}
         
         if override_valid_rows:
             for r in override_valid_rows:
                 if r.get("date"):
-                    all_dates.add(r["date"])
-        date_variants_map = {d: _build_date_variants(d) for d in all_dates}
+                    all_dates_from_targets.add(r["date"])
 
         # ocr_tokens[page_index] = list of (text, left, top, w, h)
         ocr_tokens = {}
+        all_dates = set()  # Will collect ALL dates found on sheet
 
         for page_index, img in enumerate(pages):
             log(f"  BUILDING ROWS FROM PAGE {page_index + 1}/{len(pages)}")
@@ -158,6 +159,20 @@ def mark_sheet_with_strikeouts(
                 y = center_from_bottom_px * scale_y
 
                 tokens.append({"text": txt.upper(), "y": y})
+                
+                # FIX: Extract ALL dates from OCR for auto-strike scanning
+                if re.match(r'\d{1,2}/\d{1,2}/\d{2,4}', txt):
+                    # Try to normalize to MM/DD/YYYY format
+                    try:
+                        parts = txt.split('/')
+                        if len(parts) == 3:
+                            month, day, year = parts
+                            if len(year) == 2:
+                                year = f"20{year}"
+                            normalized_date = f"{int(month):02d}/{int(day):02d}/{year}"
+                            all_dates.add(normalized_date)
+                    except Exception:
+                        all_dates.add(txt)
 
             ocr_tokens[page_index] = page_token_list
 
@@ -202,18 +217,21 @@ def mark_sheet_with_strikeouts(
             # Sort rows from top to bottom
             tmp_rows.sort(key=lambda r: -r["y"])
 
-            # Assign date + occurrence index to rows
-            date_counters = {d: 0 for d in all_dates}
-            for row in tmp_rows:
-                for d in all_dates:
-                    variants = date_variants_map[d]
-                    if any(v in row["text"] for v in variants):
-                        date_counters[d] += 1
-                        row["date"] = d
-                        row["occ_idx"] = date_counters[d]
-                        break
-
             row_list.extend(tmp_rows)
+
+        # Build date variants for ALL dates found
+        date_variants_map = {d: _build_date_variants(d) for d in all_dates}
+
+        # Assign date + occurrence index to ALL rows
+        date_counters = {d: 0 for d in all_dates}
+        for row in row_list:
+            for d in all_dates:
+                variants = date_variants_map[d]
+                if any(v in row["text"] for v in variants):
+                    date_counters[d] += 1
+                    row["date"] = d
+                    row["occ_idx"] = date_counters[d]
+                    break
 
         # ------------------------------------------------
         # PATCH: MERGE MULTI-LINE EVENTS INTO DATE ROWS (SEQUENTIAL)
@@ -334,17 +352,19 @@ def mark_sheet_with_strikeouts(
         
         # ------------------------------------------------
         # AUTO-STRIKE INVALID TEXT MARKERS
+        # FIX: Now scans ALL rows, not just pre-flagged invalid ones
         # ------------------------------------------------
         INVALID_MARKERS = [
             "SBTT",
             "MITE",
             "ASTAC MITE",
             "ASW MITE",
+            "ASW SBTT",  # Added for completeness
         ]
         
         for row in row_list:
             if row.get("override") is True:
-                log("SKIP AUTO-STRIKE (ROW HAS MANUAL OVERRIDE)")
+                log(f"SKIP AUTO-STRIKE (ROW HAS MANUAL OVERRIDE) → DATE={row.get('date')}")
                 continue
         
             text = row["text"]
@@ -359,14 +379,14 @@ def mark_sheet_with_strikeouts(
                         target_date = nearest["date"]
                         target_y = nearest["y"]
                     else:
-                        target_date = f"SBTT_MITE_ROW_{row['page']}_{row['y']:.1f}"
+                        target_date = f"INVALID_ROW_{row['page']}_{row['y']:.1f}"
                         target_y = row["y"]
         
                 _register_strike(row["page"], target_date, target_y)
         
                 log(
                     f"STRIKEOUT INVALID TEXT '{text[:40]}' "
-                    f"PAGE {row['page'] + 1} Y={target_y:.1f}"
+                    f"DATE={target_date} PAGE {row['page'] + 1} Y={target_y:.1f}"
                 )
 
         # ------------------------------------------------
