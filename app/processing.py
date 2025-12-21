@@ -40,7 +40,7 @@ from app.core.overrides import apply_overrides
 # ---------------------------------------------------------
 def extract_reporting_period(text, filename: str = ""):
     """
-    Try to pull the “From: ... To: ...” reporting period from the OCR text.
+    Try to pull the "From: ... To: ..." reporting period from the OCR text.
     Fall back to a date range in the filename if needed.
     """
     pattern = r"From:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\s*To:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})"
@@ -265,6 +265,7 @@ def process_all(strike_color: str = "black"):
 
         # -------------------------
         # CLASSIFY INVALID EVENTS
+        # PATCH: Add occ_idx to invalid events
         # -------------------------
         invalid_events = []
 
@@ -295,6 +296,7 @@ def process_all(strike_color: str = "black"):
                 {
                     "date": e.get("date"),
                     "ship": e.get("ship"),
+                    "occ_idx": e.get("occ_idx"),  # PATCH: Added occ_idx
                     "raw": e.get("raw", ""),
                     "reason": e.get("reason", "Duplicate"),
                     "category": "duplicate",
@@ -340,6 +342,7 @@ def process_all(strike_color: str = "black"):
                 {
                     "date": e.get("date"),
                     "ship": e.get("ship"),
+                    "occ_idx": e.get("occ_idx"),  # PATCH: Added occ_idx
                     "raw": e.get("raw", ""),
                     "reason": e.get("reason", "Unknown"),
                     "category": category,
@@ -445,9 +448,9 @@ def process_all(strike_color: str = "black"):
             percent=int((idx / max(total_files, 1)) * 100),
         )
 
-# -------------------------------
-# FINAL TOTALS AND SUMMARY FILES
-# -------------------------------
+    # -------------------------------
+    # FINAL TOTALS AND SUMMARY FILES
+    # -------------------------------
     final_details = {
         "files_processed": files_processed_total,
         "valid_days": valid_days_total,
@@ -460,16 +463,16 @@ def process_all(strike_color: str = "black"):
     set_progress(current_step="Writing summary files")
     write_summary_files(summary_data)
 
-# ----------------------------------------------------
-# APPLY OVERRIDES (Phase 4 – Option A)
-# ----------------------------------------------------
+    # ----------------------------------------------------
+    # APPLY OVERRIDES (Phase 4 – Option A)
+    # ----------------------------------------------------
     final_review_state = {}
     for member_key, member_data in review_state.items():
         final_review_state[member_key] = apply_overrides(member_key, member_data)
 
-# ----------------------------------------------------
-# WRITE JSON REVIEW STATE (MUST HAPPEN BEFORE MERGE)
-# ----------------------------------------------------
+    # ----------------------------------------------------
+    # WRITE JSON REVIEW STATE (MUST HAPPEN BEFORE MERGE)
+    # ----------------------------------------------------
     try:
         os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
         with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
@@ -478,22 +481,25 @@ def process_all(strike_color: str = "black"):
     except Exception as e:
         log(f"REVIEW JSON ERROR → {e}")
 
-# ----------------------------------------------------
-# MERGE OUTPUT PACKAGE (unchanged)
-# ----------------------------------------------------
+    # ----------------------------------------------------
+    # MERGE OUTPUT PACKAGE (unchanged)
+    # ----------------------------------------------------
     set_progress(current_step="Merging output package", percent=100)
     merge_all_pdfs()
 
     log("PROCESS COMPLETE")
     set_progress(status="COMPLETE", percent=100)
+
+
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
-# ===================== PATCHED REBUILD ONLY =====================
 def rebuild_outputs_from_review():
     """
     Rebuild PG-13, TORIS, summaries, and merged package
     strictly from REVIEW_JSON_PATH.
+    
+    PATCH: Properly handles force-valid overrides
     """
 
     if not os.path.exists(REVIEW_JSON_PATH):
@@ -540,31 +546,21 @@ def rebuild_outputs_from_review():
             final_valid_rows = []
             final_invalid_events = []
             
-            # Build a set of valid (date, occ_idx) after overrides
-            valid_keys = set()
-            
+            # PATCH: Collect ALL valid rows (includes force-valid from overrides)
+            # The rows array already contains moved force-valid events from overrides.py
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
                     final_valid_rows.append(r)
-                    if r.get("date") and r.get("occ_idx"):
-                        valid_keys.add((r["date"], r["occ_idx"]))
             
-            # Only keep invalid events that were NOT overridden to valid
+            # Only keep invalid events (force-valid ones already moved to rows)
             for e in sheet.get("invalid_events", []):
-                key = (e.get("date"), e.get("occ_idx"))
-                if key in valid_keys:
-                    log(
-                        f"REBUILD SKIP INVALID (OVERRIDDEN VALID) → "
-                        f"{e.get('date')} OCC#{e.get('occ_idx')}"
-                    )
-                    continue
-            
-                final_invalid_events.append({
-                    "date": e.get("date"),
-                    "ship": e.get("ship"),
-                    "occ_idx": e.get("occ_idx"),
-                    "reason": e.get("final_classification", {}).get("reason"),
-                })
+                if not e.get("final_classification", {}).get("is_valid"):
+                    final_invalid_events.append({
+                        "date": e.get("date"),
+                        "ship": e.get("ship"),
+                        "occ_idx": e.get("occ_idx"),
+                        "reason": e.get("final_classification", {}).get("reason"),
+                    })
 
             # =============================
             # REBUILD PERIODS (FINAL VALID)
@@ -606,7 +602,7 @@ def rebuild_outputs_from_review():
                 toris_path,
                 None,
                 computed_days,
-                override_valid_rows=final_valid_rows,  # ← this is the fix
+                override_valid_rows=final_valid_rows,
             )
 
             toris_total += 1
@@ -627,8 +623,3 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
-
-
-
-
-
