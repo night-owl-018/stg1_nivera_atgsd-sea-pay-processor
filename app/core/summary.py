@@ -177,13 +177,14 @@ def write_summary_files(summary_data):
         if not events_followed:
             tmp_events = []
 
-            # Valid ranges first (chronological)
+            # Valid ranges first (chronological) - PATCH: Add day counts
             for ship, start_dt, end_dt in sorted(
                 valid_periods,
                 key=lambda r: (_parse_any_date(r[1]) or datetime.max)
             ):
+                days = (end_dt - start_dt).days + 1
                 tmp_events.append(
-                    f"{_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)} | {ship} | PAY AUTHORIZED"
+                    f"{_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)} | {ship} | PAY AUTHORIZED ({days} day{'s' if days != 1 else ''})"
                 )
 
             # Then invalid events
@@ -201,10 +202,12 @@ def write_summary_files(summary_data):
         if not tracker_lines:
             t_lines = []
 
+            # PATCH: Add day counts to tracker
             for ship, start_dt, end_dt in valid_periods:
+                days = (end_dt - start_dt).days + 1
                 t_lines.append(
                     f"{rate} {last}, {first} | {ship} | "
-                    f"{_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)} | VALID"
+                    f"{_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)} ({days} day{'s' if days != 1 else ''}) | VALID"
                 )
 
             for ship, d_dt, reason in invalid_events:
@@ -236,25 +239,40 @@ def write_summary_files(summary_data):
         header.append("VALID SEA PAY PERIODS (PAY AUTHORIZED):")
         header.append("")
 
+        # PATCH: Calculate and display day counts
+        total_valid_days = 0
         if valid_periods:
             for ship, start_dt, end_dt in valid_periods:
+                days = (end_dt - start_dt).days + 1
+                total_valid_days += days
                 header.append(
-                    f"- {ship} | {_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)}"
+                    f"- {ship} | {_fmt_mdY(start_dt)} TO {_fmt_mdY(end_dt)} ({days} day{'s' if days != 1 else ''})"
                 )
+            header.append("")
+            header.append(f"TOTAL VALID SEA PAY DAYS: {total_valid_days}")
         else:
             header.append("- NONE")
+            header.append("")
+            header.append("TOTAL VALID SEA PAY DAYS: 0")
 
         header.append("")
         header.append("INVALID / NON-PAYABLE ENTRIES:")
         header.append("")
 
+        # PATCH: Count invalid days
+        total_invalid_days = 0
         if invalid_events:
             for ship, d_dt, reason in invalid_events:
+                total_invalid_days += 1
                 header.append(
                     f"- {ship} | {_fmt_mdY(d_dt)} | {reason}"
                 )
+            header.append("")
+            header.append(f"TOTAL INVALID DAYS: {total_invalid_days}")
         else:
             header.append("- NONE")
+            header.append("")
+            header.append("TOTAL INVALID DAYS: 0")
 
         header.append("")
         header.append("EVENTS FOLLOWED:")
