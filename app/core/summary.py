@@ -54,13 +54,13 @@ def _extract_reporting_period(info):
     Returns tuple: (from_date_str, to_date_str) or (None, None)
     """
     reporting_periods = info.get("reporting_periods") or []
-    
+
     if not reporting_periods:
         return None, None
-    
+
     all_starts = []
     all_ends = []
-    
+
     for rp in reporting_periods:
         start = _parse_any_date(rp.get("start"))
         end = _parse_any_date(rp.get("end"))
@@ -68,13 +68,13 @@ def _extract_reporting_period(info):
             all_starts.append(start)
         if end:
             all_ends.append(end)
-    
+
     if not all_starts or not all_ends:
         return None, None
-    
+
     earliest = min(all_starts)
     latest = max(all_ends)
-    
+
     return _fmt_mdY(earliest), _fmt_mdY(latest)
 
 
@@ -91,7 +91,7 @@ def write_summary_files(summary_data):
         'tracker_lines' → uses those EXACTLY (Option C).
       • Otherwise builds them from 'periods', 'skipped_dupe', 'skipped_unknown'
         (Option 1 fallback).
-    
+
     PATCH: Adds reporting period section to all outputs
     """
 
@@ -228,14 +228,14 @@ def write_summary_files(summary_data):
         header = []
         header.append(f"{rate} {last}".upper())
         header.append("")
-        
+
         # PATCH: Add reporting period section
         if reporting_period_str:
             header.append("=" * 60)
             header.append(f"REPORTING PERIOD: {reporting_period_str}")
             header.append("=" * 60)
             header.append("")
-        
+
         header.append("VALID SEA PAY PERIODS (PAY AUTHORIZED):")
         header.append("")
 
@@ -255,8 +255,13 @@ def write_summary_files(summary_data):
             header.append("")
             header.append("TOTAL VALID SEA PAY DAYS: 0")
 
+        # -----------------------------
+        # PATCH: separator block for INVALID section (matches your desired format)
+        # -----------------------------
         header.append("")
+        header.append("=" * 60)
         header.append("INVALID / NON-PAYABLE ENTRIES:")
+        header.append("=" * 60)
         header.append("")
 
         # PATCH: Count invalid days
@@ -274,8 +279,13 @@ def write_summary_files(summary_data):
             header.append("")
             header.append("TOTAL INVALID DAYS: 0")
 
+        # -----------------------------
+        # PATCH: separator block for EVENTS FOLLOWED section (matches your desired format)
+        # -----------------------------
         header.append("")
+        header.append("=" * 60)
         header.append("EVENTS FOLLOWED:")
+        header.append("=" * 60)
         header.append("")
 
         if events_followed:
