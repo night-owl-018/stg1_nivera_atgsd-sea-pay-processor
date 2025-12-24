@@ -68,6 +68,22 @@ def extract_reporting_period(text, filename: str = ""):
     return None, None, ""
 
 
+# PATCH: Extract event details from raw text
+def extract_event_details(raw_text):
+    """
+    Extract event details (everything in parentheses) from raw text.
+    
+    Examples:
+      "CHAFEE (ASW M-1*1)" -> "(ASW M-1*1)"
+      "PAUL HAMILTON (ASW T-2)" -> "(ASW T-2)"
+      "ATGSD (ASW MITE AUG 2025)" -> "(ASW MITE AUG 2025)"
+    
+    Returns event string or empty string if no parentheses found.
+    """
+    match = re.search(r'\(([^)]+)\)', raw_text)
+    return f"({match.group(1)})" if match else ""
+
+
 def clear_pg13_folder():
     """Clear existing PG-13 outputs at the start of a run."""
     try:
@@ -217,6 +233,7 @@ def process_all(strike_color: str = "black"):
 
         # -------------------------
         # CLASSIFY VALID ROWS
+        # PATCH: Add event field
         # -------------------------
         for r in rows:
             system_classification = {
@@ -246,6 +263,7 @@ def process_all(strike_color: str = "black"):
                 {
                     "date": r.get("date"),
                     "ship": r.get("ship"),
+                    "event": extract_event_details(r.get("raw", "")),  # PATCH: Add event
                     "occ_idx": r.get("occ_idx"),
                     "raw": r.get("raw", ""),
                     "is_inport": bool(r.get("is_inport", False)),
@@ -265,7 +283,7 @@ def process_all(strike_color: str = "black"):
 
         # -------------------------
         # CLASSIFY INVALID EVENTS
-        # PATCH: Add occ_idx to invalid events
+        # PATCH: Add event field and occ_idx
         # -------------------------
         invalid_events = []
 
@@ -296,7 +314,8 @@ def process_all(strike_color: str = "black"):
                 {
                     "date": e.get("date"),
                     "ship": e.get("ship"),
-                    "occ_idx": e.get("occ_idx"),  # PATCH: Added occ_idx
+                    "event": extract_event_details(e.get("raw", "")),  # PATCH: Add event
+                    "occ_idx": e.get("occ_idx"),
                     "raw": e.get("raw", ""),
                     "reason": e.get("reason", "Duplicate"),
                     "category": "duplicate",
@@ -342,7 +361,8 @@ def process_all(strike_color: str = "black"):
                 {
                     "date": e.get("date"),
                     "ship": e.get("ship"),
-                    "occ_idx": e.get("occ_idx"),  # PATCH: Added occ_idx
+                    "event": extract_event_details(e.get("raw", "")),  # PATCH: Add event
+                    "occ_idx": e.get("occ_idx"),
                     "raw": e.get("raw", ""),
                     "reason": e.get("reason", "Unknown"),
                     "category": category,
