@@ -4,6 +4,9 @@ import pytesseract
 from pdf2image import convert_from_path
 from PyPDF2 import PdfReader
 
+# PATCH: normalize ship names using ships.txt matching (closest match)
+from app.core.ships import match_ship
+
 
 # ------------------------------------------------
 # OCR CONFIG
@@ -36,6 +39,8 @@ def _build_table_lines_from_pdf_text(pdf_text: str):
     """
     Build synthetic lines like:
       09/09/2025 CHAFEE (ASW T-3)
+      08/25/2025 PAUL HAMILTON (ASW T-2)
+      10/07/2025 CURTIS WILBUR (ASW READ-E3)
 
     This pulls clean event text from the PDF's embedded text layer,
     avoiding OCR mistakes like (ASW 1).
@@ -46,22 +51,30 @@ def _build_table_lines_from_pdf_text(pdf_text: str):
     flat = " ".join(pdf_text.split())
     up = flat.upper()
 
-    # Match table patterns: DATE SHIP (ASW ... ) or DATE SHIP (ASTAC ... )
-    # Example in KNORR: "9/9/2025 CHAFEE (ASW T-3) þ 0800 1600 ..."
+    # PATCH: ship names can be multi-word; capture lazily up to '('
+    # Example: "8/25/2025 PAUL HAMILTON (ASW T-2) ..."
     pat = re.compile(
-        r"\b(\d{1,2}/\d{1,2}/\d{4})\b\s+([A-Z0-9]{3,})\s*\(\s*((?:ASW|ASTAC)[^)]*)\)",
+        r"\b(\d{1,2}/\d{1,2}/\d{4})\b\s+([A-Z0-9][A-Z0-9 ]{2,}?)\s*\(\s*((?:ASW|ASTAC)[^)]*)\)",
         re.IGNORECASE,
     )
 
     lines = []
     seen = set()
+
     for m in pat.finditer(up):
         date = m.group(1)
-        ship = m.group(2)
+        ship_raw = " ".join(m.group(2).split()).strip()
         evt = m.group(3).strip()
 
         # Normalize spaces inside evt
         evt = " ".join(evt.split())
+
+        # Guardrail: avoid accidentally capturing headers as "ship"
+        if "SEA DUTY" in ship_raw or "CERTIFICATION" in ship_raw or "SHEET" in ship_raw:
+            continue
+
+        # PATCH: normalize ship against ships.txt (closest match)
+        ship = match_ship(ship_raw) or ship_raw
 
         line = f"{date} {ship} ({evt})"
         if line not in seen:
