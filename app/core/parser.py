@@ -47,6 +47,40 @@ def detect_inport_label(raw, upper):
     return None
 
 
+def sanitize_event_parentheses(s: str) -> str:
+    """
+    Cleans OCR garbage *inside* parentheses for known event types.
+    Fixes cases like:
+      (ASW ICA T-3) -> (ASW T-3)
+      (ASW 1°)      -> (ASW 1)
+    Only touches parentheses that look like event labels (ASW/ASTAC/MITE/SBTT).
+    """
+    if not s or "(" not in s or ")" not in s:
+        return s
+
+    def _clean_group(m):
+        inner = m.group(1)
+        up = inner.upper()
+
+        # Only clean likely event groups
+        if not any(k in up for k in ("ASW", "ASTAC", "MITE", "SBTT")):
+            return "(" + inner + ")"
+
+        # Remove common OCR junk tokens/glyphs
+        inner = inner.replace("°", "")
+        inner = inner.replace("\uFFFD", "")  # replacement char
+        inner = inner.replace("þ", " ")
+
+        # Remove the specific OCR hallucination token
+        inner = re.sub(r"\bICA\b", "", inner, flags=re.IGNORECASE)
+
+        # Normalize whitespace
+        inner = " ".join(inner.split()).strip()
+        return "(" + inner + ")"
+
+    return re.sub(r"\(([^)]*)\)", _clean_group, s)
+
+
 # ----------------------------------------------------------
 # MAIN TORIS PARSER (SBTT/MITE as invalid entries, not suppressors)
 # ----------------------------------------------------------
@@ -104,6 +138,7 @@ def parse_rows(text, year):
                 raw += " " + next_line
 
         cleaned = raw.strip()
+        cleaned = sanitize_event_parentheses(cleaned)
         up = cleaned.upper()
 
         entry = {
