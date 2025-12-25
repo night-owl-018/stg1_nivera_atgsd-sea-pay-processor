@@ -226,7 +226,18 @@ def write_summary_files(summary_data):
         # PATCH: Add reporting period header
         # ----------------------------------------
         header = []
-        header.append(f"{rate} {last}".upper())
+
+        # PATCH: include first name + middle initial (if present) in the summary header line
+        mi = (info.get("mi") or info.get("middle_initial") or info.get("middle") or "").strip()
+        mi_initial = mi[0].upper() if mi else ""
+
+        name_line = f"{rate} {last}"
+        if first:
+            name_line += f", {first}"
+            if mi_initial:
+                name_line += f" {mi_initial}."
+        header.append(name_line.upper())
+
         header.append("")
 
         # PATCH: Add reporting period section
