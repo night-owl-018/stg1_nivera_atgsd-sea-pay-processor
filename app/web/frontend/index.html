@@ -368,20 +368,6 @@
       border-radius: 2px;
     }
 
-    /* PATCH: day-count badge */
-    .count-badge {
-      margin-left: 6px;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #f1f5f9;
-      color: var(--navy);
-      border: 1px solid var(--border);
-      text-transform: none;
-      letter-spacing: normal;
-    }
-
     .hint {
       font-size: 13px;
       color: var(--text-secondary);
@@ -522,10 +508,7 @@
             👆 Select a member and sheet to review and override validation results
           </div>
 
-          <!-- PATCH: add count badge spans -->
-          <div class="section-header">
-            ✅ Valid Rows <span id="validDayCount" class="count-badge">0 days</span>
-          </div>
+          <div class="section-header">✅ Valid Rows</div>
           <div class="table-container">
             <table>
               <thead>
@@ -542,10 +525,7 @@
             </table>
           </div>
 
-          <!-- PATCH: add count badge spans -->
-          <div class="section-header">
-            ❌ Invalid Events <span id="invalidDayCount" class="count-badge">0 days</span>
-          </div>
+          <div class="section-header">❌ Invalid Events</div>
           <div class="table-container">
             <table>
               <thead>
@@ -585,50 +565,6 @@
   
   let lastStatus = null;
   let pendingOverrides = {};
-
-  // PATCH: helper to set the badges
-  function setDayCountBadges(validCount, invalidCount) {
-    const v = Number.isFinite(validCount) ? validCount : 0;
-    const i = Number.isFinite(invalidCount) ? invalidCount : 0;
-
-    const vEl = $("validDayCount");
-    const iEl = $("invalidDayCount");
-
-    if (vEl) vEl.textContent = v + " day" + (v === 1 ? "" : "s");
-    if (iEl) iEl.textContent = i + " day" + (i === 1 ? "" : "s");
-  }
-
-  // PATCH: compute counts based on what user is currently selecting in Override dropdowns
-  // This updates immediately when they flip valid/invalid overrides even before saving.
-  function recomputeCountsFromUI() {
-    const vBody = $("validBody");
-    const iBody = $("invalidBody");
-    if (!vBody || !iBody) {
-      setDayCountBadges(0, 0);
-      return;
-    }
-
-    let v = 0;
-    let inv = 0;
-
-    // In VALID table: default valid, unless forced invalid
-    Array.from(vBody.querySelectorAll("tr")).forEach(tr => {
-      const sel = tr.querySelector("select");
-      const overrideVal = sel ? sel.value : "";
-      if (overrideVal === "invalid") inv += 1;
-      else v += 1;
-    });
-
-    // In INVALID table: default invalid, unless forced valid
-    Array.from(iBody.querySelectorAll("tr")).forEach(tr => {
-      const sel = tr.querySelector("select");
-      const overrideVal = sel ? sel.value : "";
-      if (overrideVal === "valid") v += 1;
-      else inv += 1;
-    });
-
-    setDayCountBadges(v, inv);
-  }
 
   function safeText(v) {
     if (v === null || v === undefined) return "";
@@ -744,9 +680,6 @@
       $("invalidBody").innerHTML = "";
       $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
-
-      // PATCH: reset badge counts
-      setDayCountBadges(0, 0);
       
       alert("✅ Reset complete!");
     } catch (err) {
@@ -775,10 +708,6 @@
     $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
-
-    // PATCH: clear badges while switching member
-    setDayCountBadges(0, 0);
-
     if (!memberKey) return;
 
     const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
@@ -827,13 +756,7 @@
       };
     };
 
-    // PATCH: after changing override status, recompute counts immediately
-    sel.addEventListener("change", () => {
-      queue();
-      recomputeCountsFromUI();
-    });
-
-    // reason does not affect counts, but keep your existing behavior
+    sel.addEventListener("change", queue);
     reason.addEventListener("input", queue);
 
     wrap.appendChild(sel);
@@ -894,9 +817,6 @@
     $("reviewHint").textContent = "";
     renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
-
-    // PATCH: set counts after rendering (and reflect any override changes live)
-    recomputeCountsFromUI();
   }
 
   async function saveOverrides() {
@@ -932,10 +852,6 @@
 
       pendingOverrides = {};
       await loadSheet($("memberSelect").value, $("sheetSelect").value);
-
-      // PATCH: recompute again after reload (backend may move rows between sections)
-      recomputeCountsFromUI();
-
       alert("✅ Overrides saved successfully!");
     } catch (e) {
       alert("❌ " + (e.message || String(e)));
@@ -961,9 +877,6 @@
   $("sheetSelect").addEventListener("change", async () => {
     await loadSheet($("memberSelect").value, $("sheetSelect").value);
   });
-
-  // PATCH: initial badge state
-  setDayCountBadges(0, 0);
 
   refreshReviewLists();
 </script>
