@@ -1,197 +1,222 @@
 import os
 import json
-from datetime import datetime
+
 from app.core.config import OVERRIDES_DIR
 
 
-def _override_path(member_key):
-    """
-    Convert 'STGC MYSLINSKI,SARAH' → 'STGC_MYSLINSKI_SARAH.json'
-    """
-    safe = member_key.replace(" ", "_").replace(",", "_")
-    return os.path.join(OVERRIDES_DIR, f"{safe}.json")
+def _override_path(member_key: str, sheet_file: str) -> str:
+    safe_member = member_key.replace("/", "_").replace("\\", "_")
+    safe_sheet = sheet_file.replace("/", "_").replace("\\", "_")
+    return os.path.join(OVERRIDES_DIR, safe_member, safe_sheet + ".json")
 
 
 # -----------------------------------------------------------
-# LOAD OVERRIDES FOR ONE MEMBER
+# PATCH: Extract event text so it doesn't disappear when rows move between VALID/INVALID
 # -----------------------------------------------------------
-def load_overrides(member_key):
-    path = _override_path(member_key)
+def _extract_event_text(obj):
+    if not isinstance(obj, dict):
+        return ""
+    for k in ("event", "event_details", "Event", "event_text", "label"):
+        v = obj.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+# -----------------------------------------------------------
+# OVERRIDE STORAGE
+# -----------------------------------------------------------
+
+def load_overrides(member_key: str, sheet_file: str) -> dict:
+    path = _override_path(member_key, sheet_file)
     if not os.path.exists(path):
-        return {"overrides": []}
-
+        return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f) or {}
     except Exception:
-        return {"overrides": []}
+        return {}
 
 
-# -----------------------------------------------------------
-# SAVE OVERRIDE ENTRY
-# -----------------------------------------------------------
-def save_override(member_key, sheet_file, event_index, status, reason, source):
-    data = load_overrides(member_key)
+def save_override(member_key: str, sheet_file: str, event_index: int, status: str = None, reason: str = "", source: str = "manual"):
+    os.makedirs(os.path.dirname(_override_path(member_key, sheet_file)), exist_ok=True)
+    data = load_overrides(member_key, sheet_file)
 
-    data["overrides"].append(
-        {
-            "sheet_file": sheet_file,
-            "event_index": event_index,
-            "override_status": status,
-            "override_reason": reason,
-            "source": source,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+    key = str(event_index)
+    if status is None and (reason or "").strip() == "":
+        if key in data:
+            del data[key]
+    else:
+        data[key] = {
+            "status": status,
+            "reason": reason or "",
+            "source": source or "manual"
         }
-    )
 
-    os.makedirs(OVERRIDES_DIR, exist_ok=True)
-    with open(_override_path(member_key), "w", encoding="utf-8") as f:
+    with open(_override_path(member_key, sheet_file), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
-# -----------------------------------------------------------
-# CLEAR OVERRIDES FOR A MEMBER
-# -----------------------------------------------------------
-def clear_overrides(member_key):
-    path = _override_path(member_key)
+def clear_overrides(member_key: str, sheet_file: str):
+    path = _override_path(member_key, sheet_file)
     if os.path.exists(path):
         os.remove(path)
 
 
 # -----------------------------------------------------------
-# APPLY OVERRIDES DURING REVIEW MERGE
+# APPLY OVERRIDES TO A REVIEW JSON STRUCTURE
 # -----------------------------------------------------------
-def apply_overrides(member_key, review_state_member):
+
+def apply_overrides(review_state: dict) -> dict:
     """
-    Mutates review_state_member in-place,
-    applying all overrides to rows OR invalid_events.
+    review_state schema (per member, per sheet) expected:
+      review_state[member_key][sheet_file] = {
+          "valid_rows": [...],
+          "invalid_events": [...],
+      }
 
-    Convention:
-    - event_index >= 0  → rows[event_index]
-    - event_index < 0   → invalid_events[-event_index - 1]
-    
-    PATCH: Bidirectional movement between valid/invalid arrays
+    Overrides keyed by event_index:
+      >= 0 : indexes into valid_rows
+      < 0  : indexes into invalid_events as (-idx - 1)
     """
 
-    overrides = load_overrides(member_key).get("overrides", [])
-    if not overrides:
-        return review_state_member
+    if not review_state:
+        return review_state
 
-    for ov in overrides:
-        sheet_file = ov["sheet_file"]
-        idx = ov["event_index"]
-        status = ov["override_status"]
-        reason = ov["override_reason"]
-        source = ov.get("source")
+    for member_key, sheets in review_state.items():
+        if not isinstance(sheets, dict):
+            continue
 
-        for sheet in review_state_member.get("sheets", []):
-            if sheet.get("source_file") != sheet_file:
+        for sheet_file, payload in sheets.items():
+            if not isinstance(payload, dict):
                 continue
 
-            # -------------------------
-            # ROW OVERRIDE (VALID → INVALID)
-            # PATCH: Move to invalid_events if forcing invalid
-            # -------------------------
-            if idx >= 0:
-                if idx >= len(sheet.get("rows", [])):
+            valid_rows = payload.get("valid_rows") or []
+            invalid_events = payload.get("invalid_events") or []
+
+            overrides = load_overrides(member_key, sheet_file)
+
+            # If no overrides, ensure "override" objects still exist for UI (optional)
+            for i, r in enumerate(valid_rows):
+                if isinstance(r, dict):
+                    r.setdefault("override", {"status": "", "reason": "", "source": "auto"})
+                    r["event_index"] = i
+            for i, e in enumerate(invalid_events):
+                if isinstance(e, dict):
+                    e.setdefault("override", {"status": "", "reason": "", "source": "auto"})
+                    e["event_index"] = -(i + 1)
+
+            # Apply overrides
+            # We will build new lists to allow moving items between valid/invalid
+            new_valid = []
+            new_invalid = []
+
+            # Track which invalid indexes are moved
+            moved_from_invalid = set()
+
+            # 1) Process VALID rows
+            for i, r in enumerate(valid_rows):
+                if not isinstance(r, dict):
                     continue
 
-                r = sheet["rows"][idx]
+                key = str(i)
+                ov = overrides.get(key)
 
-                r["override"]["status"] = status
-                r["override"]["reason"] = reason
-                r["override"]["source"] = source
+                # default override object
+                r.setdefault("override", {"status": "", "reason": "", "source": "auto"})
+                r["event_index"] = i
 
-                r["final_classification"]["is_valid"] = (status == "valid")
-                r["final_classification"]["reason"] = reason
-                r["final_classification"]["source"] = "override"
+                if not ov:
+                    # no override: keep as is
+                    new_valid.append(r)
+                    continue
 
-                r["status"] = status
-                r["status_reason"] = reason
+                forced_status = ov.get("status") or ""
+                forced_reason = ov.get("reason") or ""
+                forced_source = ov.get("source") or "manual"
 
-                # PATCH: If forcing to invalid, move row to invalid_events array
-                if status == "invalid":
-                    # Create invalid event entry from row
-                    new_invalid = {
+                # attach override info
+                r["override"]["status"] = forced_status
+                r["override"]["reason"] = forced_reason
+                r["override"]["source"] = forced_source
+
+                if forced_status == "invalid":
+                    # move to invalid
+                    event_text = _extract_event_text(r)  # PATCH
+                    new_invalid.append({
                         "date": r.get("date"),
                         "ship": r.get("ship"),
-                        "occ_idx": r.get("occ_idx"),
+                        "event": event_text,              # PATCH
+                        "event_details": event_text,      # PATCH
+                        "final": "invalid",
+                        "reason": forced_reason or "Forced invalid by override",
+                        "override": r.get("override"),
+                        "event_index": r.get("event_index"),
                         "raw": r.get("raw", ""),
-                        "reason": reason or "Forced invalid by override",
-                        "category": "override",
-                        "source": "override",
-                        "system_classification": r.get("system_classification", {}),
-                        "override": {
-                            "status": status,
-                            "reason": reason,
-                            "source": source,
-                            "history": [],
-                        },
-                        "final_classification": {
-                            "is_valid": False,
-                            "reason": reason,
-                            "source": "override",
-                        },
-                    }
-                    
-                    # Add to invalid_events array
-                    sheet["invalid_events"].append(new_invalid)
-                    
-                    # Remove from rows array
-                    sheet["rows"].pop(idx)
+                        "system_classification": r.get("system_classification", ""),
+                        "matched_ship": r.get("matched_ship", r.get("ship")),
+                    })
+                else:
+                    # keep valid (forced valid or auto)
+                    new_valid.append(r)
 
-            # -------------------------
-            # INVALID EVENT OVERRIDE (INVALID → VALID)
-            # PATCH: Move to rows if forcing valid
-            # -------------------------
-            else:
-                invalid_index = -idx - 1
-                if invalid_index >= len(sheet.get("invalid_events", [])):
+            # 2) Process INVALID events
+            for i, e in enumerate(invalid_events):
+                if not isinstance(e, dict):
                     continue
 
-                e = sheet["invalid_events"][invalid_index]
+                idx = -(i + 1)
+                key = str(idx)
 
-                e["override"]["status"] = status
-                e["override"]["reason"] = reason
-                e["override"]["source"] = source
+                ov = overrides.get(key)
 
-                e["final_classification"]["is_valid"] = (status == "valid")
-                e["final_classification"]["reason"] = reason
-                e["final_classification"]["source"] = "override"
+                e.setdefault("override", {"status": "", "reason": "", "source": "auto"})
+                e["event_index"] = idx
 
-                # PATCH: If forcing to valid, move event to rows array
-                if status == "valid":
-                    # Create row entry from invalid event
+                if not ov:
+                    # no override: keep invalid as-is
+                    new_invalid.append(e)
+                    continue
+
+                forced_status = ov.get("status") or ""
+                forced_reason = ov.get("reason") or ""
+                forced_source = ov.get("source") or "manual"
+
+                e["override"]["status"] = forced_status
+                e["override"]["reason"] = forced_reason
+                e["override"]["source"] = forced_source
+
+                if forced_status == "valid":
+                    # move to valid
+                    moved_from_invalid.add(i)
+                    event_text = _extract_event_text(e)  # PATCH
                     new_row = {
                         "date": e.get("date"),
                         "ship": e.get("ship"),
-                        "occ_idx": e.get("occ_idx"),
+                        "event": event_text,             # PATCH
+                        "event_details": event_text,     # PATCH
+                        "final": "valid",
+                        "reason": forced_reason or "",
+                        "override": e.get("override"),
+                        "event_index": e.get("event_index"),
                         "raw": e.get("raw", ""),
-                        "is_inport": False,
-                        "inport_label": None,
-                        "is_mission": False,
-                        "label": None,
-                        "status": "valid",
-                        "status_reason": reason,
-                        "confidence": 1.0,
-                        "system_classification": e.get("system_classification", {}),
-                        "override": {
-                            "status": status,
-                            "reason": reason,
-                            "source": source,
-                            "history": [],
-                        },
-                        "final_classification": {
-                            "is_valid": True,
-                            "reason": reason,
-                            "source": "override",
-                        },
+                        "system_classification": e.get("system_classification", ""),
+                        "matched_ship": e.get("matched_ship", e.get("ship")),
                     }
-                    
-                    # Add to rows array
-                    sheet["rows"].append(new_row)
-                    
-                    # Remove from invalid_events array
-                    sheet["invalid_events"].pop(invalid_index)
+                    new_valid.append(new_row)
+                else:
+                    # keep invalid (forced invalid or auto)
+                    new_invalid.append(e)
 
-    return review_state_member
+            # Re-number event_index for UI consistency (optional, but keep your current behavior)
+            for i, r in enumerate(new_valid):
+                if isinstance(r, dict):
+                    r["event_index"] = i
+            for i, e in enumerate(new_invalid):
+                if isinstance(e, dict):
+                    e["event_index"] = -(i + 1)
+
+            payload["valid_rows"] = new_valid
+            payload["invalid_events"] = new_invalid
+
+    return review_state
