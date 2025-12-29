@@ -71,127 +71,166 @@ def apply_overrides(member_key, review_state_member):
     - event_index < 0   → invalid_events[-event_index - 1]
     
     PATCH: Bidirectional movement between valid/invalid arrays
+    FIX: Process overrides in order (highest to lowest index) to prevent index shifting bugs
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
     if not overrides:
         return review_state_member
 
+    # Group overrides by sheet for organized processing
+    sheet_overrides = {}
     for ov in overrides:
         sheet_file = ov["sheet_file"]
-        idx = ov["event_index"]
-        status = ov["override_status"]
-        reason = ov["override_reason"]
-        source = ov.get("source")
+        if sheet_file not in sheet_overrides:
+            sheet_overrides[sheet_file] = []
+        sheet_overrides[sheet_file].append(ov)
 
-        for sheet in review_state_member.get("sheets", []):
-            if sheet.get("source_file") != sheet_file:
-                continue
+    # Process each sheet
+    for sheet in review_state_member.get("sheets", []):
+        sheet_file = sheet.get("source_file")
+        if sheet_file not in sheet_overrides:
+            continue
 
-            # -------------------------
-            # ROW OVERRIDE (VALID → INVALID)
-            # PATCH: Move to invalid_events if forcing invalid
-            # -------------------------
-            if idx >= 0:
+        # Separate overrides into categories
+        moves_to_invalid = []  # valid → invalid (removes from rows)
+        moves_to_valid = []    # invalid → valid (removes from invalid_events)
+        in_place_updates = []  # updates without moving
+
+        for ov in sheet_overrides[sheet_file]:
+            idx = ov["event_index"]
+            status = ov["override_status"]
+            
+            if idx >= 0:  # Currently in valid rows
+                if status == "invalid":
+                    moves_to_invalid.append(ov)
+                else:
+                    in_place_updates.append(ov)
+            else:  # Currently in invalid events
+                if status == "valid":
+                    moves_to_valid.append(ov)
+                else:
+                    in_place_updates.append(ov)
+
+        # CRITICAL FIX: Sort to process from highest to lowest index
+        # This prevents index shifting from breaking subsequent operations
+        moves_to_invalid.sort(key=lambda x: x["event_index"], reverse=True)
+        moves_to_valid.sort(key=lambda x: x["event_index"])  # More negative = higher actual index
+
+        # Step 1: Process in-place updates (no array modifications)
+        for ov in in_place_updates:
+            idx = ov["event_index"]
+            status = ov["override_status"]
+            reason = ov["override_reason"]
+            source = ov.get("source")
+
+            if idx >= 0:  # Valid row
                 if idx >= len(sheet.get("rows", [])):
                     continue
-
                 r = sheet["rows"][idx]
-
-                r["override"]["status"] = status
-                r["override"]["reason"] = reason
-                r["override"]["source"] = source
-
-                r["final_classification"]["is_valid"] = (status == "valid")
-                r["final_classification"]["reason"] = reason
-                r["final_classification"]["source"] = "override"
-
-                r["status"] = status
-                r["status_reason"] = reason
-
-                # PATCH: If forcing to invalid, move row to invalid_events array
-                if status == "invalid":
-                    # Create invalid event entry from row
-                    new_invalid = {
-                        "date": r.get("date"),
-                        "ship": r.get("ship"),
-                        "occ_idx": r.get("occ_idx"),
-                        "raw": r.get("raw", ""),
-                        "reason": reason or "Forced invalid by override",
-                        "category": "override",
-                        "source": "override",
-                        "system_classification": r.get("system_classification", {}),
-                        "override": {
-                            "status": status,
-                            "reason": reason,
-                            "source": source,
-                            "history": [],
-                        },
-                        "final_classification": {
-                            "is_valid": False,
-                            "reason": reason,
-                            "source": "override",
-                        },
-                    }
-                    
-                    # Add to invalid_events array
-                    sheet["invalid_events"].append(new_invalid)
-                    
-                    # Remove from rows array
-                    sheet["rows"].pop(idx)
-
-            # -------------------------
-            # INVALID EVENT OVERRIDE (INVALID → VALID)
-            # PATCH: Move to rows if forcing valid
-            # -------------------------
-            else:
+            else:  # Invalid event
                 invalid_index = -idx - 1
                 if invalid_index >= len(sheet.get("invalid_events", [])):
                     continue
+                r = sheet["invalid_events"][invalid_index]
 
-                e = sheet["invalid_events"][invalid_index]
+            # Update override metadata
+            r["override"]["status"] = status
+            r["override"]["reason"] = reason
+            r["override"]["source"] = source
+            r["final_classification"]["is_valid"] = (status == "valid")
+            r["final_classification"]["reason"] = reason
+            r["final_classification"]["source"] = "override"
+            
+            if "status" in r:
+                r["status"] = status
+                r["status_reason"] = reason
 
-                e["override"]["status"] = status
-                e["override"]["reason"] = reason
-                e["override"]["source"] = source
+        # Step 2: Move valid → invalid (process highest index first)
+        for ov in moves_to_invalid:
+            idx = ov["event_index"]
+            status = ov["override_status"]
+            reason = ov["override_reason"]
+            source = ov.get("source")
 
-                e["final_classification"]["is_valid"] = (status == "valid")
-                e["final_classification"]["reason"] = reason
-                e["final_classification"]["source"] = "override"
+            if idx >= len(sheet.get("rows", [])):
+                continue
 
-                # PATCH: If forcing to valid, move event to rows array
-                if status == "valid":
-                    # Create row entry from invalid event
-                    new_row = {
-                        "date": e.get("date"),
-                        "ship": e.get("ship"),
-                        "occ_idx": e.get("occ_idx"),
-                        "raw": e.get("raw", ""),
-                        "is_inport": False,
-                        "inport_label": None,
-                        "is_mission": False,
-                        "label": None,
-                        "status": "valid",
-                        "status_reason": reason,
-                        "confidence": 1.0,
-                        "system_classification": e.get("system_classification", {}),
-                        "override": {
-                            "status": status,
-                            "reason": reason,
-                            "source": source,
-                            "history": [],
-                        },
-                        "final_classification": {
-                            "is_valid": True,
-                            "reason": reason,
-                            "source": "override",
-                        },
-                    }
-                    
-                    # Add to rows array
-                    sheet["rows"].append(new_row)
-                    
-                    # Remove from invalid_events array
-                    sheet["invalid_events"].pop(invalid_index)
+            r = sheet["rows"][idx]
+
+            # Create invalid event entry from row
+            new_invalid = {
+                "date": r.get("date"),
+                "ship": r.get("ship"),
+                "occ_idx": r.get("occ_idx"),
+                "raw": r.get("raw", ""),
+                "reason": reason or "Forced invalid by override",
+                "category": "override",
+                "source": "override",
+                "system_classification": r.get("system_classification", {}),
+                "override": {
+                    "status": status,
+                    "reason": reason,
+                    "source": source,
+                    "history": [],
+                },
+                "final_classification": {
+                    "is_valid": False,
+                    "reason": reason,
+                    "source": "override",
+                },
+            }
+            
+            # Add to invalid_events
+            sheet["invalid_events"].append(new_invalid)
+            
+            # Remove from rows (highest index first = no shifting issues)
+            sheet["rows"].pop(idx)
+
+        # Step 3: Move invalid → valid (process highest index first)
+        for ov in moves_to_valid:
+            idx = ov["event_index"]
+            status = ov["override_status"]
+            reason = ov["override_reason"]
+            source = ov.get("source")
+
+            invalid_index = -idx - 1
+            if invalid_index >= len(sheet.get("invalid_events", [])):
+                continue
+
+            e = sheet["invalid_events"][invalid_index]
+
+            # Create row entry from invalid event
+            new_row = {
+                "date": e.get("date"),
+                "ship": e.get("ship"),
+                "occ_idx": e.get("occ_idx"),
+                "raw": e.get("raw", ""),
+                "is_inport": False,
+                "inport_label": None,
+                "is_mission": False,
+                "label": None,
+                "status": "valid",
+                "status_reason": reason,
+                "confidence": 1.0,
+                "system_classification": e.get("system_classification", {}),
+                "override": {
+                    "status": status,
+                    "reason": reason,
+                    "source": source,
+                    "history": [],
+                },
+                "final_classification": {
+                    "is_valid": True,
+                    "reason": reason,
+                    "source": "override",
+                },
+            }
+            
+            # Add to rows
+            sheet["rows"].append(new_row)
+            
+            # Remove from invalid_events (highest index first = no shifting issues)
+            sheet["invalid_events"].pop(invalid_index)
 
     return review_state_member
