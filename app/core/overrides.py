@@ -31,18 +31,31 @@ def load_overrides(member_key):
 # SAVE OVERRIDE ENTRY
 # -----------------------------------------------------------
 def save_override(member_key, sheet_file, event_index, status, reason, source):
+    """
+    Save or update an override entry.
+    FIX: Replace existing override for same event instead of appending duplicates.
+    """
     data = load_overrides(member_key)
 
-    data["overrides"].append(
-        {
-            "sheet_file": sheet_file,
-            "event_index": event_index,
-            "override_status": status,
-            "override_reason": reason,
-            "source": source,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-        }
-    )
+    # Create new override entry
+    new_override = {
+        "sheet_file": sheet_file,
+        "event_index": event_index,
+        "override_status": status,
+        "override_reason": reason,
+        "source": source,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+    # CRITICAL FIX: Remove any existing override for this exact event
+    # Keep only overrides that don't match this sheet_file + event_index
+    data["overrides"] = [
+        ov for ov in data.get("overrides", [])
+        if not (ov.get("sheet_file") == sheet_file and ov.get("event_index") == event_index)
+    ]
+
+    # Append the new override
+    data["overrides"].append(new_override)
 
     os.makedirs(OVERRIDES_DIR, exist_ok=True)
     with open(_override_path(member_key), "w", encoding="utf-8") as f:
@@ -73,6 +86,7 @@ def apply_overrides(member_key, review_state_member):
     PATCH: Bidirectional movement between valid/invalid arrays
     FIX: Process overrides in order (highest to lowest index) to prevent index shifting bugs
     FIX: Preserve ALL fields when moving between arrays
+    FIX: Handle override updates correctly (replace old overrides, not duplicate)
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
@@ -84,8 +98,12 @@ def apply_overrides(member_key, review_state_member):
     for ov in overrides:
         sheet_file = ov["sheet_file"]
         if sheet_file not in sheet_overrides:
-            sheet_overrides[sheet_file] = []
-        sheet_overrides[sheet_file].append(ov)
+            sheet_overrides[sheet_file] = {}
+        
+        # FIX: Use dict keyed by event_index to ensure only ONE override per event
+        # This handles cases where user changes their mind (valid→invalid→valid)
+        event_idx = ov["event_index"]
+        sheet_overrides[sheet_file][event_idx] = ov
 
     # Process each sheet
     for sheet in review_state_member.get("sheets", []):
@@ -93,12 +111,15 @@ def apply_overrides(member_key, review_state_member):
         if sheet_file not in sheet_overrides:
             continue
 
+        # Get unique overrides (one per event_index)
+        unique_overrides = list(sheet_overrides[sheet_file].values())
+
         # Separate overrides into categories
         moves_to_invalid = []  # valid → invalid (removes from rows)
         moves_to_valid = []    # invalid → valid (removes from invalid_events)
         in_place_updates = []  # updates without moving
 
-        for ov in sheet_overrides[sheet_file]:
+        for ov in unique_overrides:
             idx = ov["event_index"]
             status = ov["override_status"]
             
@@ -136,9 +157,14 @@ def apply_overrides(member_key, review_state_member):
                 r = sheet["invalid_events"][invalid_index]
 
             # Update override metadata
+            if "override" not in r:
+                r["override"] = {}
             r["override"]["status"] = status
             r["override"]["reason"] = reason
             r["override"]["source"] = source
+            
+            if "final_classification" not in r:
+                r["final_classification"] = {}
             r["final_classification"]["is_valid"] = (status == "valid")
             r["final_classification"]["reason"] = reason
             r["final_classification"]["source"] = "override"
