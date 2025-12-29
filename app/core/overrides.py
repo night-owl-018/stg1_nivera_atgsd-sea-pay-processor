@@ -72,6 +72,7 @@ def apply_overrides(member_key, review_state_member):
     
     PATCH: Bidirectional movement between valid/invalid arrays
     FIX: Process overrides in order (highest to lowest index) to prevent index shifting bugs
+    FIX: Preserve ALL fields when moving between arrays
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
@@ -158,28 +159,31 @@ def apply_overrides(member_key, review_state_member):
 
             r = sheet["rows"][idx]
 
-            # Create invalid event entry from row
-            new_invalid = {
-                "date": r.get("date"),
-                "ship": r.get("ship"),
-                "occ_idx": r.get("occ_idx"),
-                "raw": r.get("raw", ""),
+            # CRITICAL FIX: Copy ALL existing fields, then override specific ones
+            new_invalid = dict(r)  # Copy all fields from original row
+            
+            # Update/add override-specific fields
+            new_invalid.update({
                 "reason": reason or "Forced invalid by override",
                 "category": "override",
                 "source": "override",
-                "system_classification": r.get("system_classification", {}),
                 "override": {
                     "status": status,
                     "reason": reason,
                     "source": source,
-                    "history": [],
+                    "history": r.get("override", {}).get("history", []),
                 },
                 "final_classification": {
                     "is_valid": False,
                     "reason": reason,
                     "source": "override",
                 },
-            }
+            })
+            
+            # Ensure status fields are set correctly
+            if "status" in new_invalid:
+                new_invalid["status"] = "invalid"
+                new_invalid["status_reason"] = reason
             
             # Add to invalid_events
             sheet["invalid_events"].append(new_invalid)
@@ -200,32 +204,37 @@ def apply_overrides(member_key, review_state_member):
 
             e = sheet["invalid_events"][invalid_index]
 
-            # Create row entry from invalid event
-            new_row = {
-                "date": e.get("date"),
-                "ship": e.get("ship"),
-                "occ_idx": e.get("occ_idx"),
-                "raw": e.get("raw", ""),
-                "is_inport": False,
-                "inport_label": None,
-                "is_mission": False,
-                "label": None,
+            # CRITICAL FIX: Copy ALL existing fields, then override specific ones
+            new_row = dict(e)  # Copy all fields from original invalid event
+            
+            # Update/add row-specific fields
+            new_row.update({
                 "status": "valid",
                 "status_reason": reason,
-                "confidence": 1.0,
-                "system_classification": e.get("system_classification", {}),
                 "override": {
                     "status": status,
                     "reason": reason,
                     "source": source,
-                    "history": [],
+                    "history": e.get("override", {}).get("history", []),
                 },
                 "final_classification": {
                     "is_valid": True,
                     "reason": reason,
                     "source": "override",
                 },
-            }
+            })
+            
+            # Ensure these fields exist (set to defaults if not present)
+            if "is_inport" not in new_row:
+                new_row["is_inport"] = False
+            if "inport_label" not in new_row:
+                new_row["inport_label"] = None
+            if "is_mission" not in new_row:
+                new_row["is_mission"] = False
+            if "label" not in new_row:
+                new_row["label"] = None
+            if "confidence" not in new_row:
+                new_row["confidence"] = 1.0
             
             # Add to rows
             sheet["rows"].append(new_row)
