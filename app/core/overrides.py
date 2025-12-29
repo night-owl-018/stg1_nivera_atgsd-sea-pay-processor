@@ -70,7 +70,7 @@ def apply_overrides(member_key, review_state_member):
     - event_index >= 0  → rows[event_index]
     - event_index < 0   → invalid_events[-event_index - 1]
     
-    PATCH: When forcing invalid event to valid, MOVE it to rows array
+    PATCH: Bidirectional movement between valid/invalid arrays
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
@@ -89,7 +89,8 @@ def apply_overrides(member_key, review_state_member):
                 continue
 
             # -------------------------
-            # ROW OVERRIDE
+            # ROW OVERRIDE (VALID → INVALID)
+            # PATCH: Move to invalid_events if forcing invalid
             # -------------------------
             if idx >= 0:
                 if idx >= len(sheet.get("rows", [])):
@@ -108,8 +109,39 @@ def apply_overrides(member_key, review_state_member):
                 r["status"] = status
                 r["status_reason"] = reason
 
+                # PATCH: If forcing to invalid, move row to invalid_events array
+                if status == "invalid":
+                    # Create invalid event entry from row
+                    new_invalid = {
+                        "date": r.get("date"),
+                        "ship": r.get("ship"),
+                        "occ_idx": r.get("occ_idx"),
+                        "raw": r.get("raw", ""),
+                        "reason": reason or "Forced invalid by override",
+                        "category": "override",
+                        "source": "override",
+                        "system_classification": r.get("system_classification", {}),
+                        "override": {
+                            "status": status,
+                            "reason": reason,
+                            "source": source,
+                            "history": [],
+                        },
+                        "final_classification": {
+                            "is_valid": False,
+                            "reason": reason,
+                            "source": "override",
+                        },
+                    }
+                    
+                    # Add to invalid_events array
+                    sheet["invalid_events"].append(new_invalid)
+                    
+                    # Remove from rows array
+                    sheet["rows"].pop(idx)
+
             # -------------------------
-            # INVALID EVENT OVERRIDE
+            # INVALID EVENT OVERRIDE (INVALID → VALID)
             # PATCH: Move to rows if forcing valid
             # -------------------------
             else:
