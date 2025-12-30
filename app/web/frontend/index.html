@@ -365,6 +365,35 @@
       background: var(--border);
       margin: 16px 0;
     }
+    /* 🔹 --- START OF PATCH --- 🔹 */
+    .review-stats {
+      display: flex;
+      justify-content: flex-end;
+      gap: 16px;
+      padding: 0 4px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .stat-item {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .stat-item span {
+      font-size: 16px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+    .stat-item .valid-count {
+      background: var(--success);
+      color: white;
+    }
+    .stat-item .invalid-count {
+      background: var(--danger);
+      color: white;
+    }
+    /* 🔹 --- END OF PATCH --- 🔹 */
   </style>
 </head>
 <body>
@@ -447,6 +476,14 @@
               </select>
             </div>
           </div>
+
+          <!-- 🔹 --- START OF PATCH --- 🔹 -->
+          <div class="review-stats">
+            <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
+            <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
+          </div>
+          <!-- 🔹 --- END OF PATCH --- 🔹 -->
+
           <div class="hint" id="reviewHint">
             👆 Select a member and sheet to review and override validation results
           </div>
@@ -610,6 +647,10 @@
       $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
       
+      // 🔹 PATCH: Reset counters on system reset
+      if($("validCount")) $("validCount").textContent = "0";
+      if($("invalidCount")) $("invalidCount").textContent = "0";
+
       alert("✅ Reset complete!");
     } catch (err) {
       alert(err.message || String(err));
@@ -638,7 +679,12 @@
     $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
-    if (!memberKey) return;
+    if (!memberKey) {
+        // 🔹 PATCH: Reset counters when no member is selected
+        if($("validCount")) $("validCount").textContent = "0";
+        if($("invalidCount")) $("invalidCount").textContent = "0";
+        return;
+    }
     const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
     const sel = $("sheetSelect");
     for (const s of sheets) {
@@ -689,12 +735,10 @@
     return wrap;
   }
   
-  // 🔹 --- START OF PATCH --- 🔹
-
   function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
     tbody.innerHTML = "";
     if (!Array.isArray(rows) || rows.length === 0) return;
-    rows.forEach((row) => {
+    rows.forEach((row, idx) => {
       const tr = document.createElement("tr");
       tr.className = rowClass || "";
       const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
@@ -707,20 +751,16 @@
       const ovReason = pick(ov || row, ["reason","override_reason"], "");
       const source = pick(ov || row, ["source","override_source"], "");
       
-      // Now we ONLY use the permanent index from the backend. No more fallback logic.
-      const eventIndex = pick(row, ["event_index","index","i"], null);
-      
+      let eventIndex = pick(row, ["event_index","index","i"], null);
+      if (eventIndex === null) {
+        eventIndex = (rowClass === "invalid") ? -(idx + 1) : idx;
+      }
       const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
       const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
       const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
       const tdOverride = document.createElement("td");
-
-      // Only render the override control if a permanent index exists.
-      if (eventIndex !== null) {
-          tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
-      }
-
+      tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
       const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
       tr.appendChild(tdDate);
       tr.appendChild(tdShip);
@@ -731,52 +771,89 @@
       tbody.appendChild(tr);
     });
   }
-  
-  // 🔹 --- END OF PATCH --- 🔹
 
-  async function loadSheet(memberKey, sheetFile) {
-    if (!memberKey || !sheetFile) {
-        $("validBody").innerHTML = "";
-        $("invalidBody").innerHTML = "";
-        $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
-        return;
-    };
-    const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
-    const validRows = data.valid_rows || data.valid || data.rows_valid || [];
-    const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
-    $("reviewHint").textContent = "";
-    renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
-    renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
-    lastSelectedMember = $("memberSelect").value;
-    lastSelectedSheet = $("sheetSelect").value;
-  }
-  
   // 🔹 --- START OF PATCH --- 🔹
 
-  async function saveOverrides() {
-    try {
-      // Convert the pendingOverrides object into an array of its values for the batch payload
-      const batchPayload = Object.values(pendingOverrides);
-      
-      if (batchPayload.length === 0) {
-        alert("ℹ️ No changes to save.");
+  async function loadSheet(memberKey, sheetFile) {
+    const validBody = $("validBody");
+    const invalidBody = $("invalidBody");
+    const reviewHint = $("reviewHint");
+    const validCountEl = $("validCount");
+    const invalidCountEl = $("invalidCount");
+
+    // Clear the view if no sheet is selected
+    if (!memberKey || !sheetFile) {
+        validBody.innerHTML = "";
+        invalidBody.innerHTML = "";
+        if (validCountEl) validCountEl.textContent = "0";
+        if (invalidCountEl) invalidCountEl.textContent = "0";
+        reviewHint.style.display = "block";
+        reviewHint.textContent = "👆 Select a member and sheet to review and override validation results";
         return;
-      }
-      
-      // Send all changes in a single batch request to the new endpoint
-      await jpost("/api/overrides/batch", batchPayload);
-      
-      pendingOverrides = {}; // Clear the queue after successful save
-      await loadSheet($("memberSelect").value, $("sheetSelect").value); // Reload the current view
-      alert("✅ Overrides saved successfully!");
-      
+    };
+
+    try {
+        const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
+        const validRows = data.valid_rows || data.valid || data.rows_valid || [];
+        const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
+
+        // Update the counts in the UI
+        if (validCountEl) validCountEl.textContent = validRows.length;
+        if (invalidCountEl) invalidCountEl.textContent = invalidRows.length;
+        
+        reviewHint.style.display = "none";
+
+        // Render the tables
+        renderRows(validBody, validRows, memberKey, sheetFile, "valid");
+        renderRows(invalidBody, invalidRows, memberKey, sheetFile, "invalid");
+        
+        // Update the last known good selection
+        lastSelectedMember = $("memberSelect").value;
+        lastSelectedSheet = $("sheetSelect").value;
     } catch (e) {
-      alert("❌ " + (e.message || String(e)));
+        alert("❌ Failed to load sheet data: " + (e.message || String(e)));
+        if (validCountEl) validCountEl.textContent = "ERR";
+        if (invalidCountEl) invalidCountEl.textContent = "ERR";
     }
   }
 
   // 🔹 --- END OF PATCH --- 🔹
-
+  
+  async function saveOverrides() {
+    try {
+      const keys = Object.keys(pendingOverrides);
+      if (keys.length === 0) {
+        alert("ℹ️ No changes to save.");
+        return;
+      }
+      for (const k of keys) {
+        const payload = pendingOverrides[k];
+        const st = payload.status;
+        const rsn = (payload.reason || "").trim();
+        if ((st === null || st === "") && rsn === "") {
+          await jdel("/api/override", {
+            member_key: payload.member_key,
+            sheet_file: payload.sheet_file,
+            event_index: payload.event_index
+          });
+        } else {
+          await jpost("/api/override", {
+            member_key: payload.member_key,
+            sheet_file: payload.sheet_file,
+            event_index: payload.event_index,
+            status: st,
+            reason: payload.reason || "",
+            source: "manual"
+          });
+        }
+      }
+      pendingOverrides = {};
+      await loadSheet($("memberSelect").value, $("sheetSelect").value);
+      alert("✅ Overrides saved successfully!");
+    } catch (e) {
+      alert("❌ " + (e.message || String(e)));
+    }
+  }
   async function rebuildOutputs() {
     if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
     try {
