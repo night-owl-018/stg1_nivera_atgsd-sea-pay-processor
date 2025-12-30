@@ -23,7 +23,6 @@
       --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
       --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
     }
-
     * { box-sizing: border-box; }
     
     body {
@@ -33,7 +32,6 @@
       color: var(--text-primary);
       line-height: 1.5;
     }
-
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
@@ -44,43 +42,36 @@
       z-index: 100;
       backdrop-filter: blur(10px);
     }
-
     header h1 {
       margin: 0;
       font-size: 24px;
       font-weight: 700;
       letter-spacing: -0.025em;
     }
-
     header .subtitle {
       font-size: 13px;
       opacity: 0.9;
       margin-top: 2px;
     }
-
     .wrap {
       max-width: 1800px;
       margin: 0 auto;
       padding: 24px;
     }
-
     .grid {
       display: grid;
       grid-template-columns: 420px 1fr;
       gap: 24px;
       align-items: start;
     }
-
     @media (max-width: 1200px) {
       .grid {
         grid-template-columns: 1fr;
       }
     }
-
     .stack > * + * {
       margin-top: 16px;
     }
-
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -89,11 +80,9 @@
       overflow: hidden;
       transition: box-shadow 0.2s ease, transform 0.2s ease;
     }
-
     .card:hover {
       box-shadow: var(--shadow);
     }
-
     .card h3 {
       margin: 0;
       padding: 16px 20px;
@@ -105,11 +94,9 @@
       color: var(--navy);
       text-transform: uppercase;
     }
-
     .card .body {
       padding: 20px;
     }
-
     label {
       display: block;
       font-size: 13px;
@@ -117,7 +104,6 @@
       margin-bottom: 8px;
       color: var(--text-primary);
     }
-
     input[type=file],
     select {
       width: 100%;
@@ -128,19 +114,16 @@
       background: white;
       transition: all 0.2s ease;
     }
-
     input[type=file]:hover,
     select:hover {
       border-color: var(--navy-light);
     }
-
     input[type=file]:focus,
     select:focus {
       outline: none;
       border-color: var(--navy);
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
     }
-
     input[type=text] {
       padding: 8px 12px;
       border: 1.5px solid var(--border);
@@ -148,13 +131,11 @@
       font-size: 13px;
       transition: all 0.2s ease;
     }
-
     input[type=text]:focus {
       outline: none;
       border-color: var(--navy);
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
     }
-
     button {
       width: 100%;
       padding: 12px 16px;
@@ -169,47 +150,38 @@
       justify-content: center;
       gap: 8px;
     }
-
     button:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-
     button:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: var(--shadow);
     }
-
     button:not(:disabled):active {
       transform: translateY(0);
     }
-
     button.primary {
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
     }
-
     button.secondary {
       background: white;
       color: var(--text-primary);
       border: 1.5px solid var(--border);
     }
-
     button.secondary:hover {
       background: var(--bg);
       border-color: var(--navy);
     }
-
     button.danger {
       background: linear-gradient(135deg, #dc2626 0%, var(--danger) 100%);
       color: white;
     }
-
     button.success {
       background: linear-gradient(135deg, #059669 0%, var(--success) 100%);
       color: white;
     }
-
     .status {
       display: inline-flex;
       align-items: center;
@@ -221,7 +193,6 @@
       background: var(--bg);
       border: 1px solid var(--border);
     }
-
     .status::before {
       content: '';
       width: 8px;
@@ -230,12 +201,10 @@
       background: var(--success);
       animation: pulse 2s ease-in-out infinite;
     }
-
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-
     .logbox {
       height: 320px;
       overflow: auto;
@@ -249,55 +218,45 @@
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
-
     .logbox::-webkit-scrollbar {
       width: 8px;
     }
-
     .logbox::-webkit-scrollbar-track {
       background: #1e293b;
       border-radius: 4px;
     }
-
     .logbox::-webkit-scrollbar-thumb {
       background: #334155;
       border-radius: 4px;
     }
-
     .logbox::-webkit-scrollbar-thumb:hover {
       background: #475569;
     }
-
     .review-controls {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
       margin-bottom: 20px;
     }
-
     .review-controls select {
       height: 44px;
     }
-
     .table-container {
       overflow-x: auto;
       border-radius: 8px;
       border: 1px solid var(--border);
       margin-top: 12px;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
     }
-
     th, td {
       padding: 12px 16px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
-
     th {
       background: #f8fafc;
       font-weight: 700;
@@ -308,46 +267,43 @@
       position: sticky;
       top: 0;
     }
-
     tr.valid {
       background: #f0fdf4;
     }
-
     tr.invalid {
       background: #fef2f2;
     }
-
     tr:hover {
       background: #f9fafb;
     }
-
     tr.valid:hover {
       background: #dcfce7;
     }
-
     tr.invalid:hover {
       background: #fee2e2;
     }
-
     .override-wrap {
       display: flex;
       gap: 8px;
       align-items: center;
       flex-wrap: wrap;
     }
-
     .override-wrap select {
       width: 140px;
       height: 36px;
       font-size: 13px;
     }
-
     .override-wrap input {
       flex: 1;
       min-width: 180px;
       height: 36px;
     }
-
+    /* 🔹 PATCH: Style for unsaved changes */
+    .override-wrap.dirty select,
+    .override-wrap.dirty input {
+      border-color: var(--warning);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+    }
     .section-header {
       display: flex;
       align-items: center;
@@ -359,7 +315,6 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-
     .section-header::before {
       content: '';
       width: 4px;
@@ -367,7 +322,6 @@
       background: var(--navy);
       border-radius: 2px;
     }
-
     .hint {
       font-size: 13px;
       color: var(--text-secondary);
@@ -377,13 +331,11 @@
       border: 1px dashed var(--border);
       text-align: center;
     }
-
     .small {
       font-size: 12px;
       color: var(--text-secondary);
       margin-top: 8px;
     }
-
     footer {
       padding: 24px;
       text-align: center;
@@ -393,7 +345,6 @@
       margin-top: 40px;
       background: white;
     }
-
     footer a {
       color: var(--navy);
       text-decoration: none;
@@ -401,18 +352,15 @@
       border-bottom: 2px solid transparent;
       transition: border-color 0.2s ease;
     }
-
     footer a:hover {
       border-bottom-color: var(--navy);
     }
-
     .action-buttons {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
       margin-top: 16px;
     }
-
     .divider {
       height: 1px;
       background: var(--border);
@@ -425,7 +373,6 @@
   <h1>⚓ ATGSD Sea Pay Processor</h1>
   <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
 </header>
-
 <div class="wrap">
   <div class="grid">
     <div class="stack">
@@ -477,7 +424,6 @@
         </div>
       </div>
     </div>
-
     <div class="stack">
       <div class="card">
         <h3>📜 Live Processing Log</h3>
@@ -485,7 +431,6 @@
           <div id="liveLog" class="logbox"></div>
         </div>
       </div>
-
       <div class="card">
         <h3>✏️ Review & Override</h3>
         <div class="body">
@@ -503,11 +448,9 @@
               </select>
             </div>
           </div>
-
           <div class="hint" id="reviewHint">
             👆 Select a member and sheet to review and override validation results
           </div>
-
           <div class="section-header">✅ Valid Rows</div>
           <div class="table-container">
             <table>
@@ -524,7 +467,6 @@
               <tbody id="validBody"></tbody>
             </table>
           </div>
-
           <div class="section-header">❌ Invalid Events</div>
           <div class="table-container">
             <table>
@@ -541,7 +483,6 @@
               <tbody id="invalidBody"></tbody>
             </table>
           </div>
-
           <div class="action-buttons">
             <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
               💾 Save Overrides
@@ -555,23 +496,24 @@
     </div>
   </div>
 </div>
-
 <footer>
   Developed by <a href="mailto:ryan.n.nivera.mil@us.navy.mil?subject=ATGSD Sea Pay Processor - Support Request&body=Hello STG1(SW) Nivera, Ryan,%0D%0A%0D%0AI have a question about the ATGSD Sea Pay Processor:%0D%0A%0D%0A">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
 </footer>
-
 <script>
   const $ = (id) => document.getElementById(id);
   
   let lastStatus = null;
   let pendingOverrides = {};
 
+  // 🔹 PATCH: Store the original dropdown values to revert if user cancels navigation
+  let lastSelectedMember = "";
+  let lastSelectedSheet = "";
+  
   function safeText(v) {
     if (v === null || v === undefined) return "";
     if (typeof v === "object") return JSON.stringify(v);
     return String(v);
   }
-
   function pick(obj, keys, fallback="") {
     if (!obj) return fallback;
     for (const k of keys) {
@@ -579,13 +521,11 @@
     }
     return fallback;
   }
-
   async function jget(url) {
     const r = await fetch(url, {cache:"no-store"});
     if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
     return await r.json();
   }
-
   async function jpost(url, payload) {
     const r = await fetch(url, {
       method:"POST",
@@ -598,7 +538,6 @@
     }
     return await r.json();
   }
-
   async function jdel(url, payload) {
     const r = await fetch(url, {
       method:"DELETE",
@@ -611,14 +550,12 @@
     }
     return await r.json();
   }
-
   async function pollProgress() {
     try {
       const data = await jget("/progress");
       const pct = pick(data, ["percent","progress","pct"], null);
       const status = pick(data, ["status","state","message"], "Idle");
       const log = pick(data, ["log","lines","text"], "");
-
       if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
         refreshReviewLists();
       }
@@ -629,7 +566,6 @@
       } else {
         $("statusText").textContent = status;
       }
-
       if (typeof log === "string") {
         const logBox = $("liveLog");
         const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
@@ -642,7 +578,6 @@
   }
   setInterval(pollProgress, 1000);
   pollProgress();
-
   $("processForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -650,7 +585,6 @@
     if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
     if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
     fd.append("strikeout_color", $("strikeColor").value);
-
     $("processBtn").disabled = true;
     try {
       const r = await fetch("/process", {method:"POST", body: fd});
@@ -662,10 +596,8 @@
       $("processBtn").disabled = false;
     }
   });
-
   $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
   $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
-
   $("btnReset").addEventListener("click", async () => {
     if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
     try {
@@ -686,7 +618,6 @@
       alert(err.message || String(err));
     }
   });
-
   async function refreshReviewLists() {
     try {
       const members = await jget("/api/members");
@@ -699,17 +630,18 @@
         opt.textContent = m;
         sel.appendChild(opt);
       }
-      if (current && members.includes(current)) sel.value = current;
+      if (current && members.includes(current)) {
+        sel.value = current;
+      }
+      lastSelectedMember = sel.value; // 🔹 PATCH: Initialize last selected member
     } catch (e) {}
   }
-
   async function loadSheetsForMember(memberKey) {
     $("sheetSelect").disabled = true;
     $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
     if (!memberKey) return;
-
     const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
     const sel = $("sheetSelect");
     for (const s of sheets) {
@@ -719,12 +651,11 @@
       sel.appendChild(opt);
     }
     sel.disabled = false;
+    lastSelectedSheet = sel.value; // 🔹 PATCH: Initialize last selected sheet
   }
-
   function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
     const wrap = document.createElement("div");
     wrap.className = "override-wrap";
-
     const sel = document.createElement("select");
     const options = [
       {v:"", t:"🔄 Auto"},
@@ -738,12 +669,10 @@
       sel.appendChild(opt);
     }
     sel.value = currentStatus || "";
-
     const reason = document.createElement("input");
     reason.type = "text";
     reason.placeholder = "Reason (optional)";
     reason.value = currentReason || "";
-
     const queue = () => {
       const key = memberKey + "|" + sheetFile + "|" + String(eventIndex);
       pendingOverrides[key] = {
@@ -754,30 +683,26 @@
         reason: reason.value || "",
         source: "manual"
       };
+      // 🔹 PATCH: Add visual indicator for unsaved changes
+      wrap.classList.add("dirty");
     };
-
     sel.addEventListener("change", queue);
     reason.addEventListener("input", queue);
-
     wrap.appendChild(sel);
     wrap.appendChild(reason);
     return wrap;
   }
-
   function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
     tbody.innerHTML = "";
     if (!Array.isArray(rows) || rows.length === 0) return;
-
     rows.forEach((row, idx) => {
       const tr = document.createElement("tr");
       tr.className = rowClass || "";
-
       const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
       const ship = pick(row, ["ship","Ship","ship_name"], "");
       const event = pick(row, ["event","Event","event_details"], "");
       const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
       const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
-
       const ov = row.override || row.Override || null;
       const ovStatus = pick(ov || row, ["status","override_status","override"], "");
       const ovReason = pick(ov || row, ["reason","override_reason"], "");
@@ -787,17 +712,13 @@
       if (eventIndex === null) {
         eventIndex = (rowClass === "invalid") ? -(idx + 1) : idx;
       }
-
       const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
       const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
       const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
-
       const tdOverride = document.createElement("td");
       tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
-
       const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
-
       tr.appendChild(tdDate);
       tr.appendChild(tdShip);
       tr.appendChild(tdEvent);
@@ -807,18 +728,25 @@
       tbody.appendChild(tr);
     });
   }
-
   async function loadSheet(memberKey, sheetFile) {
-    if (!memberKey || !sheetFile) return;
+    if (!memberKey || !sheetFile) {
+        // 🔹 PATCH: Clear tables and hint if no sheet is selected
+        $("validBody").innerHTML = "";
+        $("invalidBody").innerHTML = "";
+        $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
+        return;
+    };
     const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
     const validRows = data.valid_rows || data.valid || data.rows_valid || [];
     const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
-
     $("reviewHint").textContent = "";
     renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
-  }
 
+    // 🔹 PATCH: Update last selected values after a successful load
+    lastSelectedMember = $("memberSelect").value;
+    lastSelectedSheet = $("sheetSelect").value;
+  }
   async function saveOverrides() {
     try {
       const keys = Object.keys(pendingOverrides);
@@ -826,12 +754,10 @@
         alert("ℹ️ No changes to save.");
         return;
       }
-
       for (const k of keys) {
         const payload = pendingOverrides[k];
         const st = payload.status;
         const rsn = (payload.reason || "").trim();
-
         if ((st === null || st === "") && rsn === "") {
           await jdel("/api/override", {
             member_key: payload.member_key,
@@ -845,11 +771,10 @@
             event_index: payload.event_index,
             status: st,
             reason: payload.reason || "",
-            source: "manual"
+source: "manual"
           });
         }
       }
-
       pendingOverrides = {};
       await loadSheet($("memberSelect").value, $("sheetSelect").value);
       alert("✅ Overrides saved successfully!");
@@ -857,10 +782,8 @@
       alert("❌ " + (e.message || String(e)));
     }
   }
-
   async function rebuildOutputs() {
     if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
-
     try {
       const r = await fetch("/rebuild_outputs", { method: "POST" });
       if (!r.ok) throw new Error("Rebuild failed");
@@ -869,12 +792,29 @@
       alert("❌ " + (e.message || String(e)));
     }
   }
+
+  // 🔹 PATCH: Centralized handler for navigating away from a view with pending changes
+  function confirmNavigation() {
+    if (Object.keys(pendingOverrides).length > 0) {
+      return confirm("⚠️ You have unsaved changes that will be lost. Are you sure you want to continue?");
+    }
+    return true; // No pending changes, so navigation is safe
+  }
   
   $("memberSelect").addEventListener("change", async () => {
+    if (!confirmNavigation()) {
+      $("memberSelect").value = lastSelectedMember; // Revert selection
+      return;
+    }
+    pendingOverrides = {}; // Clear pending changes
     await loadSheetsForMember($("memberSelect").value);
   });
-
   $("sheetSelect").addEventListener("change", async () => {
+    if (!confirmNavigation()) {
+      $("sheetSelect").value = lastSelectedSheet; // Revert selection
+      return;
+    }
+    pendingOverrides = {}; // Clear pending changes
     await loadSheet($("memberSelect").value, $("sheetSelect").value);
   });
 
