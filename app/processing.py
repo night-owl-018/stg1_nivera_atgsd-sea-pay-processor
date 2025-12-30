@@ -290,12 +290,12 @@ def process_all(strike_color: str = "black"):
             override = { "status": None, "reason": None, "source": None, "history": [] }
             final_classification = { "is_valid": False, "reason": category, "source": "system" }
             
-            # 🔹 --- START OF PATCH --- 🔹
+            # 🔹 --- START OF CORRECTION --- 🔹
             invalid_events.append({
                 "event_index": event_index,
-                "status": "invalid", # Add explicit "invalid" status for UI consistency
+                "status": "invalid",
                 "date": e.get("date"),
-                "ship": e.g.get("ship"),
+                "ship": e.get("ship"),  # Corrected from e.g.get
                 "event": extract_event_details(e.get("raw", "")),
                 "occ_idx": e.get("occ_idx"),
                 "raw": e.get("raw", ""),
@@ -306,7 +306,7 @@ def process_all(strike_color: str = "black"):
                 "override": override,
                 "final_classification": final_classification,
             })
-            # 🔹 --- END OF PATCH --- 🔹
+            # 🔹 --- END OF CORRECTION --- 🔹
             
         sheet_block["invalid_events"] = invalid_events
 
@@ -597,4 +597,5 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
 
