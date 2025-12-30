@@ -11,38 +11,45 @@ from app.core.config import (
 
 # 🔹 --- START OF PATCH --- 🔹
 
-def _get_members_from_files(folder):
+def _get_file_prefixes_from_folder(folder):
     """
-    Scans a folder and extracts a sorted list of unique member keys
-    from the PDF filenames. Assumes format RATE_LAST_FIRST_...
+    Scans a folder and extracts a sorted list of unique filename prefixes.
+    This is the source of truth for identifying member files.
+    Example: 'STG1_NIVERA_RYAN_N_SUMMARY.pdf' -> 'STG1_NIVERA_RYAN_N'
     """
     if not os.path.exists(folder):
         return []
     
-    member_keys = set()
+    prefixes = set()
     files = [f for f in os.listdir(folder) if f.lower().endswith(".pdf")]
     
     for f in files:
-        # Assumes format like 'STG1_NIVERA_RYAN_...'
-        parts = f.split('_')
-        if len(parts) >= 3:
-            # Reconstruct the member_key: 'STG1 NIVERA,RYAN'
-            rate = parts[0]
-            last = parts[1]
-            first = parts[2]
-            member_key = f"{rate} {last},{first}"
-            member_keys.add(member_key)
+        # Reliably get the prefix by removing the known suffix
+        if f.endswith("_SUMMARY.pdf"):
+            prefixes.add(f[:-12]) # Length of "_SUMMARY.pdf" is 12
             
-    return sorted(list(member_keys))
+    return sorted(list(prefixes))
+
+def _create_bookmark_name(safe_prefix):
+    """
+    Converts a filename-safe prefix back into a human-readable bookmark name.
+    Example: 'STG1_NIVERA_RYAN_N' -> 'STG1 NIVERA,RYAN N'
+    """
+    parts = safe_prefix.split('_')
+    if len(parts) >= 3:
+        rate = parts[0]
+        last = parts[1]
+        first = " ".join(parts[2:])
+        return f"{rate} {last},{first}"
+    return safe_prefix.replace("_", " ") # Fallback
 
 def _append_pdf(writer, file_path, bookmark_title, parent_bookmark=None):
     """
     Helper to append a PDF to the writer and add an optional bookmark.
     Returns the number of pages added.
     """
-    # Add detailed logging
     if not os.path.exists(file_path):
-        log(f"  - ❗️ SKIPPING: File not found for bookmark '{bookmark_title}' at path: {file_path}")
+        log(f"  - INFO: File not found for bookmark '{bookmark_title}'. Looked for: {os.path.basename(file_path)}")
         return 0
         
     try:
@@ -76,34 +83,34 @@ def merge_all_pdfs():
     final_package_path = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PACKAGE.pdf")
     writer = PdfWriter()
     
-    # Add detailed logging
     log("=== BOOKMARKED PACKAGE MERGE STARTED ===")
     
-    all_members = _get_members_from_files(SUMMARY_PDF_FOLDER)
-    if not all_members:
+    # 1. Get a master list of all file prefixes from the summary files.
+    all_prefixes = _get_file_prefixes_from_folder(SUMMARY_PDF_FOLDER)
+    if not all_prefixes:
         log("MERGE FAILED → No member summary PDFs found in SUMMARY_PDF folder. Cannot determine which members to process.")
         writer.close()
         return
 
-    log(f"Found {len(all_members)} members to process: {all_members}")
+    log(f"Found {len(all_prefixes)} unique member file prefixes: {all_prefixes}")
     
-    for member_key in all_members:
-        log(f"Processing member: '{member_key}'")
-        
-        safe_key_prefix = member_key.replace(",", "").replace(" ", "_")
-        log(f"  - Using safe file prefix: '{safe_key_prefix}'")
+    # 2. Loop through each prefix to build a member's section
+    for safe_key_prefix in all_prefixes:
+        member_bookmark_name = _create_bookmark_name(safe_key_prefix)
+        log(f"Processing prefix: '{safe_key_prefix}' for member: '{member_bookmark_name}'")
         
         parent_page_num = len(writer.pages)
-        parent_bookmark = writer.add_outline_item(member_key, parent_page_num)
-        log(f"  - Creating parent bookmark '{member_key}' at page {parent_page_num + 1}")
+        parent_bookmark = writer.add_outline_item(member_bookmark_name, parent_page_num)
+        log(f"  - Creating parent bookmark '{member_bookmark_name}' at page {parent_page_num + 1}")
         
-        # Find and append Summary PDF
+        # 3. Find and append this member's files using the exact prefix
+        
         summary_file = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_key_prefix}_SUMMARY.pdf")
         _append_pdf(writer, summary_file, "Summary", parent_bookmark)
         
-        # Find and append TORIS Cert PDF
         try:
-            toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) if safe_key_prefix in f]
+            # Use startswith for a robust match
+            toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) if f.startswith(safe_key_prefix)]
             if toris_files:
                 toris_file_path = os.path.join(TORIS_CERT_FOLDER, toris_files[0])
                 _append_pdf(writer, toris_file_path, "TORIS Certification", parent_bookmark)
@@ -112,9 +119,9 @@ def merge_all_pdfs():
         except FileNotFoundError:
             log(f"  - WARNING: TORIS Cert folder not found at {TORIS_CERT_FOLDER}")
 
-        # Find and append all PG-13 PDFs for this member
         try:
-            pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) if safe_key_prefix in f]
+            # Use startswith for a robust match
+            pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) if f.startswith(safe_key_prefix)]
             if pg13_files:
                 pg13_parent_bookmark = writer.add_outline_item("PG-13s", len(writer.pages), parent=parent_bookmark)
                 for pg13_file in sorted(pg13_files):
@@ -138,7 +145,7 @@ def merge_all_pdfs():
         except Exception as e:
             log(f"❗️CRITICAL ERROR writing final PDF: {e}")
     else:
-        log("MERGE FAILED → No pages were added to the final package. Check file paths and prefixes.")
+        log("MERGE FAILED → No pages were added to the final package. Check file paths and prefixes in the log.")
         
     writer.close()
     log("PACKAGE MERGE COMPLETE")
