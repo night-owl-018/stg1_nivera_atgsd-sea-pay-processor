@@ -440,43 +440,49 @@
     }
     
     /* RESPONSIVE OVERRIDE CONTROLS */
-    .override-wrap {
-      display: flex;
-      gap: 6px;
+    /* Cleaner override layout */
+    .override-wrap{
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px;
       align-items: center;
-      flex-wrap: wrap;
     }
     
-    @media (min-width: 768px) {
-      .override-wrap {
-        gap: 8px;
-      }
-    }
-    
-    .override-wrap select {
-      width: 120px;
+    .override-wrap select{
+      width: 140px;
+      max-width: 140px;
+      min-width: 0;
       height: 36px;
-      font-size: 12px;
+      font-size: 13px;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
     }
     
-    @media (min-width: 768px) {
-      .override-wrap select {
-        width: 140px;
-        font-size: 13px;
-      }
-    }
-    
-    .override-wrap input {
-      flex: 1;
-      min-width: 140px;
+    .override-wrap input{
+      width: 100%;
       height: 36px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background: #fff;   /* patch: cleaner look */
+      border: 1.5px solid var(--border);
     }
-    
-    @media (min-width: 768px) {
-      .override-wrap input {
-        min-width: 180px;
+
+    /* Mobile: stack them */
+    @media (max-width: 640px){
+      .override-wrap{
+        grid-template-columns: 1fr;
+      }
+      .override-wrap select{        
+        width: 100%;
+        max-width: 100%;
       }
     }
+
     
     .override-wrap.dirty select,
     .override-wrap.dirty input {
