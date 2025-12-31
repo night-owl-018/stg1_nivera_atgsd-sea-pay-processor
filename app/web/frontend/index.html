@@ -60,13 +60,15 @@
       opacity: 0.9;
       margin-top: 2px;
     }
+          
     .wrap {
-      max-width: 1400px;
+      max-width: 1600px;                 /* better on 24"+ monitors */
       margin: 0 auto;
-      padding: 16px;
+      padding: clamp(10px, 2.5vw, 24px); /* tight on iPhone, roomy on desktop */
       width: 100%;
-      overflow-x: hidden; /* or remove entirely */
+      overflow-x: hidden;
     }
+
     /* RESPONSIVE GRID */
     .grid {
       display: grid;
@@ -354,24 +356,13 @@
       max-width: 100%;
       -webkit-overflow-scrolling: touch;
     }
+    
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: clamp(10px, 1.8vw, 13px);
-      min-width: 500px;
-    }
-    
-    @media (min-width: 768px) {
-      table {
-        min-width: 650px;
-        font-size: clamp(11px, 1.5vw, 13px);
-      }
-    }
-    
-    @media (min-width: 1024px) {
-      table {
-        min-width: 800px;
-      }
+      min-width: 0;          /* IMPORTANT: stop forcing iPhone sideways scroll */
+      table-layout: fixed;   /* keeps desktop neat */
     }
     
     th, td {
@@ -646,6 +637,52 @@
     
     /* Optional: slightly tighten the Override column cell itself */
     td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
+
+/* =========================
+   iPHONE / SMALL SCREEN TIGHT MODE
+   ========================= */
+    @media (max-width: 480px) {
+      header { padding: 12px 14px; }
+      header h1 { font-size: 18px; }
+      header .subtitle { font-size: 12px; }
+    
+      .stack > * + * { margin-top: 12px; }
+    
+      .card { border-radius: 10px; }
+      .card h3 { padding: 10px 12px; }
+      .card .body { padding: 12px; }
+    
+      button { padding: 12px 14px; font-size: 15px; }
+    
+      .logbox { height: 200px; padding: 10px; font-size: 12px; }
+    
+      .table-container { margin-top: 10px; }
+      table { table-layout: auto; }
+      th, td { padding: 6px 8px; }
+      th { font-size: 11px; }
+    
+      table thead th { width: auto !important; }
+    
+      #validBody td:nth-child(1),
+      #invalidBody td:nth-child(1) { width: 88px; }
+    
+      #validBody td:nth-child(2),
+      #invalidBody td:nth-child(2) { width: 120px; }
+    
+      #validBody td:nth-child(3),
+      #invalidBody td:nth-child(3),
+      #validBody td:nth-child(6),
+      #invalidBody td:nth-child(6) {
+        white-space: normal;
+        word-break: break-word;
+      }
+    
+      .override-wrap select,
+      .override-wrap input {
+        height: 32px;
+        font-size: 13px;
+      }
+    }
   </style>
 </head>
 <body>
