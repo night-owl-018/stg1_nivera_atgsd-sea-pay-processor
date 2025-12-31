@@ -884,10 +884,10 @@
     $("reviewHint").textContent = "Loading events...";
     
     try {
-      const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile) + "/events");
+      const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
       
-      const validRows = data.valid || [];
-      const invalidRows = data.invalid || [];
+      const validRows = data.valid_rows || [];
+      const invalidRows = data.invalid_events || [];
       
       if($("validCount")) $("validCount").textContent = String(validRows.length);
       if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
@@ -1012,9 +1012,19 @@
       return;
     }
     
+    // Transform data format from frontend to backend expected format
+    const transformedOverrides = overrides.map(override => ({
+      member_key: override.member_key,
+      sheet_file: override.sheet_file,
+      event_index: override.event_index,
+      status: override.override_status || "",
+      reason: override.override_reason || "",
+      source: "manual"
+    }));
+    
     $("saveOverridesBtn").disabled = true;
     try {
-      await jpost("/api/overrides", {overrides});
+      await jpost("/api/overrides/batch", transformedOverrides);
       alert(`✅ Saved ${overrides.length} override(s)`);
       pendingOverrides = {};
       
@@ -1032,8 +1042,8 @@
     if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
     
     try {
-      const resp = await jpost("/api/rebuild", {});
-      alert("✅ " + (resp.message || "Rebuild complete"));
+      const resp = await jpost("/rebuild_outputs", {});
+      alert("✅ " + (resp.status || "Rebuild complete"));
     } catch (err) {
       alert("Error rebuilding: " + err.message);
     }
