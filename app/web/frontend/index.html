@@ -25,14 +25,15 @@
 
       /* PATCH: minimum auto-fit font size */
       --fit-min-font: 6;
-    }
-    
-    .grid * { min-width: 0; }
 
+      /* PATCH: global UI scale (controlled by zoom widget) */
+      --ui-scale: 1;
+    }
+
+    .grid * { min-width: 0; }
     img, svg, video, canvas { max-width: 100%; height: auto; }
-    
     html, body { overflow-x: hidden; }
-    
+
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -41,6 +42,7 @@
       line-height: 1.5;
       width: 100%;
     }
+
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
@@ -57,17 +59,114 @@
       font-weight: 700;
       letter-spacing: -0.025em;
     } 
-    
     header .subtitle {
       font-size: clamp(11px, 2vw, 13px);
       opacity: 0.9;
       margin-top: 2px;
     }
-          
+
+    /* =========================
+       PATCH: In-app zoom controls + scaled app wrapper
+       ========================= */
+
+    /* Scale the whole app without breaking layout by scaling an inner wrapper */
+    .app-scale {
+      transform: scale(var(--ui-scale));
+      transform-origin: top center;
+      width: calc(100% / var(--ui-scale));
+    }
+
+    /* Sticky zoom bar lives under header */
+    .zoombar {
+      position: sticky;
+      top: 72px; /* sits below header */
+      z-index: 90;
+      display: flex;
+      justify-content: center;
+      padding: 10px 12px;
+      background: linear-gradient(to bottom, rgba(249,250,251,0.96), rgba(249,250,251,0.82));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    @media (max-width: 480px) {
+      .zoombar { top: 64px; padding: 8px 10px; }
+    }
+
+    .zoompanel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      padding: 8px 10px;
+      max-width: 980px;
+      width: 100%;
+    }
+
+    .zoompanel .zlabel {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--navy);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      margin-right: 4px;
+    }
+
+    .zbtn {
+      border: 1.5px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .zbtn:hover { border-color: var(--navy); background: var(--bg); }
+    .zbtn:active { transform: translateY(1px); }
+
+    .zreadout {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 0 6px;
+      min-width: 64px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .zslider {
+      width: 100%;
+      flex: 1;
+      min-width: 120px;
+      accent-color: var(--navy);
+    }
+
+    .zhelp {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    @media (max-width: 640px) {
+      .zhelp { display: none; }
+      .zoompanel { gap: 6px; padding: 8px; }
+      .zbtn { padding: 8px; }
+    }
+
     .wrap {
-      max-width: 1600px;                 /* better on 24"+ monitors */
+      max-width: 1600px;
       margin: 0 auto;
-      padding: clamp(10px, 2.5vw, 24px); /* tight on iPhone, roomy on desktop */
+      padding: clamp(10px, 2.5vw, 24px);
       width: 100%;
       overflow-x: hidden;
     }
@@ -80,31 +179,17 @@
       align-items: start;
       width: 100%;
     }
-    /* Tablet and up: side-by-side layout */
     @media (min-width: 768px) {
-      .wrap {
-        padding: 20px;
-      }
-      .grid {
-        grid-template-columns: minmax(280px, 360px) 1fr;
-        gap: 20px;
-      }
+      .wrap { padding: 20px; }
+      .grid { grid-template-columns: minmax(280px, 360px) 1fr; gap: 20px; }
     }
-    
-    /* Desktop: optimal layout */
     @media (min-width: 1024px) {
-      .wrap {
-        padding: 24px;
-      }
-      .grid {
-        grid-template-columns: minmax(340px, 420px) 1fr;
-        gap: 24px;
-      }
+      .wrap { padding: 24px; }
+      .grid { grid-template-columns: minmax(340px, 420px) 1fr; gap: 24px; }
     }
-    
-    .stack > * + * {
-      margin-top: 16px;
-    }
+
+    .stack > * + * { margin-top: 16px; }
+
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -115,9 +200,8 @@
       max-width: 100%;
       width: 100%;
     }
-    .card:hover {
-      box-shadow: var(--shadow);
-    }
+    .card:hover { box-shadow: var(--shadow); }
+
     .card h3 {
       margin: 0;
       padding: 12px 14px;
@@ -129,29 +213,17 @@
       color: var(--navy);
       text-transform: uppercase;
     }
-    .card .body {
-      padding: 14px;
-    }
-    
+    .card .body { padding: 14px; }
+
     @media (min-width: 768px) {
-      .card h3 {
-        padding: 14px 16px;
-        font-size: clamp(12px, 2vw, 14px);
-      }
-      .card .body {
-        padding: 16px;
-      }
+      .card h3 { padding: 14px 16px; font-size: clamp(12px, 2vw, 14px); }
+      .card .body { padding: 16px; }
     }
-    
     @media (min-width: 1024px) {
-      .card h3 {
-        padding: 16px 20px;
-      }
-      .card .body {
-        padding: 20px;
-      }
+      .card h3 { padding: 16px 20px; }
+      .card .body { padding: 20px; }
     }
-    
+
     label {
       display: block;
       font-size: 13px;
@@ -159,8 +231,8 @@
       margin-bottom: 8px;
       color: var(--text-primary);
     }
-    input[type=file],
-    select {
+
+    input[type=file], select {
       width: 100%;
       max-width: 100%;
       padding: 10px 12px;
@@ -171,16 +243,13 @@
       transition: all 0.2s ease;
       box-sizing: border-box;
     }
-    input[type=file]:hover,
-    select:hover {
-      border-color: var(--navy-light);
-    }
-    input[type=file]:focus,
-    select:focus {
+    input[type=file]:hover, select:hover { border-color: var(--navy-light); }
+    input[type=file]:focus, select:focus {
       outline: none;
       border-color: var(--navy);
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
     }
+
     input[type=text] {
       padding: 8px 12px;
       border: 1.5px solid var(--border);
@@ -194,19 +263,13 @@
       border-color: var(--navy);
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
     }
-    
+
     /* Mobile: prevent zoom and larger touch targets */
     @media (max-width: 767px) {
-      input[type=file],
-      select {
-        font-size: 16px; /* Prevents iOS zoom */
-        padding: 12px 14px;
-      }
-      input[type=text] {
-        font-size: 16px; /* Prevents iOS zoom */
-        padding: 10px 12px;
-      }
+      input[type=file], select { font-size: 16px; padding: 12px 14px; }
+      input[type=text] { font-size: 16px; padding: 10px 12px; }
     }
+
     button {
       width: 100%;
       padding: 12px 16px;
@@ -221,17 +284,10 @@
       justify-content: center;
       gap: 8px;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    button:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: var(--shadow);
-    }
-    button:not(:disabled):active {
-      transform: translateY(0);
-    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    button:not(:disabled):active { transform: translateY(0); }
+
     button.primary {
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
@@ -241,10 +297,8 @@
       color: var(--text-primary);
       border: 1.5px solid var(--border);
     }
-    button.secondary:hover {
-      background: var(--bg);
-      border-color: var(--navy);
-    }
+    button.secondary:hover { background: var(--bg); border-color: var(--navy); }
+
     button.danger {
       background: linear-gradient(135deg, #dc2626 0%, var(--danger) 100%);
       color: white;
@@ -253,6 +307,7 @@
       background: linear-gradient(135deg, #059669 0%, var(--success) 100%);
       color: white;
     }
+
     .status {
       display: inline-flex;
       align-items: center;
@@ -276,6 +331,7 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
+
     .logbox {
       height: 240px;
       overflow: auto;
@@ -289,36 +345,14 @@
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
-    
-    @media (min-width: 768px) {
-      .logbox {
-        height: 280px;
-        padding: 14px;
-      }
-    }
-    
-    @media (min-width: 1024px) {
-      .logbox {
-        height: 320px;
-        padding: 16px;
-      }
-    }
-    
-    .logbox::-webkit-scrollbar {
-      width: 8px;
-    }
-    .logbox::-webkit-scrollbar-track {
-      background: #1e293b;
-      border-radius: 4px;
-    }
-    .logbox::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 4px;
-    }
-    .logbox::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
-    
+    @media (min-width: 768px) { .logbox { height: 280px; padding: 14px; } }
+    @media (min-width: 1024px) { .logbox { height: 320px; padding: 16px; } }
+
+    .logbox::-webkit-scrollbar { width: 8px; }
+    .logbox::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+    .logbox::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .logbox::-webkit-scrollbar-thumb:hover { background: #475569; }
+
     /* RESPONSIVE REVIEW CONTROLS */
     .review-controls {
       display: grid;
@@ -326,30 +360,19 @@
       gap: 12px;
       margin-bottom: 16px;
     }
-    
     @media (min-width: 640px) {
-      .review-controls {
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 20px;
-      }
+      .review-controls { grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
     }
-    
-    .review-controls select {
-      height: 44px;
-    }
-    /* --- FIX: Long Member/Sheet values must be allowed to shrink inside grid --- */
-    .review-controls > div {
-      min-width: 0; /* critical in CSS grid to prevent overflow */
-    }
-    
+    .review-controls select { height: 44px; }
+    .review-controls > div { min-width: 0; }
     .review-controls select {
       min-width: 0;
       max-width: 100%;
       overflow: hidden;
-      text-overflow: ellipsis;  /* Chrome will ellipsis most of the time */
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
+
     /* RESPONSIVE TABLE */
     .table-container {
       overflow-x: auto;
@@ -359,43 +382,30 @@
       max-width: 100%;
       -webkit-overflow-scrolling: touch;
     }
-    
+
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: clamp(10px, 1.8vw, 13px);
-      min-width: 0;          /* IMPORTANT: stop forcing iPhone sideways scroll */
-      table-layout: fixed;   /* keeps desktop neat */
+      min-width: 0;
+      table-layout: fixed;
     }
-    
+
     th, td {
       padding: 10px 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
-    
-    @media (min-width: 768px) {
-      th, td {
-        padding: 12px 16px;
-      }
-    }
-    /* --- FIX: Tables should not force the page wider; control long text --- */
-    .table-container {
-      overflow-x: auto; /* keep scrolling inside container */
-    }
-    
-    table {
-      table-layout: fixed; /* prevents one long cell from stretching the whole table */
-    }
-    
-    /* Default: keep cells tidy */
+    @media (min-width: 768px) { th, td { padding: 12px 16px; } }
+
+    table { table-layout: fixed; }
+
     th, td {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    
-    /* BUT: allow Event + Reason to wrap so the user can read it */
+
     #validBody td:nth-child(3),
     #invalidBody td:nth-child(3),
     #validBody td:nth-child(6),
@@ -417,31 +427,19 @@
       top: 0;
       z-index: 10;
     }
-    tr.valid {
-      background: #f0fdf4;
-    }
-    tr.invalid {
-      background: #fef2f2;
-    }
-    tr:hover {
-      background: #f9fafb;
-    }
-    tr.valid:hover {
-      background: #dcfce7;
-    }
-    tr.invalid:hover {
-      background: #fee2e2;
-    }
-    
-    /* RESPONSIVE OVERRIDE CONTROLS */
-    /* Cleaner override layout */
+
+    tr.valid { background: #f0fdf4; }
+    tr.invalid { background: #fef2f2; }
+    tr:hover { background: #f9fafb; }
+    tr.valid:hover { background: #dcfce7; }
+    tr.invalid:hover { background: #fee2e2; }
+
     .override-wrap{
       display: grid;
       grid-template-columns: 140px 1fr;
       gap: 8px;
       align-items: center;
     }
-    
     .override-wrap select{
       width: 140px;
       max-width: 140px;
@@ -454,7 +452,6 @@
       border-radius: 8px;
       background: #fff;
     }
-    
     .override-wrap input{
       width: 100%;
       height: 36px;
@@ -462,27 +459,21 @@
       font-size: 13px;
       border-radius: 8px;
       box-sizing: border-box;
-      background: #fff;   /* patch: cleaner look */
+      background: #fff;
       border: 1.5px solid var(--border);
     }
 
-    /* Mobile: stack them */
     @media (max-width: 640px){
-      .override-wrap{
-        grid-template-columns: 1fr;
-      }
-      .override-wrap select{        
-        width: 100%;
-        max-width: 100%;
-      }
+      .override-wrap{ grid-template-columns: 1fr; }
+      .override-wrap select{ width: 100%; max-width: 100%; }
     }
 
-    
     .override-wrap.dirty select,
     .override-wrap.dirty input {
       border-color: var(--warning);
       box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
     }
+
     .section-header {
       display: flex;
       align-items: center;
@@ -501,6 +492,7 @@
       background: var(--navy);
       border-radius: 2px;
     }
+
     .hint {
       font-size: clamp(12px, 2vw, 13px);
       color: var(--text-secondary);
@@ -510,18 +502,14 @@
       border: 1px dashed var(--border);
       text-align: center;
     }
-    
-    @media (min-width: 768px) {
-      .hint {
-        padding: 12px 16px;
-      }
-    }
-    
+    @media (min-width: 768px) { .hint { padding: 12px 16px; } }
+
     .small {
       font-size: 12px;
       color: var(--text-secondary);
       margin-top: 8px;
     }
+
     footer {
       padding: 20px 16px;
       text-align: center;
@@ -531,15 +519,9 @@
       margin-top: 32px;
       background: white;
     }
-    
     @media (min-width: 768px) {
-      footer {
-        padding: 24px;
-        font-size: 12px;
-        margin-top: 40px;
-      }
+      footer { padding: 24px; font-size: 12px; margin-top: 40px; }
     }
-    
     footer a {
       color: var(--navy);
       text-decoration: none;
@@ -547,32 +529,18 @@
       border-bottom: 2px solid transparent;
       transition: border-color 0.2s ease;
     }
-    footer a:hover {
-      border-bottom-color: var(--navy);
-    }
-    
-    /* RESPONSIVE ACTION BUTTONS */
+    footer a:hover { border-bottom-color: var(--navy); }
+
     .action-buttons {
       display: grid;
       grid-template-columns: 1fr;
       gap: 10px;
       margin-top: 16px;
     }
-    
-    @media (min-width: 640px) {
-      .action-buttons {
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-    }
-    
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 16px 0;
-    }
-    
-    /* RESPONSIVE STATS */
+    @media (min-width: 640px) { .action-buttons { grid-template-columns: 1fr 1fr; gap: 12px; } }
+
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
     .review-stats {
       display: flex;
       justify-content: center;
@@ -582,20 +550,11 @@
       margin-bottom: 16px;
       flex-wrap: wrap;
     }
-    
     @media (min-width: 640px) {
-      .review-stats {
-        justify-content: flex-end;
-        gap: 16px;
-        padding: 0 4px 16px;
-        margin-bottom: 20px;
-      }
+      .review-stats { justify-content: flex-end; gap: 16px; padding: 0 4px 16px; margin-bottom: 20px; }
     }
-    
-    .stat-item {
-      font-size: clamp(12px, 2vw, 14px);
-      font-weight: 600;
-    }
+
+    .stat-item { font-size: clamp(12px, 2vw, 14px); font-weight: 600; }
     .stat-item span {
       font-size: clamp(14px, 2vw, 16px);
       font-weight: 700;
@@ -603,48 +562,17 @@
       border-radius: 6px;
       margin-left: 6px;
     }
-    .stat-item .valid-count {
-      background: var(--success);
-      color: white;
-    }
-    .stat-item .invalid-count {
-      background: var(--danger);
-      color: white;
-    }
+    .stat-item .valid-count { background: var(--success); color: white; }
+    .stat-item .invalid-count { background: var(--danger); color: white; }
 
-    /* --- TIGHTER TABLE ROWS (auto-fit to text) --- */
-    table { line-height: 1.2; }              /* tighter line spacing */
-    
-    th, td {
-      padding: 6px 10px;                     /* was 10-16px */
-      vertical-align: middle;                /* keep everything centered */
-    }
-    
-    /* Header can stay slightly taller */
+    table { line-height: 1.2; }
+    th, td { padding: 6px 10px; vertical-align: middle; }
     th { padding: 8px 10px; }
-    
-    /* --- OVERRIDE CONTROL: shrink height so it doesn't inflate rows --- */
+
     .override-wrap { gap: 6px; }
-    
-    .override-wrap select{
-      height: 30px;                          /* was 36px */
-      padding: 4px 8px;
-      font-size: 12px;
-    }
-    
-    .override-wrap input{
-      height: 30px;                          /* was 36px */
-      padding: 4px 8px;
-      font-size: 12px;
-    }
-    
-    /* Optional: slightly tighten the Override column cell itself */
+    .override-wrap select{ height: 30px; padding: 4px 8px; font-size: 12px; }
+    .override-wrap input{ height: 30px; padding: 4px 8px; font-size: 12px; }
     td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
-
-
-    /* =========================
-       PATCH: Reason auto-fit (min font 6px) + Override reason auto-grow
-       ========================= */
 
     td.reason-cell {
       white-space: normal !important;
@@ -652,14 +580,11 @@
       text-overflow: unset;
       word-break: break-word;
     }
-
     td.reason-cell .fit-text {
       display: block;
       width: 100%;
       line-height: 1.15;
     }
-
-    /* override reason becomes a textarea */
     .override-wrap textarea.override-reason {
       width: 100%;
       min-width: 0;
@@ -680,45 +605,38 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
-
-    /* Prevent iOS zoom on textarea */
     @media (max-width: 767px) {
-      .override-wrap textarea.override-reason {
-        font-size: 16px;
-      }
+      .override-wrap textarea.override-reason { font-size: 16px; }
     }
 
-/* =========================
-   iPHONE / SMALL SCREEN TIGHT MODE
-   ========================= */
     @media (max-width: 480px) {
       header { padding: 12px 14px; }
       header h1 { font-size: 18px; }
       header .subtitle { font-size: 12px; }
-    
+
       .stack > * + * { margin-top: 12px; }
-    
+
       .card { border-radius: 10px; }
       .card h3 { padding: 10px 12px; }
       .card .body { padding: 12px; }
-    
+
       button { padding: 12px 14px; font-size: 15px; }
-    
+
       .logbox { height: 200px; padding: 10px; font-size: 12px; }
-    
+
       .table-container { margin-top: 10px; }
       table { table-layout: auto; }
       th, td { padding: 6px 8px; }
       th { font-size: 11px; }
-    
+
       table thead th { width: auto !important; }
-    
+
       #validBody td:nth-child(1),
       #invalidBody td:nth-child(1) { width: 88px; }
-    
+
       #validBody td:nth-child(2),
       #invalidBody td:nth-child(2) { width: 120px; }
-    
+
       #validBody td:nth-child(3),
       #invalidBody td:nth-child(3),
       #validBody td:nth-child(6),
@@ -726,16 +644,13 @@
         white-space: normal;
         word-break: break-word;
       }
-    
+
       .override-wrap select,
       .override-wrap input {
         height: 32px;
         font-size: 13px;
       }
 
-      /* =========================
-         PATCH: Mobile Compact Typography + Denser Layout (NO iOS zoom on inputs)
-         ========================= */
       body { font-size: 13px; }
       label { font-size: 12px; margin-bottom: 6px; }
       .small { font-size: 11px; }
@@ -746,37 +661,31 @@
       th { font-size: 10px; }
       th, td { padding: 5px 6px; }
 
-      /* Keep form fields at 16px to prevent iPhone Safari zoom */
       select,
       input[type="text"],
       input[type="file"] {
         font-size: 16px;
       }
 
-      /* Slightly tighter overall spacing */
       .wrap { padding: 10px; }
       .card .body { padding: 10px; }
       .stack > * + * { margin-top: 10px; }
       button { font-size: 14px; padding: 10px 12px; }
 
-      /* Make override controls smaller without breaking usability */
       .override-wrap { gap: 4px; }
       .override-wrap select,
       .override-wrap input {
         height: 28px;
         padding: 3px 6px;
-        font-size: 12px; /* ok here because not a primary form field; if it zooms, bump to 16 */
+        font-size: 12px;
       }
 
-      /* PATCH: keep textarea consistent in tight mode */
       .override-wrap textarea.override-reason {
         min-height: 32px;
-        font-size: 16px; /* keep iOS from zooming */
+        font-size: 16px;
       }
 
-      td.reason-cell .fit-text {
-        line-height: 1.1;
-      }
+      td.reason-cell .fit-text { line-height: 1.1; }
     }
   </style>
 </head>
@@ -785,142 +694,161 @@
   <h1>⚓ ATGSD Sea Pay Processor</h1>
   <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
 </header>
-<div class="wrap">
-  <div class="grid">
-    <div class="stack">
-      <div class="card">
-        <h3>📂 Input Files</h3>
-        <div class="body">
-          <form id="processForm" class="stack">
-            <div>
-              <label>Sea Duty Certification Sheets (PDF)</label>
-              <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
-            </div>
-            <div>
-              <label>Rate CSV (Optional)</label>
-              <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
-            </div>
-            <div>
-              <label>NAVPERS 1070/613 Template (Optional)</label>
-              <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
-            </div>
-            <div>
-              <label>Strikeout Color</label>
-              <select id="strikeColor" name="strikeout_color">
-                <option value="Black" selected>⚫ Black</option>
-                <option value="Red">🔴 Red</option>
-              </select>
-            </div>
-            <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
-          </form>
-        </div>
-      </div>
-      <div class="card">
-        <h3>📊 Status</h3>
-        <div class="body">
-          <div class="status" id="statusText">Idle</div>
-        </div>
-      </div>
-      <div class="card">
-        <h3>⬇️ Downloads</h3>
-        <div class="body stack">
-          <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
-          <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
-          <div class="small">💡 Run PROCESS first if downloads are empty</div>
-        </div>
-      </div>
-      <div class="card">
-        <h3>🔄 System</h3>
-        <div class="body">
-          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
-        </div>
-      </div>
-    </div>
-    <div class="stack">
-      <div class="card">
-        <h3>📜 Live Processing Log</h3>
-        <div class="body">
-          <div id="liveLog" class="logbox"></div>
-        </div>
-      </div>
-      <div class="card">
-        <h3>✏️ Review & Override</h3>
-        <div class="body">
-          <div class="review-controls">
-            <div>
-              <label>👤 Member</label>
-              <select id="memberSelect">
-                <option value="">Select member</option>
-              </select>
-            </div>
-            <div>
-              <label>📄 Sheet</label>
-              <select id="sheetSelect" disabled>
-                <option value="">Select sheet</option>
-              </select>
-            </div>
-          </div>
 
-          <div class="review-stats">
-            <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
-            <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
-          </div>
+<!-- PATCH: Zoom controls -->
+<div class="zoombar">
+  <div class="zoompanel">
+    <div class="zlabel">Zoom</div>
+    <button class="zbtn" type="button" id="zoomOut" aria-label="Zoom out">A-</button>
+    <button class="zbtn" type="button" id="zoomReset" aria-label="Reset zoom">Reset</button>
+    <button class="zbtn" type="button" id="zoomIn" aria-label="Zoom in">A+</button>
+    <div class="zreadout" id="zoomReadout">100%</div>
+    <input class="zslider" id="zoomSlider" type="range" min="70" max="115" step="1" value="100" />
+    <div class="zhelp">Tip: adjust until it fits your screen</div>
+  </div>
+</div>
 
-          <div class="hint" id="reviewHint">
-            👆 Select a member and sheet to review and override validation results
+<!-- PATCH: scale wrapper -->
+<div class="app-scale" id="appScale">
+  <div class="wrap">
+    <div class="grid">
+      <div class="stack">
+        <div class="card">
+          <h3>📂 Input Files</h3>
+          <div class="body">
+            <form id="processForm" class="stack">
+              <div>
+                <label>Sea Duty Certification Sheets (PDF)</label>
+                <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
+              </div>
+              <div>
+                <label>Rate CSV (Optional)</label>
+                <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
+              </div>
+              <div>
+                <label>NAVPERS 1070/613 Template (Optional)</label>
+                <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+              </div>
+              <div>
+                <label>Strikeout Color</label>
+                <select id="strikeColor" name="strikeout_color">
+                  <option value="Black" selected>⚫ Black</option>
+                  <option value="Red">🔴 Red</option>
+                </select>
+              </div>
+              <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
+            </form>
           </div>
-          <div class="section-header">✅ Valid Rows</div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:100px;">Date</th>
-                  <th style="width:140px;">Ship</th>
-                  <th style="width:200px;">Event</th>
-                  <th style="width:80px;">Status</th>
-                  <th style="min-width:300px;">Override</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody id="validBody"></tbody>
-            </table>
+        </div>
+        <div class="card">
+          <h3>📊 Status</h3>
+          <div class="body">
+            <div class="status" id="statusText">Idle</div>
           </div>
-          <div class="section-header">❌ Invalid Events</div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:100px;">Date</th>
-                  <th style="width:140px;">Ship</th>
-                  <th style="width:200px;">Event</th>
-                  <th style="width:80px;">Status</th>
-                  <th style="min-width:300px;">Override</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody id="invalidBody"></tbody>
-            </table>
+        </div>
+        <div class="card">
+          <h3>⬇️ Downloads</h3>
+          <div class="body stack">
+            <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
+            <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
+            <div class="small">💡 Run PROCESS first if downloads are empty</div>
           </div>
-          <div class="action-buttons">
-            <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
-              💾 Save Overrides
-            </button>
-            <button class="primary" type="button" onclick="rebuildOutputs()">
-              🔄 Rebuild Outputs
-            </button>
+        </div>
+        <div class="card">
+          <h3>🔄 System</h3>
+          <div class="body">
+            <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <h3>📜 Live Processing Log</h3>
+          <div class="body">
+            <div id="liveLog" class="logbox"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>✏️ Review & Override</h3>
+          <div class="body">
+            <div class="review-controls">
+              <div>
+                <label>👤 Member</label>
+                <select id="memberSelect">
+                  <option value="">Select member</option>
+                </select>
+              </div>
+              <div>
+                <label>📄 Sheet</label>
+                <select id="sheetSelect" disabled>
+                  <option value="">Select sheet</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="review-stats">
+              <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
+              <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
+            </div>
+
+            <div class="hint" id="reviewHint">
+              👆 Select a member and sheet to review and override validation results
+            </div>
+            <div class="section-header">✅ Valid Rows</div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:100px;">Date</th>
+                    <th style="width:140px;">Ship</th>
+                    <th style="width:200px;">Event</th>
+                    <th style="width:80px;">Status</th>
+                    <th style="min-width:300px;">Override</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="validBody"></tbody>
+              </table>
+            </div>
+            <div class="section-header">❌ Invalid Events</div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:100px;">Date</th>
+                    <th style="width:140px;">Ship</th>
+                    <th style="width:200px;">Event</th>
+                    <th style="width:80px;">Status</th>
+                    <th style="min-width:300px;">Override</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="invalidBody"></tbody>
+              </table>
+            </div>
+            <div class="action-buttons">
+              <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
+                💾 Save Overrides
+              </button>
+              <button class="primary" type="button" onclick="rebuildOutputs()">
+                🔄 Rebuild Outputs
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <footer>
+    Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
+  </footer>
 </div>
-<footer>
-  Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
-</footer>
+
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  
+
   let lastStatus = null;
   let pendingOverrides = {};
   let lastSelectedMember = "";
@@ -945,8 +873,8 @@
 
   function fitFontToBox(el, opts = {}) {
     const minPx = (opts.minPx ?? 6);
-    const maxPx = (opts.maxPx ?? null); // if null, uses current computed font size
-    const mode  = (opts.mode ?? "width"); // "width" or "both"
+    const maxPx = (opts.maxPx ?? null);
+    const mode  = (opts.mode ?? "width");
 
     if (!el) return;
 
@@ -995,6 +923,60 @@
     patchFitAllReasonCells();
   });
 
+  /* =========================
+     PATCH: In-app zoom (user adjustable + persistent)
+     ========================= */
+
+  const ZOOM_KEY = "atgsd_ui_scale_v1";
+  const MIN_SCALE = 0.70;   // 70%
+  const MAX_SCALE = 1.15;   // 115%
+  const STEP = 0.05;        // 5% step for buttons
+
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function setScale(scale) {
+    scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    document.documentElement.style.setProperty("--ui-scale", String(scale));
+    $("zoomReadout").textContent = Math.round(scale * 100) + "%";
+    $("zoomSlider").value = String(Math.round(scale * 100));
+    localStorage.setItem(ZOOM_KEY, String(scale));
+
+    // after scaling, re-fit the reason text so it doesn't get weird
+    setTimeout(patchFitAllReasonCells, 0);
+  }
+
+  function getSavedScale() {
+    const raw = localStorage.getItem(ZOOM_KEY);
+    const val = raw ? parseFloat(raw) : NaN;
+    if (!isFinite(val)) return 1;
+    return clamp(val, MIN_SCALE, MAX_SCALE);
+  }
+
+  function initZoom() {
+    setScale(getSavedScale());
+
+    $("zoomIn").addEventListener("click", () => setScale(getSavedScale() + STEP));
+    $("zoomOut").addEventListener("click", () => setScale(getSavedScale() - STEP));
+    $("zoomReset").addEventListener("click", () => setScale(1));
+
+    $("zoomSlider").addEventListener("input", (e) => {
+      const pct = parseInt(e.target.value, 10);
+      setScale(pct / 100);
+    });
+
+    // Optional: keyboard shortcuts on desktop (Ctrl/Cmd +/-)
+    window.addEventListener("keydown", (e) => {
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod) return;
+      if (e.key === "=" || e.key === "+") { e.preventDefault(); setScale(getSavedScale() + STEP); }
+      if (e.key === "-") { e.preventDefault(); setScale(getSavedScale() - STEP); }
+      if (e.key === "0") { e.preventDefault(); setScale(1); }
+    });
+  }
+
+  initZoom();
+
   async function jget(url) {
     const r = await fetch(url, {cache:"no-store"});
     if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
@@ -1024,6 +1006,7 @@
     }
     return await r.json();
   }
+
   async function pollProgress() {
     try {
       const data = await jget("/progress");
@@ -1034,7 +1017,7 @@
         refreshReviewLists();
       }
       lastStatus = status;
-        
+
       if (pct !== null && pct !== undefined) {
         $("statusText").textContent = status + " (" + pct + "%)";
       } else {
@@ -1050,8 +1033,10 @@
       }
     } catch (e) {}
   }
+
   setInterval(pollProgress, 1000);
   pollProgress();
+
   $("processForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -1070,14 +1055,16 @@
       $("processBtn").disabled = false;
     }
   });
+
   $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
   $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
+
   $("btnReset").addEventListener("click", async () => {
     if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
     try {
       const r = await fetch("/reset", {method:"POST"});
       if (!r.ok) throw new Error("Reset failed: " + r.status);
-      
+
       $("processForm").reset();
       $("memberSelect").innerHTML = '<option value="">Select member</option>';
       $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
@@ -1086,7 +1073,7 @@
       $("invalidBody").innerHTML = "";
       $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
-      
+
       if($("validCount")) $("validCount").textContent = "0";
       if($("invalidCount")) $("invalidCount").textContent = "0";
 
@@ -1095,6 +1082,7 @@
       alert(err.message || String(err));
     }
   });
+
   async function refreshReviewLists() {
     try {
       const members = await jget("/api/members");
@@ -1113,15 +1101,16 @@
       lastSelectedMember = sel.value;
     } catch (e) {}
   }
+
   async function loadSheetsForMember(memberKey) {
     $("sheetSelect").disabled = true;
     $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
     if (!memberKey) {
-        if($("validCount")) $("validCount").textContent = "0";
-        if($("invalidCount")) $("invalidCount").textContent = "0";
-        return;
+      if($("validCount")) $("validCount").textContent = "0";
+      if($("invalidCount")) $("invalidCount").textContent = "0";
+      return;
     }
     const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
     const sel = $("sheetSelect");
@@ -1134,11 +1123,11 @@
     sel.disabled = false;
     lastSelectedSheet = sel.value;
   }
-  
+
   function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
     const wrap = document.createElement("div");
     wrap.className = "override-wrap";
-    
+
     const sel = document.createElement("select");
     const options = [
       {v:"", t:"🔄 Auto"},
@@ -1152,16 +1141,15 @@
       sel.appendChild(opt);
     }
     sel.value = currentStatus || "";
-    
-    // PATCH: textarea auto-grows + can be auto-fit
+
     const reason = document.createElement("textarea");
     reason.className = "override-reason";
     reason.rows = 1;
     reason.placeholder = "Optional reason for override...";
     reason.value = currentReason || "";
-    
+
     const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-    
+
     function markDirty() {
       wrap.classList.add("dirty");
       pendingOverrides[key] = {
@@ -1172,7 +1160,7 @@
         override_reason: reason.value || null
       };
     }
-    
+
     sel.addEventListener("change", () => {
       markDirty();
       patchFitAllReasonCells();
@@ -1183,15 +1171,14 @@
       markDirty();
       fitFontToBox(reason, { minPx: 6, mode: "width" });
     });
-    
+
     if (source === "override") {
       wrap.classList.add("dirty");
     }
-    
+
     wrap.appendChild(sel);
     wrap.appendChild(reason);
 
-    // Initial sizing on render
     setTimeout(() => {
       autoGrowTextarea(reason);
       fitFontToBox(reason, { minPx: 6, mode: "width" });
@@ -1199,47 +1186,47 @@
 
     return wrap;
   }
-  
+
   async function loadEventTableForSheet(memberKey, sheetFile) {
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
     $("reviewHint").textContent = "Loading events...";
-    
+
     try {
       const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
-      
+
       const validRows = data.valid_rows || [];
       const invalidRows = data.invalid_events || [];
-      
+
       if($("validCount")) $("validCount").textContent = String(validRows.length);
       if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
-      
+
       const validBody = $("validBody");
       const invalidBody = $("invalidBody");
-      
+
       if (validRows.length === 0 && invalidRows.length === 0) {
         $("reviewHint").textContent = "No events found for this sheet";
         return;
       }
-      
+
       $("reviewHint").style.display = "none";
-      
+
       for (const row of validRows) {
         const tr = document.createElement("tr");
         tr.className = "valid";
-        
+
         const tdDate = document.createElement("td");
         tdDate.textContent = safeText(row.date);
-        
+
         const tdShip = document.createElement("td");
         tdShip.textContent = safeText(row.ship);
-        
+
         const tdEvent = document.createElement("td");
         tdEvent.textContent = safeText(row.event);
-        
+
         const tdStatus = document.createElement("td");
         tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
-        
+
         const tdOverride = document.createElement("td");
         tdOverride.appendChild(
           buildOverrideControl(
@@ -1251,41 +1238,40 @@
             row.source
           )
         );
-        
-        // PATCH: reason uses fit wrapper
+
         const tdReason = document.createElement("td");
         tdReason.className = "reason-cell";
         const reasonWrap = document.createElement("div");
         reasonWrap.className = "fit-text";
         reasonWrap.textContent = safeText(row.reason);
         tdReason.appendChild(reasonWrap);
-        
+
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
         tr.appendChild(tdEvent);
         tr.appendChild(tdStatus);
         tr.appendChild(tdOverride);
         tr.appendChild(tdReason);
-        
+
         validBody.appendChild(tr);
       }
-      
+
       for (const row of invalidRows) {
         const tr = document.createElement("tr");
         tr.className = "invalid";
-        
+
         const tdDate = document.createElement("td");
         tdDate.textContent = safeText(row.date);
-        
+
         const tdShip = document.createElement("td");
         tdShip.textContent = safeText(row.ship);
-        
+
         const tdEvent = document.createElement("td");
         tdEvent.textContent = safeText(row.event);
-        
+
         const tdStatus = document.createElement("td");
         tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
-        
+
         const tdOverride = document.createElement("td");
         tdOverride.appendChild(
           buildOverrideControl(
@@ -1297,43 +1283,41 @@
             row.source
           )
         );
-        
-        // PATCH: reason uses fit wrapper
+
         const tdReason = document.createElement("td");
         tdReason.className = "reason-cell";
         const reasonWrap = document.createElement("div");
         reasonWrap.className = "fit-text";
         reasonWrap.textContent = safeText(row.reason);
         tdReason.appendChild(reasonWrap);
-        
+
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
         tr.appendChild(tdEvent);
         tr.appendChild(tdStatus);
         tr.appendChild(tdOverride);
         tr.appendChild(tdReason);
-        
+
         invalidBody.appendChild(tr);
       }
 
-      // After render, fit everything
       setTimeout(() => {
         patchFitAllReasonCells();
       }, 0);
-      
+
     } catch (err) {
       $("reviewHint").textContent = "Error loading events: " + err.message;
       $("reviewHint").style.display = "block";
     }
   }
-  
+
   $("memberSelect").addEventListener("change", async (e) => {
     const memberKey = e.target.value;
     lastSelectedMember = memberKey;
     pendingOverrides = {};
     await loadSheetsForMember(memberKey);
   });
-  
+
   $("sheetSelect").addEventListener("change", async (e) => {
     const sheetFile = e.target.value;
     lastSelectedSheet = sheetFile;
@@ -1341,15 +1325,14 @@
     if (!sheetFile || !lastSelectedMember) return;
     await loadEventTableForSheet(lastSelectedMember, sheetFile);
   });
-  
+
   async function saveOverrides() {
     const overrides = Object.values(pendingOverrides);
     if (overrides.length === 0) {
       alert("No changes to save");
       return;
     }
-    
-    // Transform data format from frontend to backend expected format
+
     const transformedOverrides = overrides.map(override => ({
       member_key: override.member_key,
       sheet_file: override.sheet_file,
@@ -1358,13 +1341,13 @@
       reason: override.override_reason || "",
       source: "manual"
     }));
-    
+
     $("saveOverridesBtn").disabled = true;
     try {
       await jpost("/api/overrides/batch", transformedOverrides);
       alert(`✅ Saved ${overrides.length} override(s)`);
       pendingOverrides = {};
-      
+
       if (lastSelectedMember && lastSelectedSheet) {
         await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
       }
@@ -1374,10 +1357,10 @@
       $("saveOverridesBtn").disabled = false;
     }
   }
-  
+
   async function rebuildOutputs() {
     if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
-    
+
     try {
       const resp = await jpost("/rebuild_outputs", {});
       alert("✅ " + (resp.status || "Rebuild complete"));
