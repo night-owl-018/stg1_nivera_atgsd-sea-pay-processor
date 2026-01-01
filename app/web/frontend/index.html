@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <!-- PATCH: allow native pinch-zoom on iPhone/iPad (no in-app zoom UI) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes, maximum-scale=5"/>
   <title>ATGSD Sea Pay Processor</title>
   <style>
     :root {
@@ -25,9 +26,6 @@
 
       /* PATCH: minimum auto-fit font size */
       --fit-min-font: 6;
-
-      /* PATCH: global UI scale (controlled by zoom widget) */
-      --ui-scale: 1;
     }
 
     .grid * { min-width: 0; }
@@ -58,109 +56,11 @@
       font-size: clamp(18px, 4vw, 24px);
       font-weight: 700;
       letter-spacing: -0.025em;
-    } 
+    }
     header .subtitle {
       font-size: clamp(11px, 2vw, 13px);
       opacity: 0.9;
       margin-top: 2px;
-    }
-
-    /* =========================
-       PATCH: In-app zoom controls + scaled app wrapper
-       ========================= */
-
-    /* Scale the whole app without breaking layout by scaling an inner wrapper */
-    .app-scale {
-      transform: scale(var(--ui-scale));
-      transform-origin: top center;
-      width: calc(100% / var(--ui-scale));
-    }
-
-    /* Sticky zoom bar lives under header */
-    .zoombar {
-      position: sticky;
-      top: 72px; /* sits below header */
-      z-index: 90;
-      display: flex;
-      justify-content: center;
-      padding: 10px 12px;
-      background: linear-gradient(to bottom, rgba(249,250,251,0.96), rgba(249,250,251,0.82));
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border);
-    }
-    @media (max-width: 480px) {
-      .zoombar { top: 64px; padding: 8px 10px; }
-    }
-
-    .zoompanel {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      box-shadow: var(--shadow-sm);
-      padding: 8px 10px;
-      max-width: 980px;
-      width: 100%;
-    }
-
-    .zoompanel .zlabel {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--navy);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      white-space: nowrap;
-      margin-right: 4px;
-    }
-
-    .zbtn {
-      border: 1.5px solid var(--border);
-      background: #fff;
-      border-radius: 10px;
-      padding: 8px 10px;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-primary);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      width: auto;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-    .zbtn:hover { border-color: var(--navy); background: var(--bg); }
-    .zbtn:active { transform: translateY(1px); }
-
-    .zreadout {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--text-secondary);
-      padding: 0 6px;
-      min-width: 64px;
-      text-align: center;
-      white-space: nowrap;
-    }
-
-    .zslider {
-      width: 100%;
-      flex: 1;
-      min-width: 120px;
-      accent-color: var(--navy);
-    }
-
-    .zhelp {
-      font-size: 11px;
-      color: var(--text-secondary);
-      white-space: nowrap;
-    }
-
-    @media (max-width: 640px) {
-      .zhelp { display: none; }
-      .zoompanel { gap: 6px; padding: 8px; }
-      .zbtn { padding: 8px; }
     }
 
     .wrap {
@@ -695,155 +595,144 @@
   <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
 </header>
 
-<!-- PATCH: Zoom controls -->
-<div class="zoombar">
-  <div class="zoompanel">
-    <div class="zlabel">Zoom</div>
-    <button class="zbtn" type="button" id="zoomOut" aria-label="Zoom out">A-</button>
-    <button class="zbtn" type="button" id="zoomReset" aria-label="Reset zoom">Reset</button>
-    <button class="zbtn" type="button" id="zoomIn" aria-label="Zoom in">A+</button>
-    <div class="zreadout" id="zoomReadout">100%</div>
-    <input class="zslider" id="zoomSlider" type="range" min="70" max="115" step="1" value="100" />
-    <div class="zhelp">Tip: adjust until it fits your screen</div>
-  </div>
-</div>
-
-<!-- PATCH: scale wrapper -->
-<div class="app-scale" id="appScale">
-  <div class="wrap">
-    <div class="grid">
-      <div class="stack">
-        <div class="card">
-          <h3>📂 Input Files</h3>
-          <div class="body">
-            <form id="processForm" class="stack">
-              <div>
-                <label>Sea Duty Certification Sheets (PDF)</label>
-                <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
-              </div>
-              <div>
-                <label>Rate CSV (Optional)</label>
-                <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
-              </div>
-              <div>
-                <label>NAVPERS 1070/613 Template (Optional)</label>
-                <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
-              </div>
-              <div>
-                <label>Strikeout Color</label>
-                <select id="strikeColor" name="strikeout_color">
-                  <option value="Black" selected>⚫ Black</option>
-                  <option value="Red">🔴 Red</option>
-                </select>
-              </div>
-              <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
-            </form>
-          </div>
-        </div>
-        <div class="card">
-          <h3>📊 Status</h3>
-          <div class="body">
-            <div class="status" id="statusText">Idle</div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>⬇️ Downloads</h3>
-          <div class="body stack">
-            <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
-            <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
-            <div class="small">💡 Run PROCESS first if downloads are empty</div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>🔄 System</h3>
-          <div class="body">
-            <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
-          </div>
+<div class="wrap">
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <h3>📂 Input Files</h3>
+        <div class="body">
+          <form id="processForm" class="stack">
+            <div>
+              <label>Sea Duty Certification Sheets (PDF)</label>
+              <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
+            </div>
+            <div>
+              <label>Rate CSV (Optional)</label>
+              <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
+            </div>
+            <div>
+              <label>NAVPERS 1070/613 Template (Optional)</label>
+              <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+            </div>
+            <div>
+              <label>Strikeout Color</label>
+              <select id="strikeColor" name="strikeout_color">
+                <option value="Black" selected>⚫ Black</option>
+                <option value="Red">🔴 Red</option>
+              </select>
+            </div>
+            <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
+          </form>
         </div>
       </div>
-      <div class="stack">
-        <div class="card">
-          <h3>📜 Live Processing Log</h3>
-          <div class="body">
-            <div id="liveLog" class="logbox"></div>
-          </div>
+      <div class="card">
+        <h3>📊 Status</h3>
+        <div class="body">
+          <div class="status" id="statusText">Idle</div>
         </div>
-        <div class="card">
-          <h3>✏️ Review & Override</h3>
-          <div class="body">
-            <div class="review-controls">
-              <div>
-                <label>👤 Member</label>
-                <select id="memberSelect">
-                  <option value="">Select member</option>
-                </select>
-              </div>
-              <div>
-                <label>📄 Sheet</label>
-                <select id="sheetSelect" disabled>
-                  <option value="">Select sheet</option>
-                </select>
-              </div>
-            </div>
+      </div>
+      <div class="card">
+        <h3>⬇️ Downloads</h3>
+        <div class="body stack">
+          <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
+          <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
+          <div class="small">💡 Run PROCESS first if downloads are empty</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>🔄 System</h3>
+        <div class="body">
+          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
+        </div>
+      </div>
+    </div>
 
-            <div class="review-stats">
-              <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
-              <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
-            </div>
+    <div class="stack">
+      <div class="card">
+        <h3>📜 Live Processing Log</h3>
+        <div class="body">
+          <div id="liveLog" class="logbox"></div>
+        </div>
+      </div>
 
-            <div class="hint" id="reviewHint">
-              👆 Select a member and sheet to review and override validation results
+      <div class="card">
+        <h3>✏️ Review & Override</h3>
+        <div class="body">
+          <div class="review-controls">
+            <div>
+              <label>👤 Member</label>
+              <select id="memberSelect">
+                <option value="">Select member</option>
+              </select>
             </div>
-            <div class="section-header">✅ Valid Rows</div>
-            <div class="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width:100px;">Date</th>
-                    <th style="width:140px;">Ship</th>
-                    <th style="width:200px;">Event</th>
-                    <th style="width:80px;">Status</th>
-                    <th style="min-width:300px;">Override</th>
-                    <th>Reason</th>
-                  </tr>
-                </thead>
-                <tbody id="validBody"></tbody>
-              </table>
+            <div>
+              <label>📄 Sheet</label>
+              <select id="sheetSelect" disabled>
+                <option value="">Select sheet</option>
+              </select>
             </div>
-            <div class="section-header">❌ Invalid Events</div>
-            <div class="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width:100px;">Date</th>
-                    <th style="width:140px;">Ship</th>
-                    <th style="width:200px;">Event</th>
-                    <th style="width:80px;">Status</th>
-                    <th style="min-width:300px;">Override</th>
-                    <th>Reason</th>
-                  </tr>
-                </thead>
-                <tbody id="invalidBody"></tbody>
-              </table>
-            </div>
-            <div class="action-buttons">
-              <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
-                💾 Save Overrides
-              </button>
-              <button class="primary" type="button" onclick="rebuildOutputs()">
-                🔄 Rebuild Outputs
-              </button>
-            </div>
+          </div>
+
+          <div class="review-stats">
+            <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
+            <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
+          </div>
+
+          <div class="hint" id="reviewHint">
+            👆 Select a member and sheet to review and override validation results
+          </div>
+
+          <div class="section-header">✅ Valid Rows</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:100px;">Date</th>
+                  <th style="width:140px;">Ship</th>
+                  <th style="width:200px;">Event</th>
+                  <th style="width:80px;">Status</th>
+                  <th style="min-width:300px;">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="validBody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-header">❌ Invalid Events</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:100px;">Date</th>
+                  <th style="width:140px;">Ship</th>
+                  <th style="width:200px;">Event</th>
+                  <th style="width:80px;">Status</th>
+                  <th style="min-width:300px;">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="invalidBody"></tbody>
+            </table>
+          </div>
+
+          <div class="action-buttons">
+            <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
+              💾 Save Overrides
+            </button>
+            <button class="primary" type="button" onclick="rebuildOutputs()">
+              🔄 Rebuild Outputs
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
-
-  <footer>
-    Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
-  </footer>
 </div>
+
+<footer>
+  Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
+</footer>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script>
@@ -868,7 +757,7 @@
   }
 
   /* =========================
-     PATCH: Fit text to box (min font 6px) + Auto-grow textarea
+     Fit text to box (min font 6px) + Auto-grow textarea
      ========================= */
 
   function fitFontToBox(el, opts = {}) {
@@ -922,60 +811,6 @@
   window.addEventListener("resize", () => {
     patchFitAllReasonCells();
   });
-
-  /* =========================
-     PATCH: In-app zoom (user adjustable + persistent)
-     ========================= */
-
-  const ZOOM_KEY = "atgsd_ui_scale_v1";
-  const MIN_SCALE = 0.70;   // 70%
-  const MAX_SCALE = 1.15;   // 115%
-  const STEP = 0.05;        // 5% step for buttons
-
-  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-
-  function setScale(scale) {
-    scale = clamp(scale, MIN_SCALE, MAX_SCALE);
-    document.documentElement.style.setProperty("--ui-scale", String(scale));
-    $("zoomReadout").textContent = Math.round(scale * 100) + "%";
-    $("zoomSlider").value = String(Math.round(scale * 100));
-    localStorage.setItem(ZOOM_KEY, String(scale));
-
-    // after scaling, re-fit the reason text so it doesn't get weird
-    setTimeout(patchFitAllReasonCells, 0);
-  }
-
-  function getSavedScale() {
-    const raw = localStorage.getItem(ZOOM_KEY);
-    const val = raw ? parseFloat(raw) : NaN;
-    if (!isFinite(val)) return 1;
-    return clamp(val, MIN_SCALE, MAX_SCALE);
-  }
-
-  function initZoom() {
-    setScale(getSavedScale());
-
-    $("zoomIn").addEventListener("click", () => setScale(getSavedScale() + STEP));
-    $("zoomOut").addEventListener("click", () => setScale(getSavedScale() - STEP));
-    $("zoomReset").addEventListener("click", () => setScale(1));
-
-    $("zoomSlider").addEventListener("input", (e) => {
-      const pct = parseInt(e.target.value, 10);
-      setScale(pct / 100);
-    });
-
-    // Optional: keyboard shortcuts on desktop (Ctrl/Cmd +/-)
-    window.addEventListener("keydown", (e) => {
-      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (!mod) return;
-      if (e.key === "=" || e.key === "+") { e.preventDefault(); setScale(getSavedScale() + STEP); }
-      if (e.key === "-") { e.preventDefault(); setScale(getSavedScale() - STEP); }
-      if (e.key === "0") { e.preventDefault(); setScale(1); }
-    });
-  }
-
-  initZoom();
 
   async function jget(url) {
     const r = await fetch(url, {cache:"no-store"});
