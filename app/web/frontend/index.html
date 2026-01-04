@@ -757,7 +757,7 @@
   const $ = (id) => document.getElementById(id);
 
   let lastStatus = null;
-  let pendingOverrides = {};
+  let pendingChanges = {};
   let lastSelectedMember = "";
   let lastSelectedSheet = "";
 
@@ -766,6 +766,7 @@
     if (typeof v === "object") return JSON.stringify(v);
     return String(v);
   }
+  
   function pick(obj, keys, fallback="") {
     if (!obj) return fallback;
     for (const k of keys) {
@@ -774,67 +775,12 @@
     return fallback;
   }
 
-  /* =========================
-     Fit text to box (min font 6px) + Auto-grow textarea
-     ========================= */
-
-  function fitFontToBox(el, opts = {}) {
-    const minPx = (opts.minPx ?? 6);
-    const maxPx = (opts.maxPx ?? null);
-    const mode  = (opts.mode ?? "width");
-
-    if (!el) return;
-
-    const cs = window.getComputedStyle(el);
-    const current = parseFloat(cs.fontSize) || 12;
-    let start = maxPx ? maxPx : current;
-
-    if (el.clientWidth <= 0) return;
-
-    el.style.fontSize = start + "px";
-
-    const overflows = () => {
-      const w = el.scrollWidth > el.clientWidth + 1;
-      if (mode === "width") return w;
-      const h = el.scrollHeight > el.clientHeight + 1;
-      return w || h;
-    };
-
-    let size = start;
-    while (size > minPx && overflows()) {
-      size -= 0.5;
-      el.style.fontSize = size + "px";
-    }
-
-    if (size < minPx) el.style.fontSize = minPx + "px";
-  }
-
-  function autoGrowTextarea(ta) {
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
-  }
-
-  function patchFitAllReasonCells() {
-    document.querySelectorAll("td.reason-cell .fit-text").forEach((el) => {
-      fitFontToBox(el, { minPx: 6, mode: "width" });
-    });
-
-    document.querySelectorAll("textarea.override-reason").forEach((ta) => {
-      autoGrowTextarea(ta);
-      fitFontToBox(ta, { minPx: 6, mode: "width" });
-    });
-  }
-
-  window.addEventListener("resize", () => {
-    patchFitAllReasonCells();
-  });
-
   async function jget(url) {
     const r = await fetch(url, {cache:"no-store"});
     if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
     return await r.json();
   }
+  
   async function jpost(url, payload) {
     const r = await fetch(url, {
       method:"POST",
@@ -847,18 +793,6 @@
     }
     return await r.json();
   }
-  async function jdel(url, payload) {
-    const r = await fetch(url, {
-      method:"DELETE",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(()=> "");
-      throw new Error("DELETE " + url + " -> " + r.status + " " + t);
-    }
-    return await r.json();
-  }
 
   async function pollProgress() {
     try {
@@ -866,6 +800,7 @@
       const pct = pick(data, ["percent","progress","pct"], null);
       const status = pick(data, ["status","state","message"], "Idle");
       const log = pick(data, ["log","lines","text"], "");
+      
       if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
         refreshReviewLists();
       }
@@ -876,6 +811,7 @@
       } else {
         $("statusText").textContent = status;
       }
+      
       if (typeof log === "string") {
         const logBox = $("liveLog");
         const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
@@ -924,8 +860,8 @@
       $("sheetSelect").disabled = true;
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
-      $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
-      pendingOverrides = {};
+      $("reviewHint").textContent = "👆 Select a member and sheet to review and edit reasons";
+      pendingChanges = {};
 
       if($("validCount")) $("validCount").textContent = "0";
       if($("invalidCount")) $("invalidCount").textContent = "0";
@@ -977,67 +913,59 @@
     lastSelectedSheet = sel.value;
   }
 
-  function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
-    const wrap = document.createElement("div");
-    wrap.className = "override-wrap";
-
-    const sel = document.createElement("select");
-    const options = [
-      {v:"", t:"🔄 Auto"},
-      {v:"valid", t:"✅ Force Valid"},
-      {v:"invalid", t:"❌ Force Invalid"},
-    ];
-    for (const o of options) {
-      const opt = document.createElement("option");
-      opt.value = o.v;
-      opt.textContent = o.t;
-      sel.appendChild(opt);
+  // 🔹 PATCH: Get the correct reason to display (override reason or system reason)
+  function getDisplayReason(row) {
+    // Priority 1: User's override reason
+    if (row.override && row.override.reason) {
+      return row.override.reason;
     }
-    sel.value = currentStatus || "";
+    // Priority 2: System reason
+    if (row.reason) {
+      return row.reason;
+    }
+    // Priority 3: Status reason
+    if (row.status_reason) {
+      return row.status_reason;
+    }
+    return "";
+  }
 
-    const reason = document.createElement("textarea");
-    reason.className = "override-reason";
-    reason.rows = 1;
-    reason.placeholder = "Optional reason for override...";
-    reason.value = currentReason || "";
+  function createReasonTextarea(memberKey, sheetFile, eventIndex, row) {
+    const textarea = document.createElement("textarea");
+    textarea.className = "override-reason";
+    textarea.rows = 3;
+    textarea.style.minHeight = "60px";
+    textarea.style.width = "100%";
+    textarea.style.resize = "vertical";
+    
+    // 🔹 PATCH: Get initial value from correct nested field
+    const initialReason = getDisplayReason(row);
+    textarea.value = initialReason;
+    textarea.placeholder = "Edit reason or add notes...";
 
     const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
 
-    function markDirty() {
-      wrap.classList.add("dirty");
-      pendingOverrides[key] = {
-        member_key: memberKey,
-        sheet_file: sheetFile,
-        event_index: eventIndex,
-        override_status: sel.value || null,
-        override_reason: reason.value || null
-      };
-    }
-
-    sel.addEventListener("change", () => {
-      markDirty();
-      patchFitAllReasonCells();
+    textarea.addEventListener("input", () => {
+      if (textarea.value !== initialReason) {
+        textarea.style.borderColor = "var(--warning)";
+        textarea.style.background = "#fffbeb";
+        
+        // 🔹 PATCH: Send only reason (no status) to keep current validity
+        pendingChanges[key] = {
+          member_key: memberKey,
+          sheet_file: sheetFile,
+          event_index: eventIndex,
+          reason: textarea.value,
+          source: "manual"
+        };
+      } else {
+        textarea.style.borderColor = "";
+        textarea.style.background = "";
+        delete pendingChanges[key];
+      }
     });
 
-    reason.addEventListener("input", () => {
-      autoGrowTextarea(reason);
-      markDirty();
-      fitFontToBox(reason, { minPx: 6, mode: "width" });
-    });
-
-    if (source === "override") {
-      wrap.classList.add("dirty");
-    }
-
-    wrap.appendChild(sel);
-    wrap.appendChild(reason);
-
-    setTimeout(() => {
-      autoGrowTextarea(reason);
-      fitFontToBox(reason, { minPx: 6, mode: "width" });
-    }, 0);
-
-    return wrap;
+    return textarea;
   }
 
   async function loadEventTableForSheet(memberKey, sheetFile) {
@@ -1048,22 +976,21 @@
     try {
       const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
 
-      const validRows = data.valid_rows || [];
+      const validRows = data.valid_rows || data.rows || [];
       const invalidRows = data.invalid_events || [];
 
       if($("validCount")) $("validCount").textContent = String(validRows.length);
       if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
 
-      const validBody = $("validBody");
-      const invalidBody = $("invalidBody");
-
       if (validRows.length === 0 && invalidRows.length === 0) {
         $("reviewHint").textContent = "No events found for this sheet";
+        $("reviewHint").style.display = "block";
         return;
       }
 
       $("reviewHint").style.display = "none";
 
+      // Render valid rows
       for (const row of validRows) {
         const tr = document.createElement("tr");
         tr.className = "valid";
@@ -1078,37 +1005,22 @@
         tdEvent.textContent = safeText(row.event);
 
         const tdStatus = document.createElement("td");
-        tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
-
-        const tdOverride = document.createElement("td");
-        tdOverride.appendChild(
-          buildOverrideControl(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            row.override_status || "",
-            row.override_reason || "",
-            row.source
-          )
-        );
+        // 🔹 PATCH: Check nested override.source
+        tdStatus.textContent = (row.override && row.override.source === "override") ? "Override" : "Valid";
 
         const tdReason = document.createElement("td");
-        tdReason.className = "reason-cell";
-        const reasonWrap = document.createElement("div");
-        reasonWrap.className = "fit-text";
-        reasonWrap.textContent = safeText(row.reason);
-        tdReason.appendChild(reasonWrap);
+        tdReason.appendChild(createReasonTextarea(memberKey, sheetFile, row.event_index, row));
 
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
         tr.appendChild(tdEvent);
         tr.appendChild(tdStatus);
-        tr.appendChild(tdOverride);
         tr.appendChild(tdReason);
 
-        validBody.appendChild(tr);
+        $("validBody").appendChild(tr);
       }
 
+      // Render invalid rows
       for (const row of invalidRows) {
         const tr = document.createElement("tr");
         tr.className = "invalid";
@@ -1123,104 +1035,80 @@
         tdEvent.textContent = safeText(row.event);
 
         const tdStatus = document.createElement("td");
-        tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
-
-        const tdOverride = document.createElement("td");
-        tdOverride.appendChild(
-          buildOverrideControl(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            row.override_status || "",
-            row.override_reason || "",
-            row.source
-          )
-        );
+        // 🔹 PATCH: Check nested override.source
+        tdStatus.textContent = (row.override && row.override.source === "override") ? "Override" : "Invalid";
 
         const tdReason = document.createElement("td");
-        tdReason.className = "reason-cell";
-        const reasonWrap = document.createElement("div");
-        reasonWrap.className = "fit-text";
-        reasonWrap.textContent = safeText(row.reason);
-        tdReason.appendChild(reasonWrap);
+        tdReason.appendChild(createReasonTextarea(memberKey, sheetFile, row.event_index, row));
 
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
         tr.appendChild(tdEvent);
         tr.appendChild(tdStatus);
-        tr.appendChild(tdOverride);
         tr.appendChild(tdReason);
 
-        invalidBody.appendChild(tr);
+        $("invalidBody").appendChild(tr);
       }
-
-      setTimeout(() => {
-        patchFitAllReasonCells();
-      }, 0);
 
     } catch (err) {
       $("reviewHint").textContent = "Error loading events: " + err.message;
       $("reviewHint").style.display = "block";
+      console.error("Load error:", err);
     }
   }
 
   $("memberSelect").addEventListener("change", async (e) => {
     const memberKey = e.target.value;
     lastSelectedMember = memberKey;
-    pendingOverrides = {};
+    pendingChanges = {};
     await loadSheetsForMember(memberKey);
   });
 
   $("sheetSelect").addEventListener("change", async (e) => {
     const sheetFile = e.target.value;
     lastSelectedSheet = sheetFile;
-    pendingOverrides = {};
+    pendingChanges = {};
     if (!sheetFile || !lastSelectedMember) return;
     await loadEventTableForSheet(lastSelectedMember, sheetFile);
   });
 
   async function saveOverrides() {
-    const overrides = Object.values(pendingOverrides);
-    if (overrides.length === 0) {
-      alert("No changes to save");
+    const changes = Object.values(pendingChanges);
+    if (changes.length === 0) {
+      alert("ℹ️ No changes to save");
       return;
     }
 
-    const transformedOverrides = overrides.map(override => ({
-      member_key: override.member_key,
-      sheet_file: override.sheet_file,
-      event_index: override.event_index,
-      status: override.override_status || "",
-      reason: override.override_reason || "",
-      source: "manual"
-    }));
-
     $("saveOverridesBtn").disabled = true;
     try {
-      await jpost("/api/overrides/batch", transformedOverrides);
-      alert(`✅ Saved ${overrides.length} override(s)`);
-      pendingOverrides = {};
+      // 🔹 PATCH: Send to batch endpoint with correct field names
+      await jpost("/api/overrides/batch", changes);
+      alert(`✅ Saved ${changes.length} change(s)`);
+      pendingChanges = {};
 
       if (lastSelectedMember && lastSelectedSheet) {
         await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
       }
     } catch (err) {
-      alert("Error saving overrides: " + err.message);
+      alert("❌ Error saving: " + err.message);
+      console.error("Save error:", err);
     } finally {
       $("saveOverridesBtn").disabled = false;
     }
   }
 
   async function rebuildOutputs() {
-    if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
+    if (!confirm("🔄 Rebuild all outputs using current data?")) return;
 
     try {
       const resp = await jpost("/rebuild_outputs", {});
       alert("✅ " + (resp.status || "Rebuild complete"));
     } catch (err) {
-      alert("Error rebuilding: " + err.message);
+      alert("❌ Error rebuilding: " + err.message);
     }
   }
+
+  refreshReviewLists();
 </script>
 </body>
 </html>
