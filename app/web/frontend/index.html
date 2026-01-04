@@ -350,11 +350,11 @@
     tr.valid:hover { background: #dcfce7; }
     tr.invalid:hover { background: #fee2e2; }
 
+    /* =========================
+       PATCH: Override column is dropdown only (Reason textarea moved to Reason column)
+       ========================= */
     .override-wrap{
-      display: grid;
-      grid-template-columns: 140px 1fr;
-      gap: 8px;
-      align-items: center;
+      display: block;
     }
     .override-wrap select{
       width: 140px;
@@ -368,24 +368,10 @@
       border-radius: 8px;
       background: #fff;
     }
-    .override-wrap input{
-      width: 100%;
-      height: 36px;
-      padding: 8px 10px;
-      font-size: 13px;
-      border-radius: 8px;
-      box-sizing: border-box;
-      background: #fff;
-      border: 1.5px solid var(--border);
-    }
-
     @media (max-width: 640px){
-      .override-wrap{ grid-template-columns: 1fr; }
       .override-wrap select{ width: 100%; max-width: 100%; }
     }
-
-    .override-wrap.dirty select,
-    .override-wrap.dirty input {
+    .override-wrap.dirty select{
       border-color: var(--warning);
       box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
     }
@@ -485,9 +471,6 @@
     th, td { padding: 6px 10px; vertical-align: middle; }
     th { padding: 8px 10px; }
 
-    .override-wrap { gap: 6px; }
-    .override-wrap select{ height: 30px; padding: 4px 8px; font-size: 12px; }
-    .override-wrap input{ height: 30px; padding: 4px 8px; font-size: 12px; }
     td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
 
     td.reason-cell {
@@ -496,12 +479,9 @@
       text-overflow: unset;
       word-break: break-word;
     }
-    td.reason-cell .fit-text {
-      display: block;
-      width: 100%;
-      line-height: 1.15;
-    }
-    .override-wrap textarea.override-reason {
+
+    /* PATCH: Reason column becomes the editable textbox */
+    td.reason-cell textarea.override-reason {
       width: 100%;
       min-width: 0;
       box-sizing: border-box;
@@ -521,8 +501,13 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    td.reason-cell textarea.override-reason:focus{
+      outline: none;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
+    }
     @media (max-width: 767px) {
-      .override-wrap textarea.override-reason { font-size: 16px; }
+      td.reason-cell textarea.override-reason { font-size: 16px; }
     }
 
     @media (max-width: 480px) {
@@ -560,8 +545,7 @@
         word-break: break-word;
       }
 
-      .override-wrap select,
-      .override-wrap input {
+      .override-wrap select{
         height: 32px;
         font-size: 13px;
       }
@@ -587,20 +571,16 @@
       .stack > * + * { margin-top: 10px; }
       button { font-size: 14px; padding: 10px 12px; }
 
-      .override-wrap { gap: 4px; }
-      .override-wrap select,
-      .override-wrap input {
+      .override-wrap select{
         height: 28px;
         padding: 3px 6px;
         font-size: 12px;
       }
 
-      .override-wrap textarea.override-reason {
+      td.reason-cell textarea.override-reason {
         min-height: 32px;
         font-size: 16px;
       }
-
-      td.reason-cell .fit-text { line-height: 1.1; }
     }
   </style>
 </head>
@@ -815,11 +795,10 @@
     ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
   }
 
+  /* =========================
+     PATCH: only fit/grow the editable Reason textareas now
+     ========================= */
   function patchFitAllReasonCells() {
-    document.querySelectorAll("td.reason-cell .fit-text").forEach((el) => {
-      fitFontToBox(el, { minPx: 6, mode: "width" });
-    });
-
     document.querySelectorAll("textarea.override-reason").forEach((ta) => {
       autoGrowTextarea(ta);
       fitFontToBox(ta, { minPx: 6, mode: "width" });
@@ -977,11 +956,19 @@
     lastSelectedSheet = sel.value;
   }
 
-  function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
+  /* =========================
+     PATCH: Override dropdown only + Reason textbox in Reason column
+     ========================= */
+
+  function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentStatus, source) {
     const wrap = document.createElement("div");
     wrap.className = "override-wrap";
 
+    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+
     const sel = document.createElement("select");
+    sel.setAttribute("data-override-key", key);
+
     const options = [
       {v:"", t:"🔄 Auto"},
       {v:"valid", t:"✅ Force Valid"},
@@ -995,34 +982,22 @@
     }
     sel.value = currentStatus || "";
 
-    const reason = document.createElement("textarea");
-    reason.className = "override-reason";
-    reason.rows = 1;
-    reason.placeholder = "Optional reason for override...";
-    reason.value = currentReason || "";
-
-    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
-    function markDirty() {
+    function markDirty(reasonText) {
       wrap.classList.add("dirty");
       pendingOverrides[key] = {
         member_key: memberKey,
         sheet_file: sheetFile,
         event_index: eventIndex,
         override_status: sel.value || null,
-        override_reason: reason.value || null
+        override_reason: reasonText || null
       };
     }
 
     sel.addEventListener("change", () => {
-      markDirty();
+      const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
+      const reasonText = ta ? ta.value : "";
+      markDirty(reasonText);
       patchFitAllReasonCells();
-    });
-
-    reason.addEventListener("input", () => {
-      autoGrowTextarea(reason);
-      markDirty();
-      fitFontToBox(reason, { minPx: 6, mode: "width" });
     });
 
     if (source === "override") {
@@ -1030,14 +1005,51 @@
     }
 
     wrap.appendChild(sel);
-    wrap.appendChild(reason);
+    return wrap;
+  }
+
+  function buildReasonTextarea(memberKey, sheetFile, eventIndex, initialText, currentOverrideReason) {
+    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+
+    const ta = document.createElement("textarea");
+    ta.className = "override-reason";
+    ta.rows = 1;
+
+    ta.value = (currentOverrideReason && currentOverrideReason.trim() !== "")
+      ? currentOverrideReason
+      : (initialText || "");
+
+    ta.placeholder = "Reason (editable)…";
+    ta.setAttribute("data-override-key", key);
+
+    function markDirty() {
+      const sel = document.querySelector(`select[data-override-key="${CSS.escape(key)}"]`);
+      const statusVal = sel ? sel.value : "";
+
+      pendingOverrides[key] = {
+        member_key: memberKey,
+        sheet_file: sheetFile,
+        event_index: eventIndex,
+        override_status: statusVal || null,
+        override_reason: ta.value || null
+      };
+
+      const wrap = sel ? sel.closest(".override-wrap") : null;
+      if (wrap) wrap.classList.add("dirty");
+    }
+
+    ta.addEventListener("input", () => {
+      autoGrowTextarea(ta);
+      markDirty();
+      fitFontToBox(ta, { minPx: 6, mode: "width" });
+    });
 
     setTimeout(() => {
-      autoGrowTextarea(reason);
-      fitFontToBox(reason, { minPx: 6, mode: "width" });
+      autoGrowTextarea(ta);
+      fitFontToBox(ta, { minPx: 6, mode: "width" });
     }, 0);
 
-    return wrap;
+    return ta;
   }
 
   async function loadEventTableForSheet(memberKey, sheetFile) {
@@ -1082,22 +1094,26 @@
 
         const tdOverride = document.createElement("td");
         tdOverride.appendChild(
-          buildOverrideControl(
+          buildOverrideSelect(
             memberKey,
             sheetFile,
             row.event_index,
             row.override_status || "",
-            row.override_reason || "",
             row.source
           )
         );
 
         const tdReason = document.createElement("td");
         tdReason.className = "reason-cell";
-        const reasonWrap = document.createElement("div");
-        reasonWrap.className = "fit-text";
-        reasonWrap.textContent = safeText(row.reason);
-        tdReason.appendChild(reasonWrap);
+        tdReason.appendChild(
+          buildReasonTextarea(
+            memberKey,
+            sheetFile,
+            row.event_index,
+            safeText(row.reason),
+            row.override_reason || ""
+          )
+        );
 
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
@@ -1127,22 +1143,26 @@
 
         const tdOverride = document.createElement("td");
         tdOverride.appendChild(
-          buildOverrideControl(
+          buildOverrideSelect(
             memberKey,
             sheetFile,
             row.event_index,
             row.override_status || "",
-            row.override_reason || "",
             row.source
           )
         );
 
         const tdReason = document.createElement("td");
         tdReason.className = "reason-cell";
-        const reasonWrap = document.createElement("div");
-        reasonWrap.className = "fit-text";
-        reasonWrap.textContent = safeText(row.reason);
-        tdReason.appendChild(reasonWrap);
+        tdReason.appendChild(
+          buildReasonTextarea(
+            memberKey,
+            sheetFile,
+            row.event_index,
+            safeText(row.reason),
+            row.override_reason || ""
+          )
+        );
 
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
