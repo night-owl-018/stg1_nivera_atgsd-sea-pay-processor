@@ -729,10 +729,9 @@
 </div>
 
 <footer>
-  Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
+  Developed by <a href="mailto:ryan.nivera@navy.mil">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
 </footer>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
 
@@ -1095,6 +1094,7 @@
 
       $("reviewHint").style.display = "none";
 
+      // ✅ CRITICAL PATCH: Valid rows use status_reason (not reason)
       for (const row of validRows) {
         const tr = document.createElement("tr");
         tr.className = "valid";
@@ -1117,7 +1117,7 @@
             memberKey,
             sheetFile,
             row.event_index,
-            getOverrideStatus(row),  <!-- PATCH HERE -->
+            getOverrideStatus(row),
             row.source
           )
         );
@@ -1129,8 +1129,8 @@
             memberKey,
             sheetFile,
             row.event_index,
-            safeText(row.reason),
-            getOverrideReason(row)   <!-- PATCH HERE -->
+            safeText(row.status_reason),  // ✅ FIXED: Use status_reason for valid rows
+            getOverrideReason(row)
           )
         );
 
@@ -1144,6 +1144,7 @@
         validBody.appendChild(tr);
       }
 
+      // ✅ Invalid events use reason field (already correct)
       for (const row of invalidRows) {
         const tr = document.createElement("tr");
         tr.className = "invalid";
@@ -1166,7 +1167,7 @@
             memberKey,
             sheetFile,
             row.event_index,
-            getOverrideStatus(row),  <!-- PATCH HERE -->
+            getOverrideStatus(row),
             row.source
           )
         );
@@ -1178,8 +1179,8 @@
             memberKey,
             sheetFile,
             row.event_index,
-            safeText(row.reason),
-            getOverrideReason(row)   <!-- PATCH HERE -->
+            safeText(row.reason),  // ✅ CORRECT: Invalid events use reason field
+            getOverrideReason(row)
           )
         );
 
