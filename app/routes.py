@@ -51,6 +51,7 @@ def _get_override_path(member_key):
     safe = member_key.replace(" ", "_").replace(",", "_")
     return os.path.join(OVERRIDES_DIR, f"{safe}.json")
 
+
 def _delete_single_override(member_key, sheet_file, event_index):
     """
     Deletes a single override entry for a specific event. This is a helper
@@ -77,6 +78,25 @@ def _delete_single_override(member_key, sheet_file, event_index):
     elif len(data["overrides"]) < original_count:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+
+
+def _norm_status(v):
+    """
+    Only allow UI dropdown values:
+      "" | "valid" | "invalid"
+    Anything else becomes "" (Auto).
+    """
+    if v is None:
+        return ""
+    v = str(v).strip().lower()
+    return v if v in ("", "valid", "invalid") else ""
+
+
+def _to_int(v, default=None):
+    try:
+        return int(v)
+    except Exception:
+        return default
 
 # 🔹 --- END OF PATCH --- 🔹
 
@@ -112,20 +132,20 @@ def process_route():
             log(f"RATES CSV RELOAD ERROR → {e}")
         else:
             log("RATES CSV RELOADED")
-    
+
     strike_color = request.form.get("strikeout_color", "Black")
-    
+
     def _run():
         try:
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color)
-            
+
             # This patch is from your original code, it is preserved
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
             if os.path.exists(REVIEW_JSON_PATH):
                 shutil.copy(REVIEW_JSON_PATH, original_path)
                 log(f"CREATED ORIGINAL REVIEW BACKUP → {original_path}")
-            
+
             set_progress(status="COMPLETE", percent=100, current_step="Complete")
             log("PROCESS COMPLETE")
         except Exception as e:
@@ -171,7 +191,7 @@ def _load_review():
     Load the ORIGINAL review state (before any overrides).
     """
     original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
-    
+
     if os.path.exists(original_path):
         try:
             with open(original_path, "r", encoding="utf-8") as f:
@@ -182,7 +202,7 @@ def _load_review():
                 f"This file is the required source of truth. Falling back to '{REVIEW_JSON_PATH}', "
                 f"but the state may be inconsistent. Error: {e}"
             )
-    
+
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
     try:
@@ -191,6 +211,7 @@ def _load_review():
     except Exception as e:
         log(f"REVIEW JSON READ ERROR → {e}")
         return {}
+
 
 def _write_review(state: dict) -> None:
     """Write the review state with overrides applied."""
@@ -220,9 +241,9 @@ def api_single_sheet(member_key, sheet_file):
     member = state.get(member_key)
     if not member:
         return jsonify({}), 404
-        
+
     member = apply_overrides(member_key, member)
-    
+
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_file:
             return jsonify({
@@ -230,7 +251,7 @@ def api_single_sheet(member_key, sheet_file):
                 "valid_rows": sheet.get("rows", []),
                 "invalid_events": sheet.get("invalid_events", []),
             })
-            
+
     return jsonify({}), 404
 
 
@@ -240,8 +261,7 @@ def api_single_sheet(member_key, sheet_file):
 def api_override_batch():
     """
     Receives a list of override changes and applies them in a single batch.
-    This is more efficient than one request per change.
-    It also correctly handles single-entry deletions.
+    Correctly saves status + reason, and correctly deletes ONLY one override.
     """
     payload_list = request.get_json(silent=True) or []
     if not isinstance(payload_list, list):
@@ -250,36 +270,38 @@ def api_override_batch():
     affected_members = set()
 
     for payload in payload_list:
-        member_key = payload.get("member_key")
-        if not member_key:
-            continue
-            
-        affected_members.add(member_key)
-        status = payload.get("status")
-        reason = (payload.get("reason") or "").strip()
+        member_key = (payload.get("member_key") or "").strip()
+        sheet_file = (payload.get("sheet_file") or "").strip()
+        event_index = _to_int(payload.get("event_index"), default=None)
 
-        # If status and reason are empty, it's a delete action. Otherwise, it's a save/update.
-        status = status or ""
-        reason = (reason or "").strip()
-        
-        # Only delete if BOTH are empty
+        if not member_key or not sheet_file or event_index is None:
+            # Skip bad entries instead of corrupting override files
+            continue
+
+        affected_members.add(member_key)
+
+        status = _norm_status(payload.get("status"))
+        reason = (payload.get("reason") or "").strip()
+        source = payload.get("source", "manual")
+
+        # Only delete if BOTH are empty (Auto + empty reason)
         if status == "" and reason == "":
             _delete_single_override(
-                member_key=payload.get("member_key"),
-                sheet_file=payload.get("sheet_file"),
-                event_index=payload.get("event_index"),
+                member_key=member_key,
+                sheet_file=sheet_file,
+                event_index=event_index,
             )
         else:
             save_override(
-                member_key=payload.get("member_key"),
-                sheet_file=payload.get("sheet_file"),
-                event_index=payload.get("event_index"),
-                status=status or None,   # Auto stays Auto
-                reason=reason,           # Reason is preserved
-                source=payload.get("source", "manual"),
+                member_key=member_key,
+                sheet_file=sheet_file,
+                event_index=event_index,
+                status=status or None,   # "" stays Auto
+                reason=reason,           # Reason saved
+                source=source,
             )
 
-    # After all changes are made, regenerate the review state for all affected members
+    # Rebuild applied review state so rebuild_outputs uses current overrides
     if affected_members:
         state = _load_review()
         for mk in affected_members:
@@ -298,20 +320,39 @@ def api_override_batch():
 @bp.route("/api/override", methods=["POST"])
 def api_override():
     """
-    Save an override and regenerate review state.
+    Save a single override and regenerate review state.
+    PATCH: this used to call save_override(**payload) which is WRONG for your overrides.py signature.
     """
     payload = request.get_json(silent=True) or {}
-    if not payload.get("member_key"):
-        return jsonify({"error": "member_key required"}), 400
-        
-    save_override(**payload)
-    
+
+    member_key = (payload.get("member_key") or "").strip()
+    sheet_file = (payload.get("sheet_file") or "").strip()
+    event_index = _to_int(payload.get("event_index"), default=None)
+
+    if not member_key or not sheet_file or event_index is None:
+        return jsonify({"error": "member_key, sheet_file, event_index required"}), 400
+
+    status = _norm_status(payload.get("status"))
+    reason = (payload.get("reason") or "").strip()
+    source = payload.get("source", "manual")
+
+    if status == "" and reason == "":
+        _delete_single_override(member_key, sheet_file, event_index)
+    else:
+        save_override(
+            member_key=member_key,
+            sheet_file=sheet_file,
+            event_index=event_index,
+            status=status or None,
+            reason=reason,
+            source=source,
+        )
+
     state = _load_review()
-    mk = payload["member_key"]
-    if mk in state:
-        state[mk] = apply_overrides(mk, state[mk])
+    if member_key in state:
+        state[member_key] = apply_overrides(member_key, state[member_key])
         _write_review(state)
-        
+
     return jsonify({"status": "saved"})
 
 
@@ -321,17 +362,17 @@ def api_override_clear():
     Clear overrides for a member and regenerate review state.
     """
     payload = request.get_json(silent=True) or {}
-    mk = payload.get("member_key")
+    mk = (payload.get("member_key") or "").strip()
     if not mk:
         return jsonify({"error": "member_key required"}), 400
-        
+
     clear_overrides(mk)
-    
+
     state = _load_review()
     if mk in state:
         state[mk] = apply_overrides(mk, state[mk])
         _write_review(state)
-        
+
     return jsonify({"status": "cleared"})
 
 
@@ -372,14 +413,14 @@ def reset():
                 os.remove(os.path.join(root, f))
             except Exception as e:
                 log(f"RESET INPUT FILE ERROR → {e}")
-                
+
     for root, _, files in os.walk(OUTPUT_DIR):
         for f in files:
             try:
                 os.remove(os.path.join(root, f))
             except Exception as e:
                 log(f"RESET OUTPUT FILE ERROR → {e}")
-                
+
     original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
     if os.path.exists(original_path):
         try:
@@ -387,9 +428,8 @@ def reset():
             log("REMOVED ORIGINAL REVIEW BACKUP")
         except Exception as e:
             log(f"RESET ORIGINAL BACKUP ERROR → {e}")
-            
+
     clear_logs()
     reset_progress()
     log("RESET COMPLETE (files cleared)")
     return jsonify({"status": "reset"})
-
