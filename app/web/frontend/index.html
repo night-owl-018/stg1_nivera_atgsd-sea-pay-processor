@@ -1179,7 +1179,7 @@
             memberKey,
             sheetFile,
             row.event_index,
-            safeText(row.status_reason),  // ✅ CORRECT: Invalid events use reason field
+            safeText(row.reason),  // ✅ CORRECT: Invalid events use reason field
             getOverrideReason(row)
           )
         );
