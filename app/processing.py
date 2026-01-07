@@ -577,7 +577,6 @@ def process_all(strike_color: str = "black"):
     # 🔹 PATCH: Complete with granular tracker
     progress.complete()
 
-
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
@@ -586,7 +585,7 @@ def rebuild_outputs_from_review():
     Rebuild PG-13, TORIS, summaries, and merged package
     strictly from REVIEW_JSON_PATH.
     
-    PATCH: Properly handles force-valid overrides
+    FIXED: Properly handles force-valid overrides and builds correct summary data
     """
 
     if not os.path.exists(REVIEW_JSON_PATH):
@@ -610,8 +609,7 @@ def rebuild_outputs_from_review():
     # =============================
     total_members = len(review_state)
     for member_idx, (member_key, member_data) in enumerate(review_state.items(), start=1):
-        # 🔹 PATCH: Update progress per member
-        member_progress = int((member_idx / max(total_members, 1)) * 85)  # 85% for processing
+        member_progress = int((member_idx / max(total_members, 1)) * 85)
         set_progress(
             percent=member_progress,
             current_step=f"Rebuilding [{member_idx}/{total_members}]: {member_key}"
@@ -620,106 +618,212 @@ def rebuild_outputs_from_review():
         rate = member_data["rate"]
         last = member_data["last"]
         first = member_data["first"]
+        mi = member_data.get("mi") or member_data.get("middle_initial") or ""
         name = f"{first} {last}"
 
         summary_data[member_key] = {
             "rate": rate,
             "last": last,
             "first": first,
-            "periods": [],
-            "skipped_unknown": [],
-            "skipped_dupe": [],
-            "reporting_periods": [],
+            "mi": mi,
+            "valid_periods": [],           # ✅ NEW: Direct list for summary
+            "invalid_events": [],          # ✅ NEW: Direct list for summary
+            "events_followed": [],         # ✅ NEW: Direct list for summary
+            "tracker_lines": [],           # ✅ NEW: Direct list for tracker
+            "reporting_periods": [],       # ✅ Preserve reporting periods
         }
 
+        # Collect all valid rows across all sheets
+        all_valid_rows = []
+        all_invalid_events = []
+        
         # =============================
-        # LOOP SHEETS
+        # LOOP SHEETS - COLLECT DATA
         # =============================
         for sheet in member_data.get("sheets", []):
             src_file = os.path.join(DATA_DIR, sheet["source_file"])
-
-            final_valid_rows = []
-            final_invalid_events = []
             
-            # PATCH: Collect ALL valid rows (includes force-valid from overrides)
-            # The rows array already contains moved force-valid events from overrides.py
+            # ✅ Extract reporting period if present
+            if sheet.get("reporting_period"):
+                summary_data[member_key]["reporting_periods"].append({
+                    "start": sheet["reporting_period"].get("start"),
+                    "end": sheet["reporting_period"].get("end"),
+                })
+            
+            # ✅ VALID ROWS: All rows with is_valid=True in final_classification
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
-                    final_valid_rows.append(r)
+                    all_valid_rows.append(r)
             
-            # Only keep invalid events (force-valid ones already moved to rows)
+            # ✅ INVALID EVENTS: All events in invalid_events array
             for e in sheet.get("invalid_events", []):
-                if not e.get("final_classification", {}).get("is_valid"):
-                    # ✅ FIX: Check for override reason first, then fall back to original
-                    override_reason = e.get("status_reason") or e.get("override", {}).get("reason")
-                    final_reason = override_reason if override_reason else e.get("reason", "")
-                    
-                    invalid_entry = {
-                        "date": e.get("date"),
-                        "ship": e.get("ship"),
-                        "occ_idx": e.get("occ_idx"),
-                        "raw": e.get("raw", ""),
-                        "reason": final_reason,  # ✅ Use override reason if it exists
-                        "category": e.get("category", ""),
-                    }
-                    final_invalid_events.append(invalid_entry)
-                    
-                    # PATCH: Populate summary data invalid lists for summary txt/pdf
-                    category = e.get("category", "")
-                    if category == "duplicate" or "duplicate" in e.get("reason", "").lower():
-                        summary_data[member_key]["skipped_dupe"].append(invalid_entry)
-                    else:
-                        summary_data[member_key]["skipped_unknown"].append(invalid_entry)
+                # Get the best reason (override reason takes priority)
+                override_reason = e.get("status_reason") or e.get("override", {}).get("reason")
+                final_reason = override_reason if override_reason else e.get("reason", "Invalid event")
+                
+                invalid_entry = {
+                    "date": e.get("date"),
+                    "ship": e.get("ship") or "UNKNOWN",
+                    "occ_idx": e.get("occ_idx"),
+                    "raw": e.get("raw", ""),
+                    "reason": final_reason,
+                    "category": e.get("category", ""),
+                }
+                all_invalid_events.append(invalid_entry)
 
-            # =============================
-            # REBUILD PERIODS (FINAL VALID)
-            # =============================
-            ship_map = {}
-            for r in final_valid_rows:
-                ship_map.setdefault(r["ship"], []).append(r)
+        # =============================
+        # BUILD VALID PERIODS (ship continuity grouping)
+        # =============================
+        ship_map = {}
+        for r in all_valid_rows:
+            ship = r.get("ship") or "UNKNOWN"
+            ship_map.setdefault(ship, []).append(r)
 
-            for ship, ship_rows in ship_map.items():
-                periods = group_by_ship(ship_rows)
+        valid_periods_list = []
+        
+        for ship, ship_rows in ship_map.items():
+            # Group into continuous date ranges
+            periods = group_by_ship(ship_rows)
 
-                for g in periods:
-                    summary_data[member_key]["periods"].append({
-                        "ship": ship,
-                        "start": g["start"],
-                        "end": g["end"],
-                        "days": (g["end"] - g["start"]).days + 1,
-                        "sheet_file": src_file,
-                    })
+            for g in periods:
+                start_dt = g["start"]
+                end_dt = g["end"]
+                days = (end_dt - start_dt).days + 1
+                
+                valid_periods_list.append({
+                    "ship": ship,
+                    "start": start_dt,
+                    "end": end_dt,
+                    "days": days,
+                })
 
-                make_pdf_for_ship(ship, periods, name)
-                pg13_total += 1
+            # ✅ Create PG-13 for this ship
+            make_pdf_for_ship(ship, periods, name)
+            pg13_total += 1
 
-            # =============================
-            # TORIS REBUILD (FINAL INVALID)
-            # =============================
-            toris_name = f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS.pdf".replace(" ", "_")
-            toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
-
-            if os.path.exists(toris_path):
-                os.remove(toris_path)
-
-            computed_days = sum(p["days"] for p in summary_data[member_key]["periods"])
-
-            mark_sheet_with_strikeouts(
-                src_file,
-                [],
-                final_invalid_events,
-                toris_path,
-                None,
-                computed_days,
-                override_valid_rows=final_valid_rows,
+        # Sort valid periods chronologically
+        valid_periods_list.sort(key=lambda p: p["start"])
+        
+        # =============================
+        # BUILD SUMMARY DATA STRUCTURES
+        # =============================
+        
+        # Store as tuples for summary.py to process
+        summary_data[member_key]["valid_periods"] = [
+            (p["ship"], p["start"], p["end"]) for p in valid_periods_list
+        ]
+        
+        summary_data[member_key]["invalid_events"] = [
+            (e["ship"], datetime.strptime(e["date"], "%m/%d/%Y"), e["reason"])
+            for e in all_invalid_events if e.get("date")
+        ]
+        
+        # ✅ Build EVENTS FOLLOWED list
+        events_followed = []
+        
+        # Add valid periods first
+        for p in valid_periods_list:
+            from datetime import datetime as dt
+            if isinstance(p["start"], str):
+                start_dt = dt.strptime(p["start"], "%m/%d/%Y")
+                end_dt = dt.strptime(p["end"], "%m/%d/%Y")
+            else:
+                start_dt = p["start"]
+                end_dt = p["end"]
+            
+            days = (end_dt - start_dt).days + 1
+            events_followed.append(
+                f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
+                f"{end_dt.month}/{end_dt.day}/{end_dt.year} | {p['ship']} | "
+                f"PAY AUTHORIZED ({days} day{'s' if days != 1 else ''})"
             )
+        
+        # Add invalid events
+        for e in all_invalid_events:
+            if e.get("date"):
+                try:
+                    dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
+                    date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
+                except:
+                    date_str = e["date"]
+                
+                events_followed.append(
+                    f"{date_str} | {e['ship']} | {e['reason']}"
+                )
+        
+        summary_data[member_key]["events_followed"] = events_followed
+        
+        # ✅ Build TRACKER LINES
+        tracker_lines = []
+        
+        for p in valid_periods_list:
+            from datetime import datetime as dt
+            if isinstance(p["start"], str):
+                start_dt = dt.strptime(p["start"], "%m/%d/%Y")
+                end_dt = dt.strptime(p["end"], "%m/%d/%Y")
+            else:
+                start_dt = p["start"]
+                end_dt = p["end"]
+            
+            days = (end_dt - start_dt).days + 1
+            tracker_lines.append(
+                f"{rate} {last}, {first} | {p['ship']} | "
+                f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
+                f"{end_dt.month}/{end_dt.day}/{end_dt.year} "
+                f"({days} day{'s' if days != 1 else ''}) | VALID"
+            )
+        
+        for e in all_invalid_events:
+            if e.get("date"):
+                try:
+                    dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
+                    date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
+                except:
+                    date_str = e["date"]
+                
+                tracker_lines.append(
+                    f"{rate} {last}, {first} | {e['ship']} | "
+                    f"{date_str} | {e['reason']}"
+                )
+        
+        summary_data[member_key]["tracker_lines"] = tracker_lines
 
-            toris_total += 1
+        # =============================
+        # TORIS REBUILD WITH STRIKEOUTS
+        # =============================
+        
+        # Get first sheet for TORIS generation
+        first_sheet = member_data.get("sheets", [{}])[0]
+        src_file = os.path.join(DATA_DIR, first_sheet.get("source_file", ""))
+        
+        if not os.path.exists(src_file):
+            log(f"⚠️ TORIS REBUILD SKIP → Source file not found: {src_file}")
+            continue
+        
+        toris_name = f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS.pdf".replace(" ", "_")
+        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
+
+        if os.path.exists(toris_path):
+            os.remove(toris_path)
+
+        computed_days = sum(p["days"] for p in valid_periods_list)
+
+        # ✅ Pass correct invalid events to strikeout
+        mark_sheet_with_strikeouts(
+            src_file,
+            [],  # No duplicates in rebuild (already filtered)
+            all_invalid_events,  # ✅ Pass complete invalid list
+            toris_path,
+            None,  # No extracted total in rebuild
+            computed_days,
+            override_valid_rows=all_valid_rows,  # ✅ Pass valid rows for override detection
+        )
+
+        toris_total += 1
 
     # =============================
     # FINALIZE (ONCE)
     # =============================
-    # 🔹 PATCH: Update progress for final steps
     set_progress(percent=90, current_step="Writing summary files")
     write_summary_files(summary_data)
     
@@ -737,4 +841,3 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
-
