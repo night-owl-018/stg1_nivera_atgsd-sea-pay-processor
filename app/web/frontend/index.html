@@ -384,6 +384,42 @@
     .text-secondary { color: var(--text-secondary); }
     .mb-1 { margin-bottom: 3px; }
     .mb-2 { margin-bottom: 5px; }
+
+    /* =========================================================
+       PATCH: Desktop font boost (keeps iPhone/mobile as-is)
+       ========================================================= */
+    @media (min-width: 1025px) {
+      header h1 { font-size: 22px; }
+      header .subtitle { font-size: 12px; }
+
+      .card h3 { font-size: 12px; }
+      label { font-size: 12px; }
+
+      input[type=file], select { font-size: 12px; padding: 7px 10px; }
+
+      .primary, button.primary { font-size: 12px; padding: 7px 10px; }
+      .secondary, button.secondary { font-size: 11px; padding: 6px 8px; }
+      .danger, button.danger { font-size: 11px; padding: 6px 8px; }
+      .success, button.success { font-size: 12px; }
+
+      .status { font-size: 11px; padding: 6px 10px; }
+
+      table { font-size: 12px; }
+      th { font-size: 10px; padding: 8px 10px; }
+      td { padding: 8px 10px; }
+
+      textarea.override-reason { font-size: 12px; padding: 6px 8px; }
+
+      .hint { font-size: 11px; }
+      .section-header { font-size: 11px; }
+
+      .logbox { font-size: 11px; }
+    }
+
+    /* Optional: big monitors get a tiny extra boost */
+    @media (min-width: 1600px) {
+      body { font-size: 16px; }
+    }
   </style>
 </head>
 
