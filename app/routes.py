@@ -4,6 +4,7 @@ import json
 import zipfile
 import shutil
 import threading
+import re  # 🔹 PATCH: Add missing import for regex operations in custom download
 from flask import Blueprint, request, jsonify, send_file, send_from_directory
 
 from app.core.logger import (
@@ -22,7 +23,7 @@ from app.core.config import (
     RATE_FILE,
     REVIEW_JSON_PATH,
     PACKAGE_FOLDER,
-    OVERRIDES_DIR,  # 🔹 PATCH: Import OVERRIDES_DIR
+    OVERRIDES_DIR,
 )
 
 from app.processing import process_all
@@ -31,7 +32,7 @@ from app.core.overrides import (
     save_override,
     clear_overrides,
     apply_overrides,
-    load_overrides,  # 🔹 PATCH: Import load_overrides
+    load_overrides,
 )
 
 from app.processing import rebuild_outputs_from_review
@@ -40,8 +41,6 @@ from app.core.merge import merge_all_pdfs
 bp = Blueprint("routes", __name__)
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
 
-
-# 🔹 --- START OF PATCH --- 🔹
 
 def _get_override_path(member_key):
     """
@@ -54,9 +53,7 @@ def _get_override_path(member_key):
 
 def _delete_single_override(member_key, sheet_file, event_index):
     """
-    Deletes a single override entry for a specific event. This is a helper
-    for the batch endpoint and fixes the bug where the old DELETE endpoint
-    cleared all overrides for a member instead of just one.
+    Deletes a single override entry for a specific event.
     """
     path = _get_override_path(member_key)
     if not os.path.exists(path):
@@ -66,13 +63,11 @@ def _delete_single_override(member_key, sheet_file, event_index):
     overrides = data.get("overrides", [])
     original_count = len(overrides)
 
-    # Filter out the override to be deleted
     data["overrides"] = [
         ov for ov in overrides
         if not (ov.get("sheet_file") == sheet_file and ov.get("event_index") == event_index)
     ]
 
-    # If the file is now empty, delete it. Otherwise, write the updated list.
     if not data["overrides"]:
         clear_overrides(member_key)
     elif len(data["overrides"]) < original_count:
@@ -82,9 +77,7 @@ def _delete_single_override(member_key, sheet_file, event_index):
 
 def _norm_status(v):
     """
-    Only allow UI dropdown values:
-      "" | "valid" | "invalid"
-    Anything else becomes "" (Auto).
+    Only allow UI dropdown values: "" | "valid" | "invalid"
     """
     if v is None:
         return ""
@@ -97,8 +90,6 @@ def _to_int(v, default=None):
         return int(v)
     except Exception:
         return default
-
-# 🔹 --- END OF PATCH --- 🔹
 
 
 @bp.route("/")
@@ -140,7 +131,6 @@ def process_route():
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color)
 
-            # This patch is from your original code, it is preserved
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
             if os.path.exists(REVIEW_JSON_PATH):
                 shutil.copy(REVIEW_JSON_PATH, original_path)
@@ -187,9 +177,7 @@ def logs():
 
 
 def _load_review():
-    """
-    Load the ORIGINAL review state (before any overrides).
-    """
+    """Load the ORIGINAL review state (before any overrides)."""
     original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
 
     if os.path.exists(original_path):
@@ -197,11 +185,7 @@ def _load_review():
             with open(original_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            log(
-                f"CRITICAL: Could not load '{original_path}'. "
-                f"This file is the required source of truth. Falling back to '{REVIEW_JSON_PATH}', "
-                f"but the state may be inconsistent. Error: {e}"
-            )
+            log(f"Error loading original: {e}")
 
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
@@ -234,9 +218,7 @@ def api_member_sheets(member_key):
 
 @bp.route("/api/member/<path:member_key>/sheet/<path:sheet_file>")
 def api_single_sheet(member_key, sheet_file):
-    """
-    Load a single sheet with overrides applied.
-    """
+    """Load a single sheet with overrides applied."""
     state = _load_review()
     member = state.get(member_key)
     if not member:
@@ -255,17 +237,12 @@ def api_single_sheet(member_key, sheet_file):
     return jsonify({}), 404
 
 
-# 🔹 --- START OF PATCH --- 🔹
-
 @bp.route("/api/overrides/batch", methods=["POST"])
 def api_override_batch():
-    """
-    Receives a list of override changes and applies them in a single batch.
-    Correctly saves status + reason, and correctly deletes ONLY one override.
-    """
+    """Batch save overrides."""
     payload_list = request.get_json(silent=True) or []
     if not isinstance(payload_list, list):
-        return jsonify({"error": "Request payload must be a list of override objects"}), 400
+        return jsonify({"error": "Request payload must be a list"}), 400
 
     affected_members = set()
 
@@ -275,7 +252,6 @@ def api_override_batch():
         event_index = _to_int(payload.get("event_index"), default=None)
 
         if not member_key or not sheet_file or event_index is None:
-            # Skip bad entries instead of corrupting override files
             continue
 
         affected_members.add(member_key)
@@ -284,24 +260,18 @@ def api_override_batch():
         reason = (payload.get("reason") or "").strip()
         source = payload.get("source", "manual")
 
-        # Only delete if BOTH are empty (Auto + empty reason)
         if status == "" and reason == "":
-            _delete_single_override(
-                member_key=member_key,
-                sheet_file=sheet_file,
-                event_index=event_index,
-            )
+            _delete_single_override(member_key, sheet_file, event_index)
         else:
             save_override(
                 member_key=member_key,
                 sheet_file=sheet_file,
                 event_index=event_index,
-                status=status or None,   # "" stays Auto
-                reason=reason,           # Reason saved
+                status=status or None,
+                reason=reason,
                 source=source,
             )
 
-    # Rebuild applied review state so rebuild_outputs uses current overrides
     if affected_members:
         state = _load_review()
         for mk in affected_members:
@@ -311,18 +281,10 @@ def api_override_batch():
 
     return jsonify({"status": "batch processed"})
 
-# 🔹 --- END OF PATCH --- 🔹
-
-
-# NOTE: The following single-override endpoints are kept for backwards compatibility
-# but are no longer used by the patched frontend.
 
 @bp.route("/api/override", methods=["POST"])
 def api_override():
-    """
-    Save a single override and regenerate review state.
-    PATCH: this used to call save_override(**payload) which is WRONG for your overrides.py signature.
-    """
+    """Save a single override."""
     payload = request.get_json(silent=True) or {}
 
     member_key = (payload.get("member_key") or "").strip()
@@ -358,9 +320,7 @@ def api_override():
 
 @bp.route("/api/override", methods=["DELETE"])
 def api_override_clear():
-    """
-    Clear overrides for a member and regenerate review state.
-    """
+    """Clear all overrides for a member."""
     payload = request.get_json(silent=True) or {}
     mk = (payload.get("member_key") or "").strip()
     if not mk:
@@ -404,27 +364,20 @@ def download_merged():
 
 @bp.route("/download_member/<member_key>")
 def download_member(member_key):
-    """
-    Download all files for a specific member as a ZIP.
-    Includes: Summary PDF, TORIS Cert, and all PG-13 forms.
-    """
+    """Download all files for a specific member as a ZIP."""
     from app.core.config import SUMMARY_PDF_FOLDER, TORIS_CERT_FOLDER, SEA_PAY_PG13_FOLDER
     
-    # Convert member_key to safe filename prefix
-    # Example: "OSC BYRNES,BRIAN" -> "OSC_BYRNES_BRIAN"
     safe_prefix = member_key.replace(" ", "_").replace(",", "_")
     
     mem = io.BytesIO()
     file_count = 0
     
     with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
-        # Add summary PDF
         summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
         if os.path.exists(summary_path):
             z.write(summary_path, os.path.basename(summary_path))
             file_count += 1
         
-        # Add TORIS cert
         if os.path.exists(TORIS_CERT_FOLDER):
             toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
                           if f.startswith(safe_prefix) and f.endswith('.pdf')]
@@ -433,7 +386,6 @@ def download_member(member_key):
                 z.write(full_path, f)
                 file_count += 1
         
-        # Add PG-13s
         if os.path.exists(SEA_PAY_PG13_FOLDER):
             pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
                          if f.startswith(safe_prefix) and f.endswith('.pdf')]
@@ -512,7 +464,6 @@ def download_member_pg13s(member_key):
     if not pg13_files:
         return jsonify({"error": f"No PG-13 forms found for {member_key}"}), 404
     
-    # If only one PG-13, send it directly
     if len(pg13_files) == 1:
         pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_files[0])
         return send_file(
@@ -521,7 +472,6 @@ def download_member_pg13s(member_key):
             download_name=pg13_files[0]
         )
     
-    # If multiple PG-13s, zip them
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(pg13_files):
@@ -539,7 +489,10 @@ def download_member_pg13s(member_key):
 
 @bp.route("/download_custom", methods=["POST"])
 def download_custom():
-    """Download or merge custom selection of members and file types."""
+    """
+    🔹 PATCH: Enhanced error handling and logging for custom downloads.
+    Download or merge custom selection of members and file types.
+    """
     from app.core.config import SUMMARY_PDF_FOLDER, TORIS_CERT_FOLDER, SEA_PAY_PG13_FOLDER
     from PyPDF2 import PdfWriter, PdfReader
     
@@ -547,17 +500,20 @@ def download_custom():
     action = data.get("action", "download")
     selections = data.get("selections", {})
     
+    log(f"CUSTOM DOWNLOAD REQUEST → Action: {action}, Selections: {len(selections)} members")
+    
     if not selections:
+        log("ERROR: No selections provided")
         return jsonify({"error": "No selections provided"}), 400
     
     if action == "download":
-        # Create ZIP with selected files
         mem = io.BytesIO()
         file_count = 0
         
         with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
             for member_key, options in selections.items():
                 safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+                log(f"Processing member: {member_key} (safe: {safe_prefix})")
                 
                 # Add summary if selected
                 if options.get("summary"):
@@ -565,6 +521,9 @@ def download_custom():
                     if os.path.exists(summary_path):
                         z.write(summary_path, os.path.basename(summary_path))
                         file_count += 1
+                        log(f"  ✓ Added summary: {os.path.basename(summary_path)}")
+                    else:
+                        log(f"  ✗ Summary not found: {summary_path}")
                 
                 # Add TORIS if selected
                 if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
@@ -573,6 +532,9 @@ def download_custom():
                     for f in toris_files:
                         z.write(os.path.join(TORIS_CERT_FOLDER, f), f)
                         file_count += 1
+                        log(f"  ✓ Added TORIS: {f}")
+                    if not toris_files:
+                        log(f"  ✗ No TORIS files found for {safe_prefix}")
                 
                 # Add PG-13s if selected
                 if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
@@ -581,21 +543,27 @@ def download_custom():
                     for f in sorted(pg13_files):
                         z.write(os.path.join(SEA_PAY_PG13_FOLDER, f), f)
                         file_count += 1
+                        log(f"  ✓ Added PG-13: {f}")
+                    if not pg13_files:
+                        log(f"  ✗ No PG-13 files found for {safe_prefix}")
+        
+        log(f"CUSTOM DOWNLOAD COMPLETE → {file_count} files added to ZIP")
         
         if file_count == 0:
+            log("ERROR: No files found for selection")
             return jsonify({"error": "No files found for selection"}), 404
         
         mem.seek(0)
         return send_file(mem, as_attachment=True, download_name="CUSTOM_SELECTION.zip", mimetype='application/zip')
     
     elif action == "merge":
-        # Create merged PDF with bookmarks
         writer = PdfWriter()
         page_count = 0
         
         for member_key, options in selections.items():
             safe_prefix = member_key.replace(" ", "_").replace(",", "_")
             parent_bookmark = writer.add_outline_item(member_key, page_count)
+            log(f"Merging member: {member_key}")
             
             # Add summary if selected
             if options.get("summary"):
@@ -606,6 +574,7 @@ def download_custom():
                     for page in reader.pages:
                         writer.add_page(page)
                         page_count += 1
+                    log(f"  ✓ Merged summary ({len(reader.pages)} pages)")
             
             # Add TORIS if selected
             if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
@@ -617,6 +586,7 @@ def download_custom():
                     for page in reader.pages:
                         writer.add_page(page)
                         page_count += 1
+                    log(f"  ✓ Merged TORIS ({len(reader.pages)} pages)")
             
             # Add PG-13s if selected
             if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
@@ -632,8 +602,12 @@ def download_custom():
                         for page in reader.pages:
                             writer.add_page(page)
                             page_count += 1
+                    log(f"  ✓ Merged {len(pg13_files)} PG-13 forms")
+        
+        log(f"CUSTOM MERGE COMPLETE → {page_count} pages")
         
         if page_count == 0:
+            log("ERROR: No pages to merge")
             return jsonify({"error": "No pages to merge"}), 404
         
         mem = io.BytesIO()
@@ -646,9 +620,7 @@ def download_custom():
 
 @bp.route("/reset", methods=["POST"])
 def reset():
-    """
-    Reset all data including original backup.
-    """
+    """Reset all data including original backup."""
     for root, _, files in os.walk(DATA_DIR):
         for f in files:
             try:
