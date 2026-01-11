@@ -7,7 +7,7 @@
   <style>
     :root {
       /* =========================
-         PATCH: Dark “glass” theme
+         PATCH: Dark "glass" theme
          ========================= */
       --navy-dark: #0a3854;
       --navy: #0e5578;
@@ -1002,63 +1002,146 @@
       renderMemberSelectionList();
     });
 
+    // 🔹 PATCH: Enhanced custom download with debugging
     $("btnDownloadCustom").addEventListener("click", async () => {
       const selections = {};
+      let totalItems = 0;
+      
+      // Build selections object
       for (const member in customSelections) {
         const sel = customSelections[member];
         if (sel.enabled) {
-          selections[member] = { summary: sel.summary, toris: sel.toris, pg13: sel.pg13 };
+          selections[member] = { 
+            summary: sel.summary, 
+            toris: sel.toris, 
+            pg13: sel.pg13 
+          };
+          if (sel.summary) totalItems++;
+          if (sel.toris) totalItems++;
+          if (sel.pg13) totalItems++;
         }
       }
       
+      console.log("🔍 Download request:", {
+        memberCount: Object.keys(selections).length,
+        totalItems: totalItems,
+        selections: selections
+      });
+      
+      if (totalItems === 0) {
+        alert("❌ No items selected. Please select at least one file type.");
+        return;
+      }
+      
       try {
+        $("btnDownloadCustom").disabled = true;
+        $("btnDownloadCustom").textContent = "📥 Downloading...";
+        
         const response = await fetch("/download_custom", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({action: "download", selections: selections})
         });
         
-        if (!response.ok) throw new Error("Download failed");
+        console.log("📡 Server response:", response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ Server error:", errorText);
+          throw new Error(`Download failed: ${response.status} - ${errorText}`);
+        }
         
         const blob = await response.blob();
+        console.log("✅ Received blob:", blob.size, "bytes");
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = "CUSTOM_SELECTION.zip";
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        
+        console.log("✅ Download completed successfully");
+        
       } catch (err) {
-        alert("Download failed: " + err.message);
+        console.error("❌ Download error:", err);
+        alert("Download failed: " + err.message + "\n\nCheck the browser console (F12) for details.");
+      } finally {
+        $("btnDownloadCustom").disabled = false;
+        $("btnDownloadCustom").textContent = "📥 Download ZIP";
       }
     });
 
+    // 🔹 PATCH: Enhanced custom merge with debugging
     $("btnMergeCustom").addEventListener("click", async () => {
       const selections = {};
+      let totalItems = 0;
+      
       for (const member in customSelections) {
         const sel = customSelections[member];
         if (sel.enabled) {
-          selections[member] = { summary: sel.summary, toris: sel.toris, pg13: sel.pg13 };
+          selections[member] = { 
+            summary: sel.summary, 
+            toris: sel.toris, 
+            pg13: sel.pg13 
+          };
+          if (sel.summary) totalItems++;
+          if (sel.toris) totalItems++;
+          if (sel.pg13) totalItems++;
         }
       }
       
+      console.log("🔍 Merge request:", {
+        memberCount: Object.keys(selections).length,
+        totalItems: totalItems,
+        selections: selections
+      });
+      
+      if (totalItems === 0) {
+        alert("❌ No items selected. Please select at least one file type.");
+        return;
+      }
+      
       try {
+        $("btnMergeCustom").disabled = true;
+        $("btnMergeCustom").textContent = "📦 Merging...";
+        
         const response = await fetch("/download_custom", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({action: "merge", selections: selections})
         });
         
-        if (!response.ok) throw new Error("Merge failed");
+        console.log("📡 Server response:", response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ Server error:", errorText);
+          throw new Error(`Merge failed: ${response.status} - ${errorText}`);
+        }
         
         const blob = await response.blob();
+        console.log("✅ Received blob:", blob.size, "bytes");
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = "CUSTOM_MERGED_PACKAGE.pdf";
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        
+        console.log("✅ Merge completed successfully");
+        
       } catch (err) {
-        alert("Merge failed: " + err.message);
+        console.error("❌ Merge error:", err);
+        alert("Merge failed: " + err.message + "\n\nCheck the browser console (F12) for details.");
+      } finally {
+        $("btnMergeCustom").disabled = false;
+        $("btnMergeCustom").textContent = "📦 Merge to PDF";
       }
     });
 
