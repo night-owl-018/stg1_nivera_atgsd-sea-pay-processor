@@ -5,7 +5,7 @@ import shutil  # 🔹 PATCH: Add shutil import
 from datetime import datetime
 
 # 🔹 PATCH: Import routes to access cancel flag
-import app.web.routes as routes_module
+import app.routes as routes_module
 
 from app.core.logger import (
     log,
@@ -883,3 +883,4 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
