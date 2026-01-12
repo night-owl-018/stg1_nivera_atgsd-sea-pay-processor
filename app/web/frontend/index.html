@@ -74,6 +74,9 @@
       padding: 14px 16px;
       width: 100%;
       position: relative;
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
     .header-inner::after{
       content:"";
@@ -95,12 +98,40 @@
       display:flex;
       gap:10px;
       align-items:center;
+      flex: 1;
     }
     header .subtitle {
       font-size: clamp(11px, 1.6vw, 13px);
       opacity: 0.88;
       margin-top: 2px;
       color: rgba(245,248,255,0.72);
+    }
+    
+    /* 🔹 PATCH: Header buttons */
+    .header-buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .header-btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 650;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .header-btn:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(111,183,255,0.35);
+      transform: translateY(-1px);
     }
 
     .wrap {
@@ -579,8 +610,14 @@
 <body>
   <header>
     <div class="header-inner">
-      <h1>⚓ ATGSD Sea Pay Processor</h1>
-      <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
+      <div style="flex: 1;">
+        <h1>⚓ ATGSD Sea Pay Processor</h1>
+        <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
+      </div>
+      <div class="header-buttons">
+        <button onclick="$('aboutModal').style.display='block'" class="header-btn">ℹ️ About</button>
+        <button onclick="$('helpModal').style.display='block'" class="header-btn">📖 Help</button>
+      </div>
     </div>
   </header>
 
@@ -808,6 +845,132 @@
 
   </div>
 
+  <!-- ABOUT MODAL -->
+  <div id="aboutModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; overflow-y: auto; backdrop-filter: blur(8px);">
+    <div style="max-width: 900px; margin: 40px auto; padding: 20px;">
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>ℹ️ About ATGSD Sea Pay Processor</span>
+          <button onclick="$('aboutModal').style.display='none'" style="width: auto; padding: 8px 16px; font-size: 14px;" class="danger">✕ Close</button>
+        </h3>
+        <div class="body" style="max-height: 70vh; overflow-y: auto;">
+          
+          <h4 style="color: var(--accent); margin-top: 0; font-size: 18px; letter-spacing: -0.01em;">Mission Statement</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            The ATGSD Sea Pay Processor is a specialized web application designed to streamline and automate the complex process of validating sea duty certifications and generating official PG-13 payment authorization forms for United States Navy personnel. Our mission is to reduce administrative burden, eliminate human error, and ensure accurate compensation for sailors serving at sea.
+          </p>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🎯 Core Purpose</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            This system transforms the traditionally manual, time-intensive process of sea pay certification into an efficient, automated workflow. By leveraging advanced OCR (Optical Character Recognition) technology and intelligent validation algorithms, the processor can:
+          </p>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li>Extract and validate sea duty events from certification documents</li>
+            <li>Automatically identify valid and invalid pay periods</li>
+            <li>Generate properly formatted PG-13 payment authorization forms</li>
+            <li>Create annotated TORIS certifications with clear visual indicators</li>
+            <li>Produce comprehensive summary reports for personnel records</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">⚙️ Technical Capabilities</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            Built with modern web technologies and integrated AI-powered document processing, the system offers:
+          </p>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li><strong>Intelligent OCR Processing:</strong> Extracts text and data from scanned PDF documents with high accuracy</li>
+            <li><strong>Event Validation Engine:</strong> Automatically validates sea duty events against Navy regulations and rate requirements</li>
+            <li><strong>Ship Name Normalization:</strong> Matches and standardizes ship names using official Navy vessel databases</li>
+            <li><strong>Duplicate Detection:</strong> Identifies and flags duplicate entries to prevent overpayment</li>
+            <li><strong>Manual Override System:</strong> Allows authorized personnel to review and override automated decisions with audit trails</li>
+            <li><strong>Batch Processing:</strong> Handles multiple personnel certifications simultaneously</li>
+            <li><strong>Custom Report Generation:</strong> Creates tailored reports and merged documents for distribution</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">👥 Target Users</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            This application is designed for use by:
+          </p>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li>Personnel Support Detachment (PSD) administrators</li>
+            <li>Command administrative staff responsible for pay processing</li>
+            <li>Pay and personnel specialists (PS ratings)</li>
+            <li>Administrative officers and division officers</li>
+            <li>Any authorized Navy personnel involved in sea pay certification workflows</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🔒 Data Security & Privacy</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            This application processes sensitive personnel information and is designed with security in mind:
+          </p>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li>All data processing occurs locally on your device or secure server</li>
+            <li>No personally identifiable information (PII) is transmitted to external services</li>
+            <li>File uploads and processing are handled securely within your network</li>
+            <li>Session data is temporary and can be cleared using the Reset function</li>
+            <li>Users should follow their command's information security protocols</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">📊 Output Products</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            The system generates multiple document types to support the complete pay authorization workflow:
+          </p>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li><strong>Summary Reports:</strong> Text-based summaries showing valid and invalid periods with day counts</li>
+            <li><strong>TORIS Certifications:</strong> Annotated original certifications with invalid entries clearly marked</li>
+            <li><strong>PG-13 Forms:</strong> Official payment authorization forms for each valid sea period</li>
+            <li><strong>Tracking Reports:</strong> Consolidated records for administrative oversight</li>
+            <li><strong>Merged Packages:</strong> Complete document sets organized by member with PDF bookmarks</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🚀 Benefits</h4>
+          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+            <li><strong>Time Savings:</strong> Reduces processing time from hours to minutes per member</li>
+            <li><strong>Accuracy:</strong> Eliminates manual transcription errors and calculation mistakes</li>
+            <li><strong>Consistency:</strong> Applies validation rules uniformly across all certifications</li>
+            <li><strong>Audit Trail:</strong> Maintains complete record of override decisions and reasons</li>
+            <li><strong>Compliance:</strong> Ensures adherence to Navy pay regulations and procedures</li>
+            <li><strong>Scalability:</strong> Handles workload from individual members to entire commands</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">📝 Version & Development</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            <strong>Current Version:</strong> 1.0.0<br>
+            <strong>Release Date:</strong> January 2025<br>
+            <strong>Development Status:</strong> Active Development<br>
+            <strong>Platform:</strong> Web-based Application (Browser Compatible)<br>
+            <strong>Technology Stack:</strong> Python (Backend), Flask (Web Framework), PyTesseract (OCR), ReportLab/PyPDF2 (PDF Generation)
+          </p>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">👨‍💻 Developer Information</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            <strong>Developed by:</strong> STG1(SW) Ryan Nivera, USN<br>
+            <strong>Command:</strong> Afloat Training Group San Diego (ATGSD)<br>
+            <strong>Contact:</strong> <a href="mailto:ryan.n.nivera.mil@us.navy.mil" style="color: var(--accent);">ryan.n.nivera.mil@us.navy.mil</a><br>
+            <strong>Purpose:</strong> Streamlining administrative processes for Navy personnel operations
+          </p>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">⚠️ Disclaimer</h4>
+          <p style="line-height: 1.8; font-size: 14px; color: rgba(245,248,255,0.78); font-style: italic;">
+            This application is a tool to assist with sea pay processing and does not replace official Navy pay regulations or the judgment of qualified personnel specialists. All outputs should be reviewed by authorized personnel before submission to disbursing or DFAS. Users are responsible for ensuring accuracy and compliance with current Navy pay policies. This is an unofficial tool and is not endorsed by or affiliated with the Department of the Navy or Department of Defense.
+          </p>
+
+          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🤝 Feedback & Support</h4>
+          <p style="line-height: 1.8; font-size: 14px;">
+            We continuously improve this application based on user feedback. If you encounter issues, have suggestions for improvement, or would like to request new features, please contact the developer directly. Your input helps make this tool more effective for the entire fleet.
+          </p>
+
+          <div style="margin-top: 32px; padding: 16px; background: rgba(111,183,255,0.08); border-left: 4px solid var(--accent); border-radius: 8px;">
+            <p style="margin: 0; line-height: 1.8; font-size: 14px; font-weight: 600;">
+              <strong>🎖️ Serving Those Who Serve</strong><br>
+              This tool was created by sailors, for sailors, to make administrative processes more efficient and accurate—because every minute saved on paperwork is a minute that can be spent on the mission.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HELP MODAL -->
   <div id="helpModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; overflow-y: auto; backdrop-filter: blur(8px);">
     <div style="max-width: 900px; margin: 40px auto; padding: 20px;">
@@ -930,7 +1093,6 @@
 
   <footer class="app-footer">
     <div class="footer-inner">
-      <button onclick="$('helpModal').style.display='block'" style="width: auto; padding: 6px 12px; font-size: 12px; margin-right: 12px;" class="secondary">📖 Help</button>
       Developed by
       <a href="mailto:ryan.n.nivera.mil@us.navy.mil">STG1(SW) Ryan Nivera</a>
       © <span id="yearNow">2025</span>
