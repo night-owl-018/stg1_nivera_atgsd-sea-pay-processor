@@ -1,7 +1,7 @@
 import os
 import re
 import json
-import shutil  # 🔹 PATCH: Add shutil import
+import shutil
 from datetime import datetime
 
 # 🔹 PATCH: Import routes to access cancel flag
@@ -17,7 +17,7 @@ from app.core.config import (
     DATA_DIR,
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
-    REVIEW_JSON_PATH,  # JSON review output path
+    REVIEW_JSON_PATH,
 )
 from app.core.ocr import (
     ocr_pdf,
@@ -34,19 +34,15 @@ from app.core.strikeout import mark_sheet_with_strikeouts
 from app.core.summary import write_summary_files
 from app.core.merge import merge_all_pdfs
 from app.core.rates import resolve_identity
-
-# Phase 4 – manual overrides (Option A)
 from app.core.overrides import apply_overrides
 
 
-# 🔹 PATCH: Cancel check helper
 def is_cancelled():
     """Check if processing has been cancelled"""
     try:
         return routes_module.processing_cancelled
     except:
         return False
-
 
 # 🔹 =====================================================
 # 🔹 PATCH: GRANULAR PROGRESS HELPER
@@ -883,4 +879,5 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
 
