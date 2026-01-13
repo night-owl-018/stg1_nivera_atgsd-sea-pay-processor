@@ -3,8 +3,9 @@
 </p>
 
 # ATGSD Sea Pay Processor
-Batch processor for NAVPERS 1070/613 sea pay documentation.
 # Developed by STG1(SW) Ryan Nivera © 2026
+Batch processor for NAVPERS 1070/613 sea pay documentation.
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-active-brightgreen">
