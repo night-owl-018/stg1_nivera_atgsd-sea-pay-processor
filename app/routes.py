@@ -131,6 +131,10 @@ def process_route():
             log("RATES CSV RELOADED")
 
     strike_color = request.form.get("strikeout_color", "Black")
+    consolidate_pg13 = request.form.get("consolidate_pg13", "false").lower() == "true"
+    
+    if consolidate_pg13:
+        log("PG-13 CONSOLIDATION ENABLED → Will create one form per ship")
 
     def _run():
         global processing_cancelled
@@ -141,7 +145,7 @@ def process_route():
                 return
                 
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
-            process_all(strike_color=strike_color)
+            process_all(strike_color=strike_color, consolidate_pg13=consolidate_pg13)
 
             if processing_cancelled:
                 log("PROCESSING CANCELLED BY USER")
@@ -176,8 +180,13 @@ def cancel_process():
 @bp.route("/rebuild_outputs", methods=["POST"])
 def rebuild_outputs():
     try:
+        consolidate_pg13 = request.json.get("consolidate_pg13", False) if request.json else False
+        
         log("=== REBUILD OUTPUTS STARTED ===")
-        rebuild_outputs_from_review()
+        if consolidate_pg13:
+            log("PG-13 CONSOLIDATION ENABLED → Will create one form per ship")
+        
+        rebuild_outputs_from_review(consolidate_pg13=consolidate_pg13)
         merge_all_pdfs()
         log("=== REBUILD OUTPUTS COMPLETE ===")
         return jsonify({"status": "ok"})
