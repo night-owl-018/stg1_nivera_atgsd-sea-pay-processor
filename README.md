@@ -3,7 +3,7 @@
 </p>
 
 # ATGSD Sea Pay Processor
-## Developed by STG1(SW) Ryan Nivera © 2026
+### Developed by STG1(SW) Ryan Nivera © 2026
 Batch processor for NAVPERS 1070/613 sea pay documentation.
 
 
