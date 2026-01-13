@@ -111,11 +111,8 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         s = g["start"].strftime("%m/%d/%Y")
         e = g["end"].strftime("%m/%d/%Y")
         
-        # Calculate total days for this period
-        total_days = (g["end"] - g["start"]).days + 1
-        
         c.drawString(38.8, y - (idx * line_spacing), 
-                    f"____. REPORT CAREER SEA PAY FROM {s} TO {e} ({total_days} days).")
+                    f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
     
     # Ship information line (after all periods)
     ship_line_y = y - (len(periods_sorted) * line_spacing) - 12
