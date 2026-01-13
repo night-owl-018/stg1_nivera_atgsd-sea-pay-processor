@@ -51,21 +51,136 @@ def flatten_pdf(path):
 
 
 # ------------------------------------------------
-# RESTORED ORIGINAL FORMAT — ONLY FILENAMES UPDATED
+# 🔹 NEW: CONSOLIDATED PG-13 (MULTIPLE PERIODS ON ONE FORM)
 # ------------------------------------------------
-def make_pdf_for_ship(ship, periods, name):
+def make_consolidated_pdf_for_ship(ship, periods, name):
     """
-    EXACT restoration of your original PG13 formatting.
-    ONLY changes:
-        • Output folder: SEA_PAY_PG13_FOLDER
-        • FILENAMES updated to new format:
-              RATE_LAST_FIRST__SEA_PAY_PG13__SHIP__START_TO_END.pdf
-        • Ship forced uppercase
+    Creates a SINGLE PG-13 form with multiple date ranges for the same ship.
+    Saves paper by combining all periods for one ship on one form.
+    
+    Example output:
+        REPORT CAREER SEA PAY FROM 01/15/2024 TO 01/31/2024.
+        REPORT CAREER SEA PAY FROM 03/01/2024 TO 03/15/2024.
+        REPORT CAREER SEA PAY FROM 06/10/2024 TO 06/20/2024.
+        Member performed eight continuous hours per day on-board: USS SHIP Category A vessel.
     """
-
     if not periods:
         return
 
+    rate, last, first = resolve_identity(name)
+    periods_sorted = sorted(periods, key=lambda g: g["start"])
+
+    # Create filename with consolidated date range
+    first_period = periods_sorted[0]
+    last_period = periods_sorted[-1]
+    
+    s_fn = first_period["start"].strftime("%m-%d-%Y")
+    e_fn = last_period["end"].strftime("%m-%d-%Y")
+    
+    filename = (
+        f"{rate}_{last}_{first}"
+        f"__SEA_PAY_PG13__{ship.upper()}__CONSOLIDATED__{s_fn}_TO_{e_fn}.pdf"
+    )
+    filename = filename.replace(" ", "_")
+    
+    outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
+
+    # Create overlay with multiple period entries
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    c.setFont(FONT_NAME, FONT_SIZE)
+
+    # HEADER BLOCK
+    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
+    c.drawString(373, 671, "X")
+    c.setFont(FONT_NAME, 8)
+    c.drawString(39, 650, "ENTITLEMENT")
+    c.drawString(345, 641, "OPNAVINST 7220.14")
+
+    # Member identity
+    c.setFont(FONT_NAME, FONT_SIZE)
+    identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
+    c.drawString(39, 41, identity)
+
+    # 🔹 MAIN TEXT BLOCK - MULTIPLE PERIODS
+    y = 595
+    line_spacing = 12  # Space between each period line
+    
+    # Add each period as a separate line
+    for idx, g in enumerate(periods_sorted):
+        s = g["start"].strftime("%m/%d/%Y")
+        e = g["end"].strftime("%m/%d/%Y")
+        
+        # Calculate total days for this period
+        total_days = (g["end"] - g["start"]).days + 1
+        
+        c.drawString(38.8, y - (idx * line_spacing), 
+                    f"____. REPORT CAREER SEA PAY FROM {s} TO {e} ({total_days} days).")
+    
+    # Ship information line (after all periods)
+    ship_line_y = y - (len(periods_sorted) * line_spacing) - 12
+    c.drawString(
+        64,
+        ship_line_y,
+        f"Member performed eight continuous hours per day on-board: "
+        f"{ship.upper()} Category A vessel."
+    )
+
+    # SIGNATURE AREAS
+    c.drawString(356.26, 499.5, "_________________________")
+    c.drawString(363.8, 487.5, "Certifying Official & Date")
+    c.drawString(356.26, 427.5, "_________________________")
+    c.drawString(384.1, 415.2, "FI MI Last Name")
+
+    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+    c.drawString(503.5, 40, "USN AD")
+
+    # Finish overlay
+    c.save()
+    buf.seek(0)
+
+    # MERGE WITH TEMPLATE
+    template = PdfReader(TEMPLATE)
+    overlay = PdfReader(buf)
+    base = template.pages[0]
+    base.merge_page(overlay.pages[0])
+
+    writer = PdfWriter()
+    writer.add_page(base)
+
+    with open(outpath, "wb") as f:
+        writer.write(f)
+
+    flatten_pdf(outpath)
+    
+    total_periods = len(periods_sorted)
+    log(f"CREATED CONSOLIDATED PG-13 → {filename} ({total_periods} periods on 1 form)")
+
+
+# ------------------------------------------------
+# ORIGINAL FORMAT — ONE PG-13 PER PERIOD
+# ------------------------------------------------
+def make_pdf_for_ship(ship, periods, name, consolidate=False):
+    """
+    Creates PG-13 forms for ship periods.
+    
+    Args:
+        ship: Ship name
+        periods: List of period dictionaries with 'start' and 'end' dates
+        name: Member name string
+        consolidate: If True, creates one PG-13 with all periods.
+                    If False, creates separate PG-13 for each period (original behavior)
+    """
+    
+    if not periods:
+        return
+    
+    # 🔹 NEW: If consolidate mode, create single form with all periods
+    if consolidate and len(periods) > 1:
+        make_consolidated_pdf_for_ship(ship, periods, name)
+        return
+    
+    # 🔹 ORIGINAL: One form per period (default behavior)
     rate, last, first = resolve_identity(name)
     periods_sorted = sorted(periods, key=lambda g: g["start"])
 
@@ -77,7 +192,7 @@ def make_pdf_for_ship(ship, periods, name):
         s_fn = s.replace("/", "-")
         e_fn = e.replace("/", "-")
 
-        # ⭐ NEW FILENAME FORMAT
+        # ⭐ ORIGINAL FILENAME FORMAT
         filename = (
             f"{rate}_{last}_{first}"
             f"__SEA_PAY_PG13__{ship.upper()}__{s_fn}_TO_{e_fn}.pdf"
@@ -86,12 +201,12 @@ def make_pdf_for_ship(ship, periods, name):
 
         outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
 
-        # ⭐ ORIGINAL PG13 OVERLAY CODE (UNTOUCHED)
+        # ⭐ ORIGINAL PG13 OVERLAY CODE
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont(FONT_NAME, FONT_SIZE)
 
-        # HEADER BLOCK (original coordinates)
+        # HEADER BLOCK
         c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
         c.drawString(373, 671, "X")
         c.setFont(FONT_NAME, 8)
@@ -127,7 +242,7 @@ def make_pdf_for_ship(ship, periods, name):
         c.save()
         buf.seek(0)
 
-        # MERGE WITH TEMPLATE (unchanged original behavior)
+        # MERGE WITH TEMPLATE
         template = PdfReader(TEMPLATE)
         overlay = PdfReader(buf)
         base = template.pages[0]
