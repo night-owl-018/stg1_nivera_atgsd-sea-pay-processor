@@ -4,7 +4,7 @@ import json
 import zipfile
 import shutil
 import threading
-import re  # 🔹 PATCH: Add missing import for regex operations in custom download
+import re
 from flask import Blueprint, request, jsonify, send_file, send_from_directory
 
 from app.core.logger import (
@@ -41,8 +41,10 @@ from app.core.merge import merge_all_pdfs
 bp = Blueprint("routes", __name__)
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
 
-# 🔹 PATCH: Global flag for cancelling processing
+# 🔹 PATCH: Global flag for cancelling processing with lock for thread safety
 processing_cancelled = False
+processing_lock = threading.Lock()
+processing_thread = None
 
 
 def _get_override_path(member_key):
@@ -102,8 +104,11 @@ def home():
 
 @bp.route("/process", methods=["POST"])
 def process_route():
-    global processing_cancelled
-    processing_cancelled = False
+    global processing_cancelled, processing_thread
+    
+    # 🔹 PATCH: Thread-safe cancellation reset
+    with processing_lock:
+        processing_cancelled = False
     
     clear_logs()
     reset_progress()
@@ -139,18 +144,22 @@ def process_route():
     def _run():
         global processing_cancelled
         try:
-            if processing_cancelled:
-                log("PROCESSING CANCELLED BY USER")
-                set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
-                return
+            # 🔹 PATCH: Check cancellation at start
+            with processing_lock:
+                if processing_cancelled:
+                    log("PROCESSING CANCELLED BEFORE START")
+                    set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                    return
                 
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color, consolidate_pg13=consolidate_pg13)
 
-            if processing_cancelled:
-                log("PROCESSING CANCELLED BY USER")
-                set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
-                return
+            # 🔹 PATCH: Check cancellation after processing
+            with processing_lock:
+                if processing_cancelled:
+                    log("PROCESSING CANCELLED AFTER COMPLETION")
+                    set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                    return
 
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
             if os.path.exists(REVIEW_JSON_PATH):
@@ -161,20 +170,34 @@ def process_route():
             log("PROCESS COMPLETE")
         except Exception as e:
             log(f"PROCESS ERROR → {e}")
-            set_progress(status="ERROR", percent=0, current_step="Error")
+            set_progress(status="ERROR", percent=0, current_step=f"Error: {str(e)}")
 
-    threading.Thread(target=_run, daemon=True).start()
+    # 🔹 PATCH: Store thread reference
+    processing_thread = threading.Thread(target=_run, daemon=True)
+    processing_thread.start()
+    
     return jsonify({"status": "STARTED"})
 
 
 @bp.route("/cancel_process", methods=["POST"])
 def cancel_process():
-    """🔹 PATCH: Cancel ongoing processing"""
+    """🔹 PATCH: Enhanced cancel with thread-safe flag management"""
     global processing_cancelled
-    processing_cancelled = True
+    
+    with processing_lock:
+        processing_cancelled = True
+    
     log("=== CANCEL REQUEST RECEIVED ===")
-    set_progress(status="CANCELLING", percent=0, current_step="Cancelling...")
-    return jsonify({"status": "cancelled"})
+    set_progress(status="CANCELLING", percent=0, current_step="Cancelling operation...")
+    
+    # Give the process a moment to detect cancellation
+    import time
+    time.sleep(0.5)
+    
+    # Force set to cancelled state
+    set_progress(status="CANCELLED", percent=0, current_step="Processing cancelled by user")
+    
+    return jsonify({"status": "cancelled", "message": "Cancellation signal sent"})
 
 
 @bp.route("/rebuild_outputs", methods=["POST"])
@@ -551,7 +574,6 @@ def download_custom():
                 safe_prefix = member_key.replace(" ", "_").replace(",", "_")
                 log(f"Processing member: {member_key} (safe: {safe_prefix})")
                 
-                # Add summary if selected
                 if options.get("summary"):
                     summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
                     if os.path.exists(summary_path):
@@ -561,7 +583,6 @@ def download_custom():
                     else:
                         log(f"  ✗ Summary not found: {summary_path}")
                 
-                # Add TORIS if selected
                 if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
                     toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
                                   if f.startswith(safe_prefix) and f.endswith('.pdf')]
@@ -572,7 +593,6 @@ def download_custom():
                     if not toris_files:
                         log(f"  ✗ No TORIS files found for {safe_prefix}")
                 
-                # Add PG-13s if selected
                 if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
                     pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
                                  if f.startswith(safe_prefix) and f.endswith('.pdf')]
@@ -601,7 +621,6 @@ def download_custom():
             parent_bookmark = writer.add_outline_item(member_key, page_count)
             log(f"Merging member: {member_key}")
             
-            # Add summary if selected
             if options.get("summary"):
                 summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
                 if os.path.exists(summary_path):
@@ -612,7 +631,6 @@ def download_custom():
                         page_count += 1
                     log(f"  ✓ Merged summary ({len(reader.pages)} pages)")
             
-            # Add TORIS if selected
             if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
                 toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
                               if f.startswith(safe_prefix) and f.endswith('.pdf')]
@@ -624,7 +642,6 @@ def download_custom():
                         page_count += 1
                     log(f"  ✓ Merged TORIS ({len(reader.pages)} pages)")
             
-            # Add PG-13s if selected
             if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
                 pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
                              if f.startswith(safe_prefix) and f.endswith('.pdf')]
