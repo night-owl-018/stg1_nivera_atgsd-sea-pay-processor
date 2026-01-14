@@ -1364,7 +1364,8 @@
         /* ===== PATCH: Auto-manage Cancel button based on status ===== */
         const cancelBtn = $("btnCancel");
         const processBtn = $("processBtn");
-        const isProcessing = status && !["Idle", "COMPLETE", "CANCELLED", "CANCELLING"].includes(status.toUpperCase());
+        const statusUpper = (status || "").toUpperCase();
+        const isProcessing = status && !["IDLE", "COMPLETE", "CANCELLED", "CANCELLING"].includes(statusUpper);
         
         if (isProcessing) {
           // Processing is active, enable Cancel and disable Process
