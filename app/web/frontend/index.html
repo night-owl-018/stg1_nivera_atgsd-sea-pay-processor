@@ -699,9 +699,17 @@
           
           <div style="height:8px;"></div>
           
-          <button type="button" id="processBtn" class="btn-primary" style="width: 100%;">▶️ Process</button>
-          <button type="button" id="cancelBtn" class="btn-danger" disabled style="width: 100%; margin-top: 6px;">⏹️ Cancel</button>
-          <button class="btn-danger" type="button" id="resetBtn" style="width: 100%; margin-top: 6px;">🗑️ Reset</button>
+          <label>Action</label>
+          <select id="actionSelect" style="margin-bottom: 6px;">
+            <option value="">Select action</option>
+            <option value="process">▶️ Process Files</option>
+            <option value="cancel" disabled id="cancelOption">⏹️ Cancel Processing</option>
+            <option value="reset">🗑️ Reset All Data</option>
+          </select>
+          
+          <button type="button" id="actionGoBtn" class="btn-primary" disabled style="width: 100%;">
+            ⚡ Go
+          </button>
         </div>
       </div>
 
@@ -1285,11 +1293,13 @@
           statusEl.removeAttribute('data-has-pct');
         }
 
-        // Update buttons
+        // Update action dropdown cancel option based on processing status
         const statusUpper = status.toUpperCase();
         const isProcessing = !['IDLE', 'COMPLETE', 'CANCELLED', 'CANCELLING'].includes(statusUpper);
-        $('cancelBtn').disabled = !isProcessing;
-        $('processBtn').disabled = isProcessing;
+        const cancelOption = $('cancelOption');
+        if (cancelOption) {
+          cancelOption.disabled = !isProcessing;
+        }
 
         // Update log
         if (log) {
@@ -1311,40 +1321,106 @@
     setInterval(pollProgress, 1000);
     pollProgress();
 
-    // Process files
-    $('processBtn').addEventListener('click', async () => {
-      const fd = new FormData();
-      for (const f of $('pdfs').files) fd.append('pdfs', f);
-      if ($('ratesCsv').files[0]) fd.append('rates_csv', $('ratesCsv').files[0]);
-      if ($('templatePdf').files[0]) fd.append('template_pdf', $('templatePdf').files[0]);
-      fd.append('strikeout_color', $('strikeColor').value);
-      fd.append('consolidate_pg13', $('consolidatePG13').checked ? 'true' : 'false');
-
-      $('processBtn').disabled = true;
-      try {
-        const res = await fetch('/process', {method: 'POST', body: fd});
-        if (!res.ok) throw new Error(`Process failed: ${res.status}`);
-      } catch (err) {
-        alert(err.message);
-      } finally {
-        $('processBtn').disabled = false;
+    // Action dropdown change handler
+    $('actionSelect').addEventListener('change', function() {
+      const hasSelection = this.value !== '';
+      $('actionGoBtn').disabled = !hasSelection;
+      
+      // Update button appearance based on selection
+      const btn = $('actionGoBtn');
+      if (this.value === 'process') {
+        btn.className = 'btn-primary';
+        btn.textContent = '⚡ Go';
+      } else if (this.value === 'cancel') {
+        btn.className = 'btn-danger';
+        btn.textContent = '⚡ Go';
+      } else if (this.value === 'reset') {
+        btn.className = 'btn-danger';
+        btn.textContent = '⚡ Go';
       }
     });
+    
+    // Action Go button handler
+    $('actionGoBtn').addEventListener('click', async () => {
+      const action = $('actionSelect').value;
+      
+      if (action === 'process') {
+        // Process files
+        const fd = new FormData();
+        for (const f of $('pdfs').files) fd.append('pdfs', f);
+        if ($('ratesCsv').files[0]) fd.append('rates_csv', $('ratesCsv').files[0]);
+        if ($('templatePdf').files[0]) fd.append('template_pdf', $('templatePdf').files[0]);
+        fd.append('strikeout_color', $('strikeColor').value);
+        fd.append('consolidate_pg13', $('consolidatePG13').checked ? 'true' : 'false');
 
-    // Cancel processing
-    $('cancelBtn').addEventListener('click', async () => {
-      $('cancelBtn').disabled = true;
-      try {
-        const res = await fetch('/cancel_process', {method: 'POST'});
-        if (res.ok) {
-          alert('✅ Processing cancelled');
-          $('processBtn').disabled = false;
-        } else {
-          throw new Error(`Cancel failed: ${res.status}`);
+        $('actionGoBtn').disabled = true;
+        try {
+          const res = await fetch('/process', {method: 'POST', body: fd});
+          if (!res.ok) throw new Error(`Process failed: ${res.status}`);
+          // Reset dropdown after successful process
+          $('actionSelect').value = '';
+        } catch (err) {
+          alert(err.message);
+        } finally {
+          $('actionGoBtn').disabled = false;
         }
-      } catch (err) {
-        alert(`❌ ${err.message}`);
-        $('cancelBtn').disabled = false;
+      } else if (action === 'cancel') {
+        // Cancel processing
+        $('actionGoBtn').disabled = true;
+        try {
+          const res = await fetch('/cancel_process', {method: 'POST'});
+          if (res.ok) {
+            alert('✅ Processing cancelled');
+            $('actionSelect').value = '';
+          } else {
+            throw new Error(`Cancel failed: ${res.status}`);
+          }
+        } catch (err) {
+          alert(`❌ ${err.message}`);
+        } finally {
+          $('actionGoBtn').disabled = false;
+        }
+      } else if (action === 'reset') {
+        // Reset all data
+        if (!confirm('⚠️ Reset all data? This cannot be undone.')) return;
+        try {
+          const res = await fetch('/reset', {method: 'POST'});
+          if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
+          
+          $('pdfs').value = '';
+          $('ratesCsv').value = '';
+          $('templatePdf').value = '';
+          $('memberSelect').innerHTML = '<option value="">Select member</option>';
+          $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
+          $('sheetSelect').disabled = true;
+          
+          // Reset member file type dropdown and button
+          $('memberFileTypeSelect').value = '';
+          $('memberFileTypeSelect').disabled = true;
+          $('downloadMemberFileBtn').disabled = true;
+          
+          $('validBody').innerHTML = '';
+          $('invalidBody').innerHTML = '';
+          
+          // Reset both main and modal counts
+          if ($('validCount')) $('validCount').textContent = '0';
+          if ($('invalidCount')) $('invalidCount').textContent = '0';
+          if ($('validCountModal')) $('validCountModal').textContent = '0';
+          if ($('invalidCountModal')) $('invalidCountModal').textContent = '0';
+          
+          $('reviewHint').textContent = '👆 Select a member and sheet in the main page to review validation results';
+          pendingOverrides = {};
+          customSelections = {};
+          renderMemberList();
+          
+          // Reset action dropdown
+          $('actionSelect').value = '';
+          $('actionGoBtn').disabled = true;
+          
+          alert('✅ Reset complete');
+        } catch (err) {
+          alert(err.message);
+        }
       }
     });
 
@@ -1375,45 +1451,6 @@
       
       if (urls[fileType]) {
         window.location = urls[fileType];
-      }
-    });
-
-    // Reset
-    $('resetBtn').addEventListener('click', async () => {
-      if (!confirm('⚠️ Reset all data? This cannot be undone.')) return;
-      try {
-        const res = await fetch('/reset', {method: 'POST'});
-        if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
-        
-        $('pdfs').value = '';
-        $('ratesCsv').value = '';
-        $('templatePdf').value = '';
-        $('memberSelect').innerHTML = '<option value="">Select member</option>';
-        $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
-        $('sheetSelect').disabled = true;
-        
-        // Reset member file type dropdown and button
-        $('memberFileTypeSelect').value = '';
-        $('memberFileTypeSelect').disabled = true;
-        $('downloadMemberFileBtn').disabled = true;
-        
-        $('validBody').innerHTML = '';
-        $('invalidBody').innerHTML = '';
-        
-        // Reset both main and modal counts
-        if ($('validCount')) $('validCount').textContent = '0';
-        if ($('invalidCount')) $('invalidCount').textContent = '0';
-        if ($('validCountModal')) $('validCountModal').textContent = '0';
-        if ($('invalidCountModal')) $('invalidCountModal').textContent = '0';
-        
-        $('reviewHint').textContent = '👆 Select a member and sheet in the main page to review validation results';
-        pendingOverrides = {};
-        customSelections = {};
-        renderMemberList();
-        
-        alert('✅ Reset complete');
-      } catch (err) {
-        alert(err.message);
       }
     });
 
