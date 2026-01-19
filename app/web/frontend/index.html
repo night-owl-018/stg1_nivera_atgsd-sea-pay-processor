@@ -1712,22 +1712,19 @@
     };
 
     window.toggleFileType = function(member, type) {
-      customSelections[member][type] = !customSelections[member][type];
-      
-      // If all file types are unchecked, uncheck the member too
       const s = customSelections[member];
+      s[type] = !s[type];
+    
+      // If no file types remain, disable member
       if (!s.summary && !s.toris && !s.pg13) {
         s.enabled = false;
-        renderMemberList(); // Re-render to update member checkbox
       } else {
-        // If any file type is checked, ensure member is enabled
-        if (!s.enabled) {
-          s.enabled = true;
-          renderMemberList(); // Re-render to update member checkbox
-        } else {
-          updateSelectionSummary(); // Just update counts, don't re-render
-        }
+        // Ensure member stays enabled if at least one file is selected
+        s.enabled = true;
       }
+    
+      // ✅ IMPORTANT: do NOT re-render the DOM
+      updateSelectionSummary();
     };
 
     function updateSelectionSummary() {
