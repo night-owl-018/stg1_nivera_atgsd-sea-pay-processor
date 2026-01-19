@@ -6,113 +6,92 @@
   <title>ATGSD Sea Pay Processor</title>
   <style>
     :root {
-      /* =========================
-         PATCH: Dark "glass" theme
-         ========================= */
       --navy-dark: #0a3854;
       --navy: #0e5578;
-      --navy-light: #1a7ba8;
       --accent: #6fb7ff;
-
       --success: #16c784;
-      --success-dark: #0ea371;
       --danger: #ff5b6b;
-      --danger-dark: #d64552;
       --warning: #f5c451;
-
       --border: rgba(255,255,255,0.10);
-
       --bg: #070b14;
       --panel: rgba(20, 28, 48, 0.72);
-      --panel-2: rgba(20, 28, 48, 0.55);
-
       --text-primary: rgba(245,248,255,0.92);
       --text-secondary: rgba(245,248,255,0.62);
-
       --shadow-sm: 0 10px 26px rgba(0,0,0,0.35);
       --shadow: 0 18px 50px rgba(0,0,0,0.45);
-      --shadow-lg: 0 28px 70px rgba(0,0,0,0.55);
-
       --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-
       --r: 14px;
-      --r-sm: 10px;
     }
 
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     img, svg, video, canvas { max-width: 100%; height: auto; }
-    html, body { overflow-x: hidden; }
-
+    
     body {
-      margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background:
-        radial-gradient(900px 380px at 50% -60px, rgba(90,160,255,0.22), transparent 60%),
-        radial-gradient(700px 340px at 18% 18%, rgba(22,199,132,0.10), transparent 55%),
-        radial-gradient(700px 340px at 85% 22%, rgba(255,91,107,0.10), transparent 55%),
-        linear-gradient(180deg, #040714 0%, #070b14 45%, #040714 100%);
+      background: radial-gradient(900px 380px at 50% -60px, rgba(90,160,255,0.22), transparent 60%),
+                  radial-gradient(700px 340px at 18% 18%, rgba(22,199,132,0.10), transparent 55%),
+                  radial-gradient(700px 340px at 85% 22%, rgba(255,91,107,0.10), transparent 55%),
+                  linear-gradient(180deg, #040714 0%, #070b14 45%, #040714 100%);
       color: var(--text-primary);
       line-height: 1.5;
-      width: 100%;
+      min-height: 100vh;
     }
 
+    /* Header */
     header {
       background: linear-gradient(90deg, rgba(24,34,58,0.78), rgba(10,14,28,0.78));
-      color: white;
       box-shadow: 0 10px 30px rgba(0,0,0,0.45);
       position: sticky;
       top: 0;
       z-index: 100;
       backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      width: 100%;
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    .header-inner{
+    
+    .header-inner {
       max-width: 1600px;
       margin: 0 auto;
       padding: 14px 16px;
-      width: 100%;
-      position: relative;
       display: flex;
       align-items: center;
       gap: 16px;
+      position: relative;
     }
-    .header-inner::after{
-      content:"";
-      position:absolute;
-      left:16px;
-      right:16px;
-      bottom:-1px;
+    
+    .header-inner::after {
+      content: "";
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: -1px;
       height: 3px;
       background: linear-gradient(90deg, transparent, rgba(120,190,255,0.75), transparent);
       opacity: 0.55;
-      pointer-events:none;
     }
 
     header h1 {
-      margin: 0;
       font-size: clamp(16px, 2.2vw, 22px);
       font-weight: 750;
       letter-spacing: -0.02em;
-      display:flex;
-      gap:10px;
-      align-items:center;
+      display: flex;
+      gap: 10px;
+      align-items: center;
       flex: 1;
     }
-    header .subtitle {
+    
+    .subtitle {
       font-size: clamp(11px, 1.6vw, 13px);
       opacity: 0.88;
       margin-top: 2px;
       color: rgba(245,248,255,0.72);
     }
     
-    /* 🔹 PATCH: Header buttons */
     .header-buttons {
       display: flex;
       gap: 8px;
       align-items: center;
     }
+    
     .header-btn {
       padding: 8px 14px;
       border-radius: 10px;
@@ -127,30 +106,30 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      text-decoration: none;
     }
+    
     .header-btn:hover {
       background: rgba(255,255,255,0.08);
       border-color: rgba(111,183,255,0.35);
       transform: translateY(-1px);
     }
 
+    /* Layout */
     .wrap {
       max-width: 1600px;
       margin: 0 auto;
-      padding: 18px 16px 10px;
-      width: 100%;
+      padding: 12px 12px 8px;
     }
 
     .top-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-    @media (max-width: 1024px) {
-      .top-grid { grid-template-columns: 1fr; gap: 12px; }
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
+    /* Cards */
     .card {
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
       border: 1px solid var(--border);
@@ -158,57 +137,59 @@
       box-shadow: var(--shadow-sm);
       overflow: hidden;
       backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
       position: relative;
     }
-    .card::before{
-      content:"";
-      position:absolute;
-      inset:-1px;
-      pointer-events:none;
-      background:
-        radial-gradient(520px 160px at 20% 0%, rgba(120,190,255,0.12), transparent 60%),
-        radial-gradient(420px 150px at 85% 10%, rgba(22,199,132,0.08), transparent 60%);
+    
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      pointer-events: none;
+      background: radial-gradient(520px 160px at 20% 0%, rgba(120,190,255,0.12), transparent 60%),
+                  radial-gradient(420px 150px at 85% 10%, rgba(22,199,132,0.08), transparent 60%);
       opacity: 0.8;
     }
+    
     .card > * { position: relative; }
 
     .card h3 {
-      margin: 0;
-      padding: 12px 14px;
+      padding: 8px 10px;
       background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       border-bottom: 1px solid rgba(255,255,255,0.08);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 750;
       letter-spacing: 0.02em;
       color: rgba(245,248,255,0.92);
-      line-height: 1.2;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
-    .card .body { padding: 14px; }
+    
+    .card .body { padding: 10px; }
 
+    /* Form Elements */
     label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 650;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       color: var(--text-secondary);
     }
 
-    input[type=file], select {
+    input[type=file], select, textarea {
       width: 100%;
-      padding: 10px 10px;
+      padding: 7px 8px;
       border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 12px;
-      font-size: 13px;
+      border-radius: 10px;
+      font-size: 12px;
       background: rgba(6,10,18,0.55);
       color: var(--text-primary);
       transition: all 0.18s ease;
       outline: none;
+      font-family: inherit;
     }
-    input[type=file]::file-selector-button{
+    
+    input[type=file]::file-selector-button {
       border: 1px solid rgba(255,255,255,0.14);
       background: rgba(255,255,255,0.06);
       color: var(--text-primary);
@@ -218,17 +199,32 @@
       cursor: pointer;
       transition: all 0.18s ease;
     }
-    input[type=file]::file-selector-button:hover{
+    
+    input[type=file]::file-selector-button:hover {
       background: rgba(255,255,255,0.09);
       border-color: rgba(120,190,255,0.30);
-      transform: translateY(-1px);
     }
-    input[type=file]:hover, select:hover { border-color: rgba(120,190,255,0.35); }
-    input[type=file]:focus, select:focus {
+    
+    input[type=file]:hover, select:hover, textarea:hover {
+      border-color: rgba(120,190,255,0.35);
+    }
+    
+    input[type=file]:focus, select:focus, textarea:focus {
       border-color: rgba(120,190,255,0.55);
       box-shadow: 0 0 0 3px rgba(120,190,255,0.18);
     }
+    
+    textarea {
+      resize: vertical;
+      min-height: 34px;
+    }
 
+    input[type=checkbox] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    /* Buttons */
     button {
       border: 1px solid transparent;
       font-weight: 750;
@@ -237,116 +233,139 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       font-family: inherit;
       white-space: nowrap;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 13px;
-      line-height: 1;
+      border-radius: 10px;
+      padding: 7px 10px;
+      font-size: 12px;
     }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
-    button:not(:disabled):active { transform: scale(0.99); }
+    
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    
+    button:not(:disabled):active {
+      transform: scale(0.99);
+    }
 
-    .primary, button.primary {
-      width: 100%;
+    .btn-primary {
       background: linear-gradient(135deg, rgba(111,183,255,0.30), rgba(255,255,255,0.06));
       color: var(--text-primary);
       border-color: rgba(111,183,255,0.26);
       box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
-    .primary:not(:disabled):hover, button.primary:not(:disabled):hover {
+    
+    .btn-primary:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(111,183,255,0.42);
       box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
-    .secondary, button.secondary {
-      width: 100%;
+    .btn-secondary {
       background: rgba(255,255,255,0.04);
       color: var(--text-primary);
       border-color: rgba(255,255,255,0.10);
     }
-    .secondary:not(:disabled):hover, button.secondary:not(:disabled):hover {
+    
+    .btn-secondary:not(:disabled):hover {
       background: rgba(255,255,255,0.06);
       border-color: rgba(111,183,255,0.24);
       transform: translateY(-1px);
     }
 
-    .danger, button.danger {
-      width: 100%;
+    .btn-danger {
       background: linear-gradient(135deg, rgba(255,91,107,0.32), rgba(255,255,255,0.05));
       color: var(--text-primary);
       border-color: rgba(255,91,107,0.32);
     }
-    .danger:not(:disabled):hover, button.danger:not(:disabled):hover {
+    
+    .btn-danger:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(255,91,107,0.45);
       box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
-    .success, button.success {
-      width: 100%;
+    .btn-success {
       background: linear-gradient(135deg, rgba(22,199,132,0.28), rgba(255,255,255,0.05));
       color: var(--text-primary);
       border-color: rgba(22,199,132,0.30);
       box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
-    .success:not(:disabled):hover, button.success:not(:disabled):hover {
+    
+    .btn-success:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(22,199,132,0.42);
       box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    
+    .btn-row button {
+      width: 100%;
+    }
+
+    .system-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    
+    .system-actions button {
+      width: 100%;
+    }
+
+    /* Status */
     .status {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 13px;
+      gap: 8px;
+      font-size: 12px;
       font-weight: 750;
-      padding: 10px 12px;
-      border-radius: 12px;
+      padding: 7px 10px;
+      border-radius: 10px;
       background: rgba(6,10,18,0.55);
       border: 1px solid rgba(255,255,255,0.12);
-      width: 100%;
       color: var(--text-primary);
-
-      /* ===== PATCH: Status progress bar behind text ===== */
       position: relative;
       overflow: hidden;
     }
+    
     .status::before {
       content: '';
-      width: 9px;
-      height: 9px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: var(--success);
-      box-shadow: 0 0 0 4px rgba(22,199,132,0.16);
+      box-shadow: 0 0 0 3px rgba(22,199,132,0.16);
       animation: pulse 2s ease-in-out infinite;
       position: relative;
       z-index: 1;
     }
-
-    /* ===== PATCH: Status progress bar fill (behind text) ===== */
-    .status::after{
+    
+    .status::after {
       content: "";
       position: absolute;
       inset: 0;
       width: var(--pct, 0%);
-      background: linear-gradient(
-        90deg,
-        rgba(111,183,255,0.22),
-        rgba(22,199,132,0.22)
-      );
+      background: linear-gradient(90deg, rgba(111,183,255,0.22), rgba(22,199,132,0.22));
       opacity: 0;
       transition: width 250ms ease, opacity 200ms ease;
       z-index: 0;
-      pointer-events: none;
     }
-    .status[data-has-pct="1"]::after{ opacity: 1; }
-
-    /* ensure status text stays above bar */
-    #statusText{
+    
+    .status[data-has-pct="1"]::after {
+      opacity: 1;
+    }
+    
+    #statusText {
       position: relative;
       z-index: 1;
     }
@@ -356,35 +375,13 @@
       50% { opacity: 0.55; transform: scale(0.92); }
     }
 
-    .logbox {
-      height: 240px;
-      overflow: auto;
-      background: rgba(5,7,12,0.78);
-      color: rgba(22,199,132,0.95);
-      font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.35;
-      padding: 14px;
-      border-radius: 14px;
-      white-space: pre;
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-      transition: height 0.3s ease;
-    }
-    .logbox.collapsed {
-      height: 0;
-      padding: 0;
-      overflow: hidden;
-      border: none;
-    }
-
-    /* 🔹 PATCH: Stats badges in header */
+    /* Stats Badges */
     .stats-badges {
       display: flex;
       gap: 8px;
       margin-left: auto;
-      padding-left: 10px;
     }
+    
     .stat-badge {
       display: inline-flex;
       align-items: center;
@@ -396,92 +393,76 @@
       border: 1px solid;
       white-space: nowrap;
     }
+    
     .stat-badge.valid {
       background: rgba(22,199,132,0.16);
       color: rgba(22,199,132,1);
       border-color: rgba(22,199,132,0.35);
     }
+    
     .stat-badge.invalid {
       background: rgba(255,91,107,0.16);
       color: rgba(255,91,107,1);
       border-color: rgba(255,91,107,0.35);
     }
-    .stat-badge .count {
-      font-weight: 850;
-      font-size: 12px;
-    }
-    
-    .collapsible-header {
-      cursor: pointer;
-      user-select: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: opacity 0.2s ease;
-    }
-    .collapsible-header:hover {
-      opacity: 0.8;
-    }
-    .collapse-icon {
-      transition: transform 0.3s ease;
-      display: inline-block;
-      font-size: 10px;
-    }
-    .collapse-icon.collapsed {
-      transform: rotate(-90deg);
-    }
-    .collapsible-content {
-      max-height: 2000px;
-      overflow: hidden;
-      transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
-      opacity: 1;
-    }
-    .collapsible-content.collapsed {
-      max-height: 0;
-      opacity: 0;
-      margin-top: 0 !important;
-    }
 
-    .table-wrapper, .table-container {
+    /* Tables */
+    .table-container {
       overflow-x: auto;
-      border-radius: 14px;
+      border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.10);
       background: rgba(6,10,18,0.40);
-      margin-top: 10px;
+      margin-top: 6px;
     }
+    
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
+      font-size: 12px;
       min-width: 900px;
       color: var(--text-primary);
     }
+    
     thead {
       background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       position: sticky;
       top: 0;
       z-index: 10;
     }
+    
     th {
-      padding: 12px 12px;
+      padding: 8px 10px;
       text-align: left;
       font-weight: 800;
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.10em;
       color: rgba(245,248,255,0.82);
       border-bottom: 1px solid rgba(255,255,255,0.10);
       white-space: nowrap;
     }
+    
     td {
-      padding: 10px 12px;
+      padding: 7px 10px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       vertical-align: middle;
     }
-    tr:last-child td { border-bottom: none; }
-    tr.valid { background: rgba(22,199,132,0.09); }
-    tr.invalid { background: rgba(255,91,107,0.09); }
-    tr:hover { background: rgba(255,255,255,0.04); }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tr.valid {
+      background: rgba(22,199,132,0.09);
+    }
+    
+    tr.invalid {
+      background: rgba(255,91,107,0.09);
+    }
+    
+    tr:hover {
+      background: rgba(255,255,255,0.04);
+    }
 
     .override-wrap {
       display: flex;
@@ -489,13 +470,14 @@
       gap: 10px;
       position: relative;
     }
+    
     .override-wrap select {
       width: auto;
       min-width: 140px;
       padding: 8px 10px;
       font-size: 13px;
-      border-radius: 12px;
     }
+    
     .override-wrap.dirty::after {
       content: '●';
       color: var(--warning);
@@ -507,35 +489,34 @@
       animation: pulse 1.5s ease-in-out infinite;
     }
 
-    textarea.override-reason {
-      width: 100%;
-      min-height: 34px;
-      padding: 9px 10px;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 12px;
-      font-family: inherit;
-      font-size: 13px;
-      resize: vertical;
-      background: rgba(6,10,18,0.55);
-      color: var(--text-primary);
-      transition: all 0.18s ease;
-    }
-    textarea.override-reason:focus {
-      outline: none;
-      border-color: rgba(111,183,255,0.55);
-      box-shadow: 0 0 0 3px rgba(111,183,255,0.18);
-    }
-    td.reason-cell {
+    .reason-cell {
       max-width: 360px;
       min-width: 220px;
     }
 
+    /* Log */
+    .logbox {
+      height: 180px;
+      overflow: auto;
+      background: rgba(5,7,12,0.78);
+      color: rgba(22,199,132,0.95);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.3;
+      padding: 10px;
+      border-radius: 10px;
+      white-space: pre;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    }
+
+    /* Utility */
     .hint {
-      font-size: 13px;
+      font-size: 11px;
       color: rgba(245,248,255,0.55);
       text-align: center;
-      padding: 10px 8px;
-      border-radius: 14px;
+      padding: 8px 6px;
+      border-radius: 10px;
       border: 1px dashed rgba(255,255,255,0.14);
       background: rgba(6,10,18,0.35);
     }
@@ -543,69 +524,111 @@
     .section-header {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       font-weight: 850;
-      font-size: 12px;
-      margin: 14px 0 8px;
+      font-size: 11px;
+      margin: 10px 0 6px;
       color: rgba(245,248,255,0.86);
       text-transform: uppercase;
       letter-spacing: 0.10em;
     }
 
-    .text-secondary { color: var(--text-secondary); }
-    .mb-1 { margin-bottom: 10px; }
+    .mb-1 { margin-bottom: 6px; }
 
-    /* ===== PATCH: Even 2-up button wrapper ===== */
-    .btn-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 9999;
+      overflow-y: auto;
+      backdrop-filter: blur(8px);
     }
-    @media (max-width: 640px) {
-      .btn-row { grid-template-columns: 1fr; }
-      table { min-width: 860px; }
+    
+    .modal-content {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
     }
-
-    /* ===== PATCH: System actions (Process/Reset + Save/Rebuild) in ONE wrapper ===== */
-    .system-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
+    
+    .modal h4 {
+      color: var(--accent);
+      margin-top: 24px;
+      font-size: 16px;
     }
-    .system-actions > button {
-      width: 100%;
-      padding: 10px 12px !important;
-      border-radius: 12px !important;
-      font-size: 13px !important;
+    
+    .modal h4:first-of-type {
+      margin-top: 0;
     }
-    @media (max-width: 640px) {
-      .system-actions { grid-template-columns: 1fr; }
+    
+    .modal p, .modal ul, .modal ol {
+      line-height: 1.8;
+      font-size: 14px;
+    }
+    
+    .modal ul, .modal ol {
+      padding-left: 20px;
+    }
+    
+    .modal a {
+      color: var(--accent);
     }
 
     /* Footer */
-    footer.app-footer{
+    .app-footer {
       max-width: 1600px;
       margin: 16px auto 22px;
       padding: 0 16px;
     }
-    footer.app-footer .footer-inner{
+    
+    .footer-inner {
       padding: 12px 14px;
       border: 1px solid rgba(255,255,255,0.10);
       border-radius: 14px;
       background: rgba(255,255,255,0.03);
       box-shadow: var(--shadow-sm);
-      text-align:center;
+      text-align: center;
       color: rgba(245,248,255,0.55);
       font-size: 12px;
     }
-    footer.app-footer a{
+    
+    .app-footer a {
       color: rgba(170,205,255,0.95);
       font-weight: 850;
       text-decoration: none;
     }
-    footer.app-footer a:hover{ text-decoration: underline; }
+    
+    .app-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+      .wrap > div:first-child {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .wrap > div:first-child {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .btn-row, .system-actions {
+        grid-template-columns: 1fr;
+      }
+      
+      table {
+        min-width: 860px;
+      }
+      
+      .header-buttons {
+        flex-wrap: wrap;
+      }
+    }
   </style>
 </head>
 
@@ -621,123 +644,86 @@
            target="_blank" 
            rel="noopener noreferrer" 
            class="header-btn" 
-           style="text-decoration: none;"
            title="View source code on GitHub">
           <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
           </svg>
           GitHub
         </a>
-        <button onclick="$('aboutModal').style.display='block'" class="header-btn">ℹ️ About</button>
-        <button onclick="$('helpModal').style.display='block'" class="header-btn">📖 Help</button>
+        <button onclick="showModal('aboutModal')" class="header-btn">ℹ️ About</button>
+        <button onclick="showModal('helpModal')" class="header-btn">📖 Help</button>
       </div>
     </div>
   </header>
 
   <div class="wrap">
-    <div class="top-grid">
-
+    <!-- First Row: Input, System, Downloads, Custom -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;">
+      
       <!-- INPUT FILES -->
       <div class="card">
-        <h3 class="collapsible-header" onclick="toggleCollapse('inputFilesContent')">
-          <span class="collapse-icon" id="inputFilesIcon">▼</span>
-          📂 Input Files
-        </h3>
-        <div class="body collapsible-content" id="inputFilesContent">
-          <label>Sea Duty Cert (PDF)</label>
-          <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required class="mb-1">
+        <h3>📂 Files</h3>
+        <div class="body">
+          <label>Sea Duty PDFs *</label>
+          <input id="pdfs" type="file" accept="application/pdf" multiple required class="mb-1">
 
           <label>Rate CSV</label>
-          <input id="ratesCsv" name="rates_csv" type="file" accept=".csv" class="mb-1">
+          <input id="ratesCsv" type="file" accept=".csv" class="mb-1">
 
           <label>Template PDF</label>
-          <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+          <input id="templatePdf" type="file" accept="application/pdf">
         </div>
       </div>
 
-      <!-- SYSTEM -->
+      <!-- SYSTEM CONTROLS -->
       <div class="card">
-        <h3 class="collapsible-header" onclick="toggleCollapse('systemContent')">
-          <span class="collapse-icon" id="systemIcon">▼</span>
-          ⚙️ System
-        </h3>
-        <div class="body collapsible-content" id="systemContent">
+        <h3>⚙️ Controls</h3>
+        <div class="body">
           <label>Status</label>
           <div class="status" id="statusText">Idle</div>
 
-          <div style="height:12px;"></div>
+          <div style="height:6px;"></div>
 
           <label>Strikeout</label>
-          <select id="strikeColor" name="strikeout_color">
+          <select id="strikeColor">
             <option value="Black" selected>⚫ Black</option>
             <option value="Red">🔴 Red</option>
           </select>
 
-          <div style="height:12px;"></div>
+          <div style="height:6px;"></div>
 
-          <!-- 🔹 NEW: PG-13 Consolidation Option -->
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
-            <input type="checkbox" id="consolidatePG13" name="consolidate_pg13" style="width: auto; cursor: pointer;">
-            <span style="font-weight: 650; font-size: 13px;">📄 Consolidate PG-13s by Ship</span>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
+            <input type="checkbox" id="consolidatePG13">
+            <span>Consolidate PG-13s</span>
           </label>
-          <div style="font-size: 11px; color: rgba(245,248,255,0.62); margin-top: 4px; line-height: 1.4;">
-            When checked, creates <strong>one PG-13 per ship</strong> with all periods listed.<br>
-            Saves paper when a sailor has multiple periods on the same ship.
-          </div>
-
-          <!-- PATCH: ALL FOUR buttons in ONE wrapper (2x2 grid) -->
-          <div class="system-actions">
-            <button type="button" id="processBtn" class="primary">▶️ Process</button>
-            <button class="danger" type="button" id="btnCancel" disabled>⏹️ Cancel</button>
-
-            <button id="saveOverridesBtn" type="button" class="success">
-              💾 Save Overrides
-            </button>
-            <button id="rebuildBtn" class="primary" type="button">
-              🔄 Rebuild Outputs
-            </button>
-          </div>
           
-          <button class="danger" type="button" id="btnReset" style="width: 100%; margin-top: 10px;">
-            🗑️ Reset All
-          </button>
+          <div style="height:8px;"></div>
+          
+          <button type="button" id="processBtn" class="btn-primary" style="width: 100%;">▶️ Process</button>
+          <button type="button" id="cancelBtn" class="btn-danger" disabled style="width: 100%; margin-top: 6px;">⏹️ Cancel</button>
+          <button class="btn-danger" type="button" id="resetBtn" style="width: 100%; margin-top: 6px;">🗑️ Reset</button>
         </div>
       </div>
 
-      <!-- DOWNLOADS + MEMBER & STATS -->
+      <!-- TOOLS -->
       <div class="card">
-        <h3 class="collapsible-header" onclick="toggleCollapse('downloadsContent')">
-          <span class="collapse-icon" id="downloadsIcon">▼</span>
-          📥 Downloads & Member
-        </h3>
-        <div class="body collapsible-content" id="downloadsContent">
-          <div class="btn-row" style="margin-top:0; margin-bottom: 12px;">
-            <button class="secondary" type="button" id="btnMerged">📦 Package</button>
-            <button class="secondary" type="button" id="btnAll">📂 All</button>
-          </div>
+        <h3>🔧 Tools</h3>
+        <div class="body">
+          <button class="btn-primary" type="button" onclick="showModal('reviewModal')" style="width: 100%;">✏️ Review & Override</button>
+          <button class="btn-primary" type="button" onclick="showModal('logModal')" style="width: 100%; margin-top: 6px;">📜 Processing Log</button>
+        </div>
+      </div>
 
-          <div style="margin-top:0; margin-bottom: 12px;">
-            <div style="font-size: 12px; color: rgba(245,248,255,0.72); margin-bottom: 6px; font-weight: 600;">
-              Download for Selected Member:
-            </div>
-            <div class="btn-row">
-              <button class="secondary" type="button" id="btnDownloadSummary" disabled style="font-size: 12px; padding: 8px 10px;">
-                📄 Summary
-              </button>
-              <button class="secondary" type="button" id="btnDownloadToris" disabled style="font-size: 12px; padding: 8px 10px;">
-                📋 TORIS Cert
-              </button>
-            </div>
-            <div class="btn-row" style="margin-top: 6px;">
-              <button class="secondary" type="button" id="btnDownloadPG13s" disabled style="font-size: 12px; padding: 8px 10px;">
-                📑 PG-13 Forms
-              </button>
-              <button class="secondary" type="button" id="btnDownloadMemberAll" disabled style="font-size: 12px; padding: 8px 10px;">
-                📦 All Files
-              </button>
-            </div>
-          </div>
-
+      <!-- QUICK DOWNLOADS -->
+      <div class="card">
+        <h3>📥 Downloads</h3>
+        <div class="body">
+          <button class="btn-secondary" type="button" id="downloadMergedBtn" style="width: 100%;">📦 Package</button>
+          <button class="btn-secondary" type="button" id="downloadAllBtn" style="width: 100%; margin-top: 6px;">📂 All Files</button>
+          <button class="btn-primary" type="button" onclick="showModal('customModal')" style="width: 100%; margin-top: 6px;">🎯 Custom</button>
+          
+          <div style="height: 8px; border-top: 1px dashed rgba(255,255,255,0.1); margin: 8px 0;"></div>
+          
           <label>Member</label>
           <select id="memberSelect" class="mb-1">
             <option value="">Select member</option>
@@ -747,149 +733,34 @@
           <select id="sheetSelect" disabled class="mb-1">
             <option value="">Select sheet</option>
           </select>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- REVIEW & OVERRIDE -->
-    <div class="card" style="margin-bottom: 14px;">
-      <h3 class="collapsible-header" onclick="toggleCollapse('reviewContent')">
-        <span class="collapse-icon" id="reviewIcon">▼</span>
-        ✏️ Review & Override
-        <div class="stats-badges">
-          <div class="stat-badge valid">
-            <span>✅</span>
-            <span class="count" id="validCount">0</span>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
+            <button class="btn-secondary" type="button" id="downloadSummaryBtn" disabled style="font-size: 11px; padding: 6px 8px;">📄 Summary</button>
+            <button class="btn-secondary" type="button" id="downloadTorisBtn" disabled style="font-size: 11px; padding: 6px 8px;">📋 TORIS</button>
           </div>
-          <div class="stat-badge invalid">
-            <span>❌</span>
-            <span class="count" id="invalidCount">0</span>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
+            <button class="btn-secondary" type="button" id="downloadPG13Btn" disabled style="font-size: 11px; padding: 6px 8px;">📑 PG-13</button>
+            <button class="btn-secondary" type="button" id="downloadMemberAllBtn" disabled style="font-size: 11px; padding: 6px 8px;">📦 All</button>
           </div>
         </div>
-      </h3>
-      <div class="body collapsible-content" id="reviewContent">
-
-        <div class="hint" id="reviewHint">
-          👆 Select a member and sheet above to review and override validation results
-        </div>
-
-        <div class="section-header">✅ Valid Rows</div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ship</th>
-                <th>Event</th>
-                <th>Status</th>
-                <th>Override</th>
-                <th>Reason</th>
-              </tr>
-            </thead>
-            <tbody id="validBody"></tbody>
-          </table>
-        </div>
-
-        <div class="section-header">❌ Invalid Events</div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Ship</th>
-                <th>Event</th>
-                <th>Status</th>
-                <th>Override</th>
-                <th>Reason</th>
-              </tr>
-            </thead>
-            <tbody id="invalidBody"></tbody>
-          </table>
-        </div>
       </div>
     </div>
-
-    <!-- CUSTOM DOWNLOAD & MERGE -->
-    <div class="card" style="margin-bottom: 14px;">
-      <h3 class="collapsible-header" onclick="toggleCollapse('customDownloadContent')">
-        <span class="collapse-icon" id="customDownloadIcon">▼</span>
-        🎯 Custom Download & Merge
-      </h3>
-      <div class="body collapsible-content" id="customDownloadContent">
-        
-        <div style="font-size: 12px; color: rgba(245,248,255,0.72); margin-bottom: 10px;">
-          Select members and file types to download or merge:
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="btn-row" style="margin-bottom: 12px;">
-          <button class="secondary" type="button" id="btnSelectAll" style="font-size: 12px; padding: 8px 10px;">
-            ☑ Select All
-          </button>
-          <button class="secondary" type="button" id="btnDeselectAll" style="font-size: 12px; padding: 8px 10px;">
-            ☐ Deselect All
-          </button>
-        </div>
-        
-        <!-- Member Selection List -->
-        <div id="memberSelectionList" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; background: rgba(6,10,18,0.35);">
-          <div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px;">
-            Process files first to see member list
-          </div>
-        </div>
-        
-        <!-- Selection Summary -->
-        <div id="selectionSummary" style="margin-top: 10px; padding: 10px; background: rgba(111,183,255,0.1); border-radius: 10px; font-size: 13px; text-align: center; color: rgba(245,248,255,0.82);">
-          Selection: <span id="selectedCount">0 members, 0 items</span>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="btn-row" style="margin-top: 12px;">
-          <button class="success" type="button" id="btnDownloadCustom" disabled>
-            📥 Download ZIP
-          </button>
-          <button class="primary" type="button" id="btnMergeCustom" disabled>
-            📦 Merge to PDF
-          </button>
-        </div>
-        
-      </div>
-    </div>
-
-    <!-- LIVE PROCESSING LOG -->
-    <div class="card">
-      <h3 class="collapsible-header" onclick="toggleCollapse('liveLogContent')">
-        <span class="collapse-icon" id="liveLogIcon">▼</span>
-        📜 Live Processing Log
-      </h3>
-      <div class="body collapsible-content" id="liveLogContent">
-        <div id="liveLog" class="logbox"></div>
-      </div>
-    </div>
-
   </div>
 
   <!-- ABOUT MODAL -->
-  <div id="aboutModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; overflow-y: auto; backdrop-filter: blur(8px);">
-    <div style="max-width: 900px; margin: 40px auto; padding: 20px;">
-      <div class="card" style="margin-bottom: 20px;">
+  <div id="aboutModal" class="modal">
+    <div class="modal-content">
+      <div class="card">
         <h3 style="display: flex; justify-content: space-between; align-items: center;">
           <span>ℹ️ About ATGSD Sea Pay Processor</span>
-          <button onclick="$('aboutModal').style.display='none'" style="width: auto; padding: 8px 16px; font-size: 14px;" class="danger">✕ Close</button>
+          <button onclick="hideModal('aboutModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
         </h3>
         <div class="body" style="max-height: 70vh; overflow-y: auto;">
-          
-          <h4 style="color: var(--accent); margin-top: 0; font-size: 18px; letter-spacing: -0.01em;">Mission Statement</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            The ATGSD Sea Pay Processor is a specialized web application designed to streamline and automate the complex process of validating sea duty certifications and generating official PG-13 payment authorization forms for United States Navy personnel. Our mission is to reduce administrative burden, eliminate human error, and ensure accurate compensation for sailors serving at sea.
-          </p>
+          <h4>Mission Statement</h4>
+          <p>The ATGSD Sea Pay Processor streamlines and automates the validation of sea duty certifications and generation of official PG-13 payment authorization forms for United States Navy personnel.</p>
 
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🎯 Core Purpose</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            This system transforms the traditionally manual, time-intensive process of sea pay certification into an efficient, automated workflow. By leveraging advanced OCR (Optical Character Recognition) technology and intelligent validation algorithms, the processor can:
-          </p>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
+          <h4>🎯 Core Purpose</h4>
+          <ul>
             <li>Extract and validate sea duty events from certification documents</li>
             <li>Automatically identify valid and invalid pay periods</li>
             <li>Generate properly formatted PG-13 payment authorization forms</li>
@@ -897,220 +768,341 @@
             <li>Produce comprehensive summary reports for personnel records</li>
           </ul>
 
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">⚙️ Technical Capabilities</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            Built with modern web technologies and integrated AI-powered document processing, the system offers:
-          </p>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
-            <li><strong>Intelligent OCR Processing:</strong> Extracts text and data from scanned PDF documents with high accuracy</li>
-            <li><strong>Event Validation Engine:</strong> Automatically validates sea duty events against Navy regulations and rate requirements</li>
-            <li><strong>Ship Name Normalization:</strong> Matches and standardizes ship names using official Navy vessel databases</li>
-            <li><strong>Duplicate Detection:</strong> Identifies and flags duplicate entries to prevent overpayment</li>
-            <li><strong>Manual Override System:</strong> Allows authorized personnel to review and override automated decisions with audit trails</li>
-            <li><strong>Batch Processing:</strong> Handles multiple personnel certifications simultaneously</li>
-            <li><strong>Custom Report Generation:</strong> Creates tailored reports and merged documents for distribution</li>
+          <h4>⚙️ Technical Capabilities</h4>
+          <ul>
+            <li><strong>Intelligent OCR:</strong> Extracts text from scanned PDFs with high accuracy</li>
+            <li><strong>Event Validation:</strong> Validates events against Navy regulations</li>
+            <li><strong>Ship Name Normalization:</strong> Standardizes ship names using official databases</li>
+            <li><strong>Duplicate Detection:</strong> Identifies duplicate entries to prevent overpayment</li>
+            <li><strong>Manual Override System:</strong> Allows authorized review with audit trails</li>
+            <li><strong>Batch Processing:</strong> Handles multiple certifications simultaneously</li>
           </ul>
 
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">👥 Target Users</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            This application is designed for use by:
-          </p>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
-            <li>Personnel Support Detachment (PSD) administrators</li>
-            <li>Command administrative staff responsible for pay processing</li>
-            <li>Pay and personnel specialists (PS ratings)</li>
-            <li>Administrative officers and division officers</li>
-            <li>Any authorized Navy personnel involved in sea pay certification workflows</li>
+          <h4>📊 Output Products</h4>
+          <ul>
+            <li><strong>Summary Reports:</strong> Text summaries showing valid/invalid periods</li>
+            <li><strong>TORIS Certifications:</strong> Annotated originals with invalid entries marked</li>
+            <li><strong>PG-13 Forms:</strong> Official payment authorization forms</li>
+            <li><strong>Merged Packages:</strong> Complete document sets with PDF bookmarks</li>
           </ul>
 
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🔒 Data Security & Privacy</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            This application processes sensitive personnel information and is designed with security in mind:
-          </p>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
-            <li>All data processing occurs locally on your device or secure server</li>
-            <li>No personally identifiable information (PII) is transmitted to external services</li>
-            <li>File uploads and processing are handled securely within your network</li>
-            <li>Session data is temporary and can be cleared using the Reset function</li>
-            <li>Users should follow their command's information security protocols</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">📊 Output Products</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            The system generates multiple document types to support the complete pay authorization workflow:
-          </p>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
-            <li><strong>Summary Reports:</strong> Text-based summaries showing valid and invalid periods with day counts</li>
-            <li><strong>TORIS Certifications:</strong> Annotated original certifications with invalid entries clearly marked</li>
-            <li><strong>PG-13 Forms:</strong> Official payment authorization forms for each valid sea period</li>
-            <li><strong>Tracking Reports:</strong> Consolidated records for administrative oversight</li>
-            <li><strong>Merged Packages:</strong> Complete document sets organized by member with PDF bookmarks</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🚀 Benefits</h4>
-          <ul style="line-height: 1.8; font-size: 14px; padding-left: 20px;">
-            <li><strong>Time Savings:</strong> Reduces processing time from hours to minutes per member</li>
-            <li><strong>Accuracy:</strong> Eliminates manual transcription errors and calculation mistakes</li>
-            <li><strong>Consistency:</strong> Applies validation rules uniformly across all certifications</li>
-            <li><strong>Audit Trail:</strong> Maintains complete record of override decisions and reasons</li>
-            <li><strong>Compliance:</strong> Ensures adherence to Navy pay regulations and procedures</li>
-            <li><strong>Scalability:</strong> Handles workload from individual members to entire commands</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">📝 Version & Development</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            <strong>Current Version:</strong> 1.0.0<br>
-            <strong>Release Date:</strong> January 2025<br>
-            <strong>Development Status:</strong> Active Development<br>
-            <strong>Platform:</strong> Web-based Application (Browser Compatible)<br>
-            <strong>Technology Stack:</strong> Python (Backend), Flask (Web Framework), PyTesseract (OCR), ReportLab/PyPDF2 (PDF Generation)
-          </p>
-
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">👨‍💻 Developer Information</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
+          <h4>👨‍💻 Developer Information</h4>
+          <p>
             <strong>Developed by:</strong> STG1(SW) Ryan Nivera, USN<br>
             <strong>Command:</strong> Afloat Training Group San Diego (ATGSD)<br>
-            <strong>Contact:</strong> <a href="mailto:ryan.n.nivera.mil@us.navy.mil" style="color: var(--accent);">ryan.n.nivera.mil@us.navy.mil</a><br>
-            <strong>Purpose:</strong> Streamlining administrative processes for Navy personnel operations
+            <strong>Contact:</strong> <a href="/cdn-cgi/l/email-protection#611318000f4f0f4f0f08170413004f0c080d2114124f0f0017184f0c080d"><span class="__cf_email__" data-cfemail="d5a7acb4bbfbbbfbbbbca3b0a7b4fbb8bcb995a0a6fbbbb4a3acfbb8bcb9">[email&#160;protected]</span></a>
           </p>
 
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">⚠️ Disclaimer</h4>
-          <p style="line-height: 1.8; font-size: 14px; color: rgba(245,248,255,0.78); font-style: italic;">
-            This application is a tool to assist with sea pay processing and does not replace official Navy pay regulations or the judgment of qualified personnel specialists. All outputs should be reviewed by authorized personnel before submission to disbursing or DFAS. Users are responsible for ensuring accuracy and compliance with current Navy pay policies. This is an unofficial tool and is not endorsed by or affiliated with the Department of the Navy or Department of Defense.
+          <h4>⚠️ Disclaimer</h4>
+          <p style="color: rgba(245,248,255,0.78); font-style: italic;">
+            This tool assists with sea pay processing but does not replace official Navy regulations or qualified personnel judgment. All outputs should be reviewed before submission. This is an unofficial tool not endorsed by the Department of the Navy or Department of Defense.
           </p>
-
-          <h4 style="color: var(--accent); margin-top: 24px; font-size: 16px;">🤝 Feedback & Support</h4>
-          <p style="line-height: 1.8; font-size: 14px;">
-            We continuously improve this application based on user feedback. If you encounter issues, have suggestions for improvement, or would like to request new features, please contact the developer directly. Your input helps make this tool more effective for the entire fleet.
-          </p>
-
-          <div style="margin-top: 32px; padding: 16px; background: rgba(111,183,255,0.08); border-left: 4px solid var(--accent); border-radius: 8px;">
-            <p style="margin: 0; line-height: 1.8; font-size: 14px; font-weight: 600;">
-              <strong>🎖️ Serving Those Who Serve</strong><br>
-              This tool was created by sailors, for sailors, to make administrative processes more efficient and accurate—because every minute saved on paperwork is a minute that can be spent on the mission.
-            </p>
-          </div>
-
         </div>
       </div>
     </div>
   </div>
 
   <!-- HELP MODAL -->
-  <div id="helpModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; overflow-y: auto; backdrop-filter: blur(8px);">
-    <div style="max-width: 900px; margin: 40px auto; padding: 20px;">
-      <div class="card" style="margin-bottom: 20px;">
+  <div id="helpModal" class="modal">
+    <div class="modal-content" style="max-width: 1000px;">
+      <div class="card">
         <h3 style="display: flex; justify-content: space-between; align-items: center;">
-          <span>📖 User Guide & Help</span>
-          <button onclick="$('helpModal').style.display='none'" style="width: auto; padding: 8px 16px; font-size: 14px;" class="danger">✕ Close</button>
+          <span>📖 Complete User Guide</span>
+          <button onclick="hideModal('helpModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
         </h3>
-        <div class="body" style="max-height: 70vh; overflow-y: auto;">
+        <div class="body" style="max-height: 75vh; overflow-y: auto;">
           
-          <h4 style="color: var(--accent); margin-top: 0;">🚀 Quick Start Guide</h4>
-          <ol style="line-height: 1.8; padding-left: 20px;">
-            <li><strong>Upload Files:</strong> Select one or more Sea Duty Certification PDFs in the "Input Files" section</li>
-            <li><strong>Optional:</strong> Upload a custom Rate CSV or Template PDF if needed</li>
-            <li><strong>Process:</strong> Click the "▶️ Process" button to begin automated processing</li>
-            <li><strong>Review:</strong> Check the "Review & Override" section to verify results</li>
-            <li><strong>Download:</strong> Use the download buttons to get your processed files</li>
-          </ol>
+          <!-- Quick Start Guide -->
+          <div style="background: rgba(111,183,255,0.1); padding: 16px; border-radius: 10px; border-left: 4px solid var(--accent); margin-bottom: 24px;">
+            <h4 style="margin: 0 0 12px 0; color: var(--accent); font-size: 16px;">🚀 Quick Start (First Time Users)</h4>
+            <ol style="margin: 0; padding-left: 20px; line-height: 1.8;">
+              <li><strong>Upload</strong> your Sea Duty Certification PDF(s) in the <strong>📂 Files</strong> section</li>
+              <li>Click the <strong>▶️ Process</strong> button in the <strong>⚙️ Controls</strong> section</li>
+              <li>Wait for processing to complete (watch the status indicator)</li>
+              <li>Download your processed files from the <strong>📥 Downloads</strong> section</li>
+            </ol>
+          </div>
 
-          <h4 style="color: var(--accent); margin-top: 24px;">📂 Input Files</h4>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li><strong>Sea Duty Cert (PDF):</strong> Required. Upload one or more certification PDFs to process</li>
-            <li><strong>Rate CSV:</strong> Optional. Custom rate/rank definitions. System includes default rates</li>
-            <li><strong>Template PDF:</strong> Optional. Custom PG-13 form template. System includes default template</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">⚙️ System Controls</h4>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li><strong>Status:</strong> Shows current processing status with progress percentage</li>
-            <li><strong>Strikeout Color:</strong> Choose Black or Red for invalid entry strikethrough on TORIS certs</li>
-            <li><strong>▶️ Process:</strong> Starts processing of uploaded files</li>
-            <li><strong>🗑️ Reset:</strong> Clears all data and outputs (cannot be undone)</li>
-            <li><strong>💾 Save Overrides:</strong> Saves any manual corrections you've made to event validation</li>
-            <li><strong>🔄 Rebuild Outputs:</strong> Regenerates all PDFs using current override settings</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">📥 Downloads</h4>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li><strong>📦 Package:</strong> Download merged package with all members organized with bookmarks</li>
-            <li><strong>📂 All:</strong> Download complete output folder as ZIP (all files, all members)</li>
-            <li><strong>Per-Member Downloads:</strong> Select a member from dropdown to download their specific files:
-              <ul style="margin-top: 8px;">
-                <li>📄 Summary - Text summary of valid/invalid periods</li>
-                <li>📋 TORIS Cert - Annotated certification with strikeouts</li>
-                <li>📑 PG-13 Forms - Generated payment forms</li>
-                <li>📦 All Files - Complete package for that member</li>
-              </ul>
-            </li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">✏️ Review & Override</h4>
-          <p style="line-height: 1.8;">After processing, you can review and manually override the system's validation decisions:</p>
-          <ol style="line-height: 1.8; padding-left: 20px;">
-            <li>Select a member from the dropdown</li>
-            <li>Select a sheet/page from their certification</li>
-            <li>Review the Valid and Invalid events tables</li>
-            <li>Use the Override dropdown to change validation status:
-              <ul style="margin-top: 8px;">
-                <li><strong>🔄 Auto:</strong> Use system's automatic validation</li>
-                <li><strong>✅ Valid:</strong> Force event to be valid (payable)</li>
-                <li><strong>❌ Invalid:</strong> Force event to be invalid (non-payable)</li>
-              </ul>
-            </li>
-            <li>Add a reason/note in the Reason field (optional but recommended)</li>
-            <li>Click "💾 Save Overrides" to apply your changes</li>
-            <li>Click "🔄 Rebuild Outputs" to regenerate PDFs with your overrides</li>
-          </ol>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">🎯 Custom Download & Merge</h4>
-          <p style="line-height: 1.8;">Create custom packages with only the members and file types you need:</p>
-          <ol style="line-height: 1.8; padding-left: 20px;">
-            <li>Use "☑ Select All" or "☐ Deselect All" for quick selection</li>
-            <li>Check individual members you want to include</li>
-            <li>For each member, choose which file types to include (Summary, TORIS Cert, PG-13 Forms)</li>
-            <li>Click "📥 Download ZIP" to get selected files as a ZIP archive</li>
-            <li>Click "📦 Merge to PDF" to combine all selected files into one PDF with bookmarks</li>
-          </ol>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">📜 Live Processing Log</h4>
-          <p style="line-height: 1.8;">Monitor real-time progress of file processing. The log shows:</p>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li>Files being processed</li>
-            <li>OCR and parsing status</li>
-            <li>Validation results</li>
-            <li>Output generation progress</li>
-            <li>Any errors or warnings</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">🔧 Troubleshooting</h4>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li><strong>Files not processing?</strong> Check the Live Processing Log for error messages</li>
-            <li><strong>Missing events?</strong> Use the Review & Override section to manually add them</li>
-            <li><strong>Wrong validation?</strong> Override the event status and add a reason</li>
-            <li><strong>Changes not showing?</strong> Make sure to click "💾 Save Overrides" then "🔄 Rebuild Outputs"</li>
-            <li><strong>Download not working?</strong> Open browser console (F12) and check for error messages</li>
-            <li><strong>Start fresh?</strong> Use the "🗑️ Reset" button to clear all data</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">💡 Tips & Best Practices</h4>
-          <ul style="line-height: 1.8; padding-left: 20px;">
-            <li>Always review the output before submitting for official use</li>
-            <li>Add detailed reasons when overriding automatic validation</li>
-            <li>Use the merged package for easy distribution to multiple personnel</li>
-            <li>Keep a backup of your original PDFs before processing</li>
-            <li>Process files in small batches for easier review</li>
-            <li>Check the valid/invalid counts after processing</li>
-          </ul>
-
-          <h4 style="color: var(--accent); margin-top: 24px;">📞 Support</h4>
-          <p style="line-height: 1.8;">
-            For technical support, bug reports, or feature requests, contact:<br>
-            <strong>STG1(SW) Ryan Nivera</strong><br>
-            Email: <a href="mailto:ryan.n.nivera.mil@us.navy.mil" style="color: var(--accent);">ryan.n.nivera.mil@us.navy.mil</a>
+          <p style="text-align: center; font-size: 14px; color: rgba(245,248,255,0.7); margin-bottom: 24px;">
+            <em>Scroll down for detailed instructions, troubleshooting, and FAQ</em>
           </p>
 
+          <!-- Main Interface Overview -->
+          <h4 style="color: var(--accent); margin-top: 0;">🖥️ Main Interface Overview</h4>
+          
+          <div style="display: grid; gap: 12px; margin-bottom: 24px;">
+            
+            <!-- Files Section -->
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid #6fb7ff;">
+              <div style="font-weight: 700; margin-bottom: 8px; color: #6fb7ff;">📂 Files - Upload Your Documents</div>
+              <ul style="margin: 0; padding-left: 20px; line-height: 1.6; font-size: 14px;">
+                <li><strong>Sea Duty PDFs</strong> (Required) - Upload one or more certification PDFs</li>
+                <li><strong>Rate CSV & Template PDF</strong> (Optional) - Custom files for advanced users</li>
+              </ul>
+            </div>
+
+            <!-- Controls Section -->
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid #16c784;">
+              <div style="font-weight: 700; margin-bottom: 8px; color: #16c784;">⚙️ Controls - Process & Manage</div>
+              <ul style="margin: 0; padding-left: 20px; line-height: 1.6; font-size: 14px;">
+                <li><strong>▶️ Process</strong> - Start processing your files</li>
+                <li><strong>⏹️ Cancel</strong> - Stop processing if needed</li>
+                <li><strong>🗑️ Reset</strong> - Clear everything and start over</li>
+                <li><strong>Settings</strong> - Choose strikeout color and consolidation options</li>
+              </ul>
+            </div>
+
+            <!-- Tools Section -->
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid #f5c451;">
+              <div style="font-weight: 700; margin-bottom: 8px; color: #f5c451;">🔧 Tools - Review & Monitor</div>
+              <ul style="margin: 0; padding-left: 20px; line-height: 1.6; font-size: 14px;">
+                <li><strong>✏️ Review & Override</strong> - Check and correct validation results</li>
+                <li><strong>📜 Processing Log</strong> - See detailed processing information</li>
+              </ul>
+            </div>
+
+            <!-- Downloads Section -->
+            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid #ff5b6b;">
+              <div style="font-weight: 700; margin-bottom: 8px; color: #ff5b6b;">📥 Downloads - Get Your Files</div>
+              <ul style="margin: 0; padding-left: 20px; line-height: 1.6; font-size: 14px;">
+                <li><strong>📦 Package / 📂 All Files</strong> - Download everything at once</li>
+                <li><strong>🎯 Custom</strong> - Create custom packages with selected files</li>
+                <li><strong>Per-Member Downloads</strong> - Get specific files for each person</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Common Questions -->
+          <h4 style="color: var(--accent);">❓ Frequently Asked Questions</h4>
+          
+          <div style="margin-bottom: 24px;">
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: How do I get started?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: Click "Choose Files" in the Files section, select your PDF(s), then click the "▶️ Process" button. That's it!
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: Can I process multiple people at once?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: Yes! Upload all PDFs at once. The system creates separate outputs for each person automatically.
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: What if something is marked invalid but shouldn't be?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: Use the "Review & Override" tool. Select the member and sheet, find the event, change it to "Valid", add a reason, then save and rebuild.
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: What does "Consolidate PG-13s" do?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: It combines multiple periods on the same ship into one PG-13 form, saving paper. Great for sailors with lots of time on one ship.
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: What files will I get?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: You'll get a Summary (text report), TORIS Cert (marked-up certification), and PG-13 Forms (payment forms) for each member.
+              </p>
+            </div>
+            
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: How long does processing take?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: Usually 1-3 minutes per certification. Large PDFs or multiple files take longer. Watch the progress percentage.
+              </p>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <div style="font-weight: 700; margin-bottom: 6px; font-size: 14px;">Q: Can I undo a Reset?</div>
+              <p style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; color: rgba(245,248,255,0.85);">
+                A: No! Reset permanently deletes everything. Always download your files first.
+              </p>
+            </div>
+          </div>
+
+          <!-- Quick Troubleshooting -->
+          <h4 style="color: var(--accent);">🔧 Quick Troubleshooting</h4>
+          
+          <div style="display: grid; gap: 8px; margin-bottom: 24px;">
+            <div style="padding: 10px; background: rgba(255,91,107,0.08); border-radius: 6px; border-left: 3px solid #ff5b6b;">
+              <strong style="font-size: 13px;">Problem:</strong> <span style="font-size: 13px;">Files won't upload</span><br>
+              <span style="font-size: 12px; color: rgba(245,248,255,0.75);">→ Check: PDF format? File size reasonable? Good internet connection?</span>
+            </div>
+            
+            <div style="padding: 10px; background: rgba(255,91,107,0.08); border-radius: 6px; border-left: 3px solid #ff5b6b;">
+              <strong style="font-size: 13px;">Problem:</strong> <span style="font-size: 13px;">Processing stuck</span><br>
+              <span style="font-size: 12px; color: rgba(245,248,255,0.75);">→ Check the Processing Log. Wait 5 min. If still stuck, click Cancel and try again.</span>
+            </div>
+            
+            <div style="padding: 10px; background: rgba(255,91,107,0.08); border-radius: 6px; border-left: 3px solid #ff5b6b;">
+              <strong style="font-size: 13px;">Problem:</strong> <span style="font-size: 13px;">Missing events</span><br>
+              <span style="font-size: 12px; color: rgba(245,248,255,0.75);">→ Check if they're marked invalid. Use Review & Override to manually add them.</span>
+            </div>
+            
+            <div style="padding: 10px; background: rgba(255,91,107,0.08); border-radius: 6px; border-left: 3px solid #ff5b6b;">
+              <strong style="font-size: 13px;">Problem:</strong> <span style="font-size: 13px;">Download not working</span><br>
+              <span style="font-size: 12px; color: rgba(245,248,255,0.75);">→ Make sure processing is complete. For member downloads, select a member first.</span>
+            </div>
+          </div>
+
+          <!-- Best Practices -->
+          <h4 style="color: var(--accent);">💡 Tips for Best Results</h4>
+          <ul style="line-height: 1.7; padding-left: 20px; margin-bottom: 24px; font-size: 14px;">
+            <li>Use clear, high-quality PDF scans for better accuracy</li>
+            <li>Always review outputs before submitting for official use</li>
+            <li>Add reasons when you override - helps with audits later</li>
+            <li>Download all files before clicking Reset</li>
+            <li>Process 5-10 certs at a time for efficiency</li>
+            <li>Keep backup copies of original PDFs</li>
+          </ul>
+
+          <!-- Support Information -->
+          <h4 style="color: var(--accent);">📞 Need More Help?</h4>
+          <div style="background: rgba(111,183,255,0.1); padding: 16px; border-radius: 10px; border-left: 4px solid var(--accent);">
+            <p style="margin: 0 0 10px 0; line-height: 1.6; font-size: 14px;">
+              For questions, technical issues, or feature requests:
+            </p>
+            <div style="line-height: 1.7; font-size: 14px;">
+              <strong>Contact:</strong> STG1(SW) Ryan Nivera, USN<br>
+              <strong>Email:</strong> <a href="/cdn-cgi/l/email-protection#c7b5bea6a9e9a9e9a9aeb1a2b5a6e9aaaeab87b2b4e9a9a6b1bee9aaaeab" style="color: var(--accent);"><span class="__cf_email__" data-cfemail="b0c2c9d1de9ede9eded9c6d5c2d19eddd9dcf0c5c39eded1c6c99eddd9dc">[email&#160;protected]</span></a><br>
+              <strong>Command:</strong> ATGSD (Afloat Training Group San Diego)
+            </div>
+            <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.75;">
+              💡 Tip: Include screenshots and log output when reporting issues
+            </p>
+          </div>
+
+          <!-- Disclaimer -->
+          <div style="margin-top: 20px; padding: 12px; background: rgba(245,196,81,0.1); border-radius: 8px; font-size: 12px; line-height: 1.6; border-left: 3px solid #f5c451;">
+            <strong>⚠️ Disclaimer:</strong> This tool assists with processing but doesn't replace official Navy regulations or qualified personnel judgment. Always have authorized personnel review outputs before submission to disbursing/DFAS. Not officially endorsed by DON/DOD.
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- CUSTOM DOWNLOAD MODAL -->
+  <div id="customModal" class="modal">
+    <div class="modal-content">
+      <div class="card">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>🎯 Custom Download & Merge</span>
+          <button onclick="hideModal('customModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+        </h3>
+        <div class="body">
+          <div style="font-size: 12px; color: rgba(245,248,255,0.72); margin-bottom: 10px;">
+            Select members and file types to download or merge into a package:
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+            <button class="btn-secondary" type="button" id="selectAllBtn">☑ Select All</button>
+            <button class="btn-secondary" type="button" id="deselectAllBtn">☐ Deselect All</button>
+          </div>
+          
+          <div id="memberSelectionList" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; background: rgba(6,10,18,0.35); margin-bottom: 12px;">
+            <div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px; font-size: 12px;">
+              Process files first to see member list
+            </div>
+          </div>
+          
+          <div id="selectionSummary" style="padding: 10px; background: rgba(111,183,255,0.1); border-radius: 10px; font-size: 13px; text-align: center; color: rgba(245,248,255,0.82); margin-bottom: 12px;">
+            Selection: <span id="selectedCount">0 members, 0 items</span>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn-success" type="button" id="downloadCustomBtn" disabled>📥 Download ZIP</button>
+            <button class="btn-primary" type="button" id="mergeCustomBtn" disabled>📦 Merge to PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW & OVERRIDE MODAL -->
+  <div id="reviewModal" class="modal">
+    <div class="modal-content" style="max-width: 1400px;">
+      <div class="card">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span>✏️ Review & Override</span>
+            <div class="stats-badges">
+              <div class="stat-badge valid">
+                <span>✅</span>
+                <span class="count" id="validCountModal">0</span>
+              </div>
+              <div class="stat-badge invalid">
+                <span>❌</span>
+                <span class="count" id="invalidCountModal">0</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="hideModal('reviewModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+        </h3>
+        <div class="body" style="max-height: 65vh; overflow-y: auto;">
+          <div class="hint" id="reviewHint">
+            👆 Select a member and sheet in the main page to review validation results
+          </div>
+
+          <div class="section-header">✅ Valid Rows</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Ship</th>
+                  <th>Event</th>
+                  <th>Status</th>
+                  <th>Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="validBody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-header">❌ Invalid Events</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Ship</th>
+                  <th>Event</th>
+                  <th>Status</th>
+                  <th>Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="invalidBody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Action Buttons Footer -->
+        <div style="padding: 12px; border-top: 1px solid rgba(255,255,255,0.1); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.05)); display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <button type="button" id="saveOverridesBtn" class="btn-success">💾 Save Overrides</button>
+          <button type="button" id="rebuildBtn" class="btn-primary">🔄 Rebuild Outputs</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROCESSING LOG MODAL -->
+  <div id="logModal" class="modal">
+    <div class="modal-content" style="max-width: 1200px;">
+      <div class="card">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📜 Live Processing Log</span>
+          <button onclick="hideModal('logModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+        </h3>
+        <div class="body">
+          <div id="liveLog" class="logbox" style="height: 500px;"></div>
         </div>
       </div>
     </div>
@@ -1118,933 +1110,604 @@
 
   <footer class="app-footer">
     <div class="footer-inner">
-      Developed by
-      <a href="mailto:ryan.n.nivera.mil@us.navy.mil">STG1(SW) Ryan Nivera</a>
-      © <span id="yearNow">2025</span>
+      Developed by <a href="/cdn-cgi/l/email-protection#ea98938b84c484c484839c8f988bc4878386aa9f99c4848b9c93c4878386">STG1(SW) Ryan Nivera</a> © <span id="yearNow">2025</span>
     </div>
   </footer>
 
-  <script>
-    const $ = (id) => document.getElementById(id);
-
-    let lastStatus = null;
-    let pendingOverrides = {};
-    let lastSelectedMember = "";
-    let lastSelectedSheet = "";
-    let customSelections = {};
-    let processingAborted = false;
-
-    // 🔹 PATCH: Collapse/Expand functionality with localStorage persistence
-    window.toggleCollapse = function(contentId) {
-      const content = $(contentId);
-      const iconId = contentId.replace('Content', 'Icon');
-      const icon = $(iconId);
-      
-      if (content.classList.contains('collapsed')) {
-        content.classList.remove('collapsed');
-        icon.classList.remove('collapsed');
-        localStorage.setItem('collapse_' + contentId, 'false');
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    // Utility functions - Global scope for onclick attributes
+    const $ = id => document.getElementById(id);
+    
+    // Modal functions with error handling
+    window.showModal = function(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
       } else {
-        content.classList.add('collapsed');
-        icon.classList.add('collapsed');
-        localStorage.setItem('collapse_' + contentId, 'true');
+        console.error('Modal not found:', modalId);
       }
     };
+    
+    window.hideModal = function(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = ''; // Restore scrolling
+      } else {
+        console.error('Modal not found:', modalId);
+      }
+    };
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(e) {
+      if (e.target.classList.contains('modal')) {
+        e.target.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    });
 
-    // 🔹 PATCH: Restore collapse states on page load
-    function restoreCollapseStates() {
-      const collapsibles = [
-        'inputFilesContent',
-        'systemContent', 
-        'downloadsContent',
-        'reviewContent',
-        'customDownloadContent',
-        'liveLogContent'
-      ];
-      
-      collapsibles.forEach(contentId => {
-        const isCollapsed = localStorage.getItem('collapse_' + contentId) === 'true';
-        if (isCollapsed) {
-          const content = $(contentId);
-          const iconId = contentId.replace('Content', 'Icon');
-          const icon = $(iconId);
-          
-          if (content && icon) {
-            content.classList.add('collapsed');
-            icon.classList.add('collapsed');
-          }
-        }
-      });
+    // State
+    let pendingOverrides = {};
+    let customSelections = {};
+    let currentMember = '';
+    let currentSheet = '';
+
+    // API helpers
+    async function apiGet(url) {
+      const res = await fetch(url, {cache: 'no-store'});
+      if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
+      return res.json();
     }
 
-    // Call on page load
-    restoreCollapseStates();
+    async function apiPost(url, data) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`POST ${url} failed: ${res.status} ${text}`);
+      }
+      return res.json();
+    }
 
-    // Custom selection functions
-    window.toggleMember = function(member) {
+    // Status polling
+    async function pollProgress() {
+      try {
+        const data = await apiGet('/progress');
+        const status = data.status || data.state || data.message || 'Idle';
+        const pct = data.percent || data.progress || data.pct;
+        const log = data.log || data.lines || data.text || '';
+
+        // Update status
+        const statusEl = $('statusText');
+        if (pct != null && pct !== '') {
+          const p = Math.max(0, Math.min(100, Number(pct)));
+          statusEl.textContent = `${status} (${p}%)`;
+          statusEl.style.setProperty('--pct', `${p}%`);
+          statusEl.setAttribute('data-has-pct', '1');
+        } else {
+          statusEl.textContent = status;
+          statusEl.style.setProperty('--pct', '0%');
+          statusEl.removeAttribute('data-has-pct');
+        }
+
+        // Update buttons
+        const statusUpper = status.toUpperCase();
+        const isProcessing = !['IDLE', 'COMPLETE', 'CANCELLED', 'CANCELLING'].includes(statusUpper);
+        $('cancelBtn').disabled = !isProcessing;
+        $('processBtn').disabled = isProcessing;
+
+        // Update log
+        if (log) {
+          const logEl = $('liveLog');
+          const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 20;
+          logEl.textContent = log;
+          if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Refresh on complete
+        if (status === 'COMPLETE') {
+          await refreshMembers();
+        }
+      } catch (e) {
+        console.error('Poll error:', e);
+      }
+    }
+
+    setInterval(pollProgress, 1000);
+    pollProgress();
+
+    // Process files
+    $('processBtn').addEventListener('click', async () => {
+      const fd = new FormData();
+      for (const f of $('pdfs').files) fd.append('pdfs', f);
+      if ($('ratesCsv').files[0]) fd.append('rates_csv', $('ratesCsv').files[0]);
+      if ($('templatePdf').files[0]) fd.append('template_pdf', $('templatePdf').files[0]);
+      fd.append('strikeout_color', $('strikeColor').value);
+      fd.append('consolidate_pg13', $('consolidatePG13').checked ? 'true' : 'false');
+
+      $('processBtn').disabled = true;
+      try {
+        const res = await fetch('/process', {method: 'POST', body: fd});
+        if (!res.ok) throw new Error(`Process failed: ${res.status}`);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        $('processBtn').disabled = false;
+      }
+    });
+
+    // Cancel processing
+    $('cancelBtn').addEventListener('click', async () => {
+      $('cancelBtn').disabled = true;
+      try {
+        const res = await fetch('/cancel_process', {method: 'POST'});
+        if (res.ok) {
+          alert('✅ Processing cancelled');
+          $('processBtn').disabled = false;
+        } else {
+          throw new Error(`Cancel failed: ${res.status}`);
+        }
+      } catch (err) {
+        alert(`❌ ${err.message}`);
+        $('cancelBtn').disabled = false;
+      }
+    });
+
+    // Downloads
+    $('downloadMergedBtn').addEventListener('click', () => window.location = '/download_merged');
+    $('downloadAllBtn').addEventListener('click', () => window.location = '/download_all');
+    $('downloadSummaryBtn').addEventListener('click', () => {
+      if (currentMember) window.location = `/download_member_summary/${encodeURIComponent(currentMember)}`;
+    });
+    $('downloadTorisBtn').addEventListener('click', () => {
+      if (currentMember) window.location = `/download_member_toris/${encodeURIComponent(currentMember)}`;
+    });
+    $('downloadPG13Btn').addEventListener('click', () => {
+      if (currentMember) window.location = `/download_member_pg13s/${encodeURIComponent(currentMember)}`;
+    });
+    $('downloadMemberAllBtn').addEventListener('click', () => {
+      if (currentMember) window.location = `/download_member/${encodeURIComponent(currentMember)}`;
+    });
+
+    // Reset
+    $('resetBtn').addEventListener('click', async () => {
+      if (!confirm('⚠️ Reset all data? This cannot be undone.')) return;
+      try {
+        const res = await fetch('/reset', {method: 'POST'});
+        if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
+        
+        $('pdfs').value = '';
+        $('ratesCsv').value = '';
+        $('templatePdf').value = '';
+        $('memberSelect').innerHTML = '<option value="">Select member</option>';
+        $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
+        $('sheetSelect').disabled = true;
+        $('downloadSummaryBtn').disabled = true;
+        $('downloadTorisBtn').disabled = true;
+        $('downloadPG13Btn').disabled = true;
+        $('downloadMemberAllBtn').disabled = true;
+        $('validBody').innerHTML = '';
+        $('invalidBody').innerHTML = '';
+        
+        // Reset both main and modal counts
+        if ($('validCount')) $('validCount').textContent = '0';
+        if ($('invalidCount')) $('invalidCount').textContent = '0';
+        if ($('validCountModal')) $('validCountModal').textContent = '0';
+        if ($('invalidCountModal')) $('invalidCountModal').textContent = '0';
+        
+        $('reviewHint').textContent = '👆 Select a member and sheet in the main page to review validation results';
+        pendingOverrides = {};
+        customSelections = {};
+        renderMemberList();
+        
+        alert('✅ Reset complete');
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    // Members
+    async function refreshMembers() {
+      try {
+        const members = await apiGet('/api/members');
+        const sel = $('memberSelect');
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Select member</option>';
+        
+        customSelections = {};
+        members.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          sel.appendChild(opt);
+          customSelections[m] = {enabled: false, summary: false, toris: false, pg13: false};
+        });
+        
+        if (current && members.includes(current)) sel.value = current;
+        currentMember = sel.value;
+        renderMemberList();
+      } catch (e) {
+        console.error('Refresh members error:', e);
+      }
+    }
+
+    $('memberSelect').addEventListener('change', async e => {
+      currentMember = e.target.value;
+      pendingOverrides = {};
+      await loadSheets();
+    });
+
+    async function loadSheets() {
+      const hasSelection = !!currentMember;
+      $('downloadSummaryBtn').disabled = !hasSelection;
+      $('downloadTorisBtn').disabled = !hasSelection;
+      $('downloadPG13Btn').disabled = !hasSelection;
+      $('downloadMemberAllBtn').disabled = !hasSelection;
+      $('sheetSelect').disabled = true;
+      $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
+      $('validBody').innerHTML = '';
+      $('invalidBody').innerHTML = '';
+      $('reviewHint').style.display = 'block';
+      $('reviewHint').textContent = 'Select a sheet to review';
+      
+      // Reset both main and modal counts
+      if ($('validCount')) $('validCount').textContent = '0';
+      if ($('invalidCount')) $('invalidCount').textContent = '0';
+      if ($('validCountModal')) $('validCountModal').textContent = '0';
+      if ($('invalidCountModal')) $('invalidCountModal').textContent = '0';
+      
+      if (!currentMember) return;
+      
+      try {
+        const sheets = await apiGet(`/api/member/${encodeURIComponent(currentMember)}/sheets`);
+        const sel = $('sheetSelect');
+        sheets.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          sel.appendChild(opt);
+        });
+        sel.disabled = false;
+      } catch (e) {
+        console.error('Load sheets error:', e);
+      }
+    }
+
+    $('sheetSelect').addEventListener('change', async e => {
+      currentSheet = e.target.value;
+      pendingOverrides = {};
+      if (currentSheet && currentMember) await loadEvents();
+    });
+
+    async function loadEvents() {
+      $('validBody').innerHTML = '';
+      $('invalidBody').innerHTML = '';
+      $('reviewHint').textContent = 'Loading...';
+      
+      try {
+        const data = await apiGet(`/api/member/${encodeURIComponent(currentMember)}/sheet/${encodeURIComponent(currentSheet)}`);
+        const valid = data.valid_rows || [];
+        const invalid = data.invalid_events || [];
+        
+        // Update both main and modal counts
+        const validCount = valid.length;
+        const invalidCount = invalid.length;
+        if ($('validCount')) $('validCount').textContent = validCount;
+        if ($('invalidCount')) $('invalidCount').textContent = invalidCount;
+        if ($('validCountModal')) $('validCountModal').textContent = validCount;
+        if ($('invalidCountModal')) $('invalidCountModal').textContent = invalidCount;
+        
+        if (valid.length === 0 && invalid.length === 0) {
+          $('reviewHint').textContent = 'No events found';
+          return;
+        }
+        
+        $('reviewHint').style.display = 'none';
+        
+        valid.forEach(row => renderRow(row, $('validBody'), 'valid'));
+        invalid.forEach(row => renderRow(row, $('invalidBody'), 'invalid'));
+      } catch (e) {
+        $('reviewHint').textContent = `Error: ${e.message}`;
+        $('reviewHint').style.display = 'block';
+      }
+    }
+
+    function renderRow(row, tbody, type) {
+      const tr = document.createElement('tr');
+      tr.className = type;
+      
+      tr.innerHTML = `
+        <td>${row.date || ''}</td>
+        <td>${row.ship || ''}</td>
+        <td>${row.event || ''}</td>
+        <td>${row.source === 'override' ? 'Override' : type === 'valid' ? 'Valid' : 'Invalid'}</td>
+        <td></td>
+        <td class="reason-cell"></td>
+      `;
+      
+      const overrideStatus = row.override_status || (row.override && row.override.status) || '';
+      const overrideReason = row.override_reason || (row.override && row.override.reason) || '';
+      const statusReason = row.status_reason || row.reason || '';
+      
+      tr.children[4].appendChild(createOverrideSelect(row.event_index, overrideStatus, row.source));
+      tr.children[5].appendChild(createReasonTextarea(row.event_index, statusReason, overrideReason));
+      
+      tbody.appendChild(tr);
+    }
+
+    function createOverrideSelect(index, status, source) {
+      const wrap = document.createElement('div');
+      wrap.className = 'override-wrap';
+      if (source === 'override') wrap.classList.add('dirty');
+      
+      const sel = document.createElement('select');
+      sel.innerHTML = `
+        <option value="">🔄 Auto</option>
+        <option value="valid">✅ Valid</option>
+        <option value="invalid">❌ Invalid</option>
+      `;
+      sel.value = status || '';
+      
+      const key = `${currentMember}|||${currentSheet}|||${index}`;
+      sel.addEventListener('change', () => {
+        wrap.classList.add('dirty');
+        const ta = document.querySelector(`textarea[data-key="${key}"]`);
+        pendingOverrides[key] = {
+          member_key: currentMember,
+          sheet_file: currentSheet,
+          event_index: index,
+          override_status: sel.value || null,
+          override_reason: ta ? ta.value : null
+        };
+      });
+      
+      wrap.appendChild(sel);
+      return wrap;
+    }
+
+    function createReasonTextarea(index, initialText, overrideReason) {
+      const ta = document.createElement('textarea');
+      ta.className = 'override-reason';
+      ta.value = overrideReason || initialText || '';
+      ta.placeholder = 'Optional...';
+      
+      const key = `${currentMember}|||${currentSheet}|||${index}`;
+      ta.setAttribute('data-key', key);
+      
+      ta.addEventListener('input', () => {
+        const sel = document.querySelector(`select[data-key="${key}"]`) || 
+                     ta.closest('tr').querySelector('select');
+        const wrap = sel ? sel.closest('.override-wrap') : null;
+        if (wrap) wrap.classList.add('dirty');
+        
+        pendingOverrides[key] = {
+          member_key: currentMember,
+          sheet_file: currentSheet,
+          event_index: index,
+          override_status: sel ? sel.value : null,
+          override_reason: ta.value || null
+        };
+      });
+      
+      return ta;
+    }
+
+    // Save overrides
+    $('saveOverridesBtn').addEventListener('click', async () => {
+      const overrides = Object.values(pendingOverrides);
+      if (overrides.length === 0) {
+        alert('No changes to save');
+        return;
+      }
+      
+      const transformed = overrides.map(o => ({
+        member_key: o.member_key,
+        sheet_file: o.sheet_file,
+        event_index: o.event_index,
+        status: o.override_status || '',
+        reason: o.override_reason || '',
+        source: 'manual'
+      }));
+      
+      $('saveOverridesBtn').disabled = true;
+      try {
+        await apiPost('/api/overrides/batch', transformed);
+        alert(`✅ Saved ${overrides.length} override(s)`);
+        pendingOverrides = {};
+        if (currentMember && currentSheet) await loadEvents();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        $('saveOverridesBtn').disabled = false;
+      }
+    });
+
+    // Rebuild
+    $('rebuildBtn').addEventListener('click', async () => {
+      if (!confirm('🔄 Rebuild all outputs?')) return;
+      
+      $('rebuildBtn').disabled = true;
+      try {
+        const res = await apiPost('/rebuild_outputs', {
+          consolidate_pg13: $('consolidatePG13').checked
+        });
+        alert('✅ ' + (res.status || 'Rebuild complete'));
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        setTimeout(() => $('rebuildBtn').disabled = false, 1000);
+      }
+    });
+
+    // Custom selection
+    function renderMemberList() {
+      const container = $('memberSelectionList');
+      
+      if (Object.keys(customSelections).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px; font-size: 12px;">Process files first to see member list</div>';
+        return;
+      }
+      
+      let html = '';
+      Object.keys(customSelections).forEach(member => {
+        const s = customSelections[member];
+        html += `
+          <div style="margin-bottom: 10px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(20,28,48,0.4);">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; margin-bottom: 6px; font-size: 13px;">
+              <input type="checkbox" onchange="toggleMember('${member}')" ${s.enabled ? 'checked' : ''}>
+              <span>${member}</span>
+            </label>
+            <div style="padding-left: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'summary')" ${s.summary ? 'checked' : ''} ${!s.enabled ? 'disabled' : ''}>
+                <span>📄 Summary</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'toris')" ${s.toris ? 'checked' : ''} ${!s.enabled ? 'disabled' : ''}>
+                <span>📋 TORIS</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'pg13')" ${s.pg13 ? 'checked' : ''} ${!s.enabled ? 'disabled' : ''}>
+                <span>📑 PG-13</span>
+              </label>
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+      updateSelectionSummary();
+    }
+
+    window.toggleMember = member => {
       customSelections[member].enabled = !customSelections[member].enabled;
       if (customSelections[member].enabled) {
         customSelections[member].summary = true;
         customSelections[member].toris = true;
         customSelections[member].pg13 = true;
       }
-      renderMemberSelectionList();
+      renderMemberList();
     };
 
-    window.toggleFileType = function(member, fileType) {
-      customSelections[member][fileType] = !customSelections[member][fileType];
+    window.toggleFileType = (member, type) => {
+      customSelections[member][type] = !customSelections[member][type];
       updateSelectionSummary();
     };
-
-    function renderMemberSelectionList() {
-      const container = $("memberSelectionList");
-      
-      if (Object.keys(customSelections).length === 0) {
-        container.innerHTML = '<div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px;">Process files first to see member list</div>';
-        return;
-      }
-      
-      let html = '';
-      for (const member in customSelections) {
-        const sel = customSelections[member];
-        const checked = sel.enabled ? 'checked' : '';
-        
-        html += `
-          <div style="margin-bottom: 12px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(20,28,48,0.4);">
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; margin-bottom: 8px;">
-              <input type="checkbox" onchange="toggleMember('${member}')" ${checked}>
-              <span>${member}</span>
-            </label>
-            <div style="padding-left: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                <input type="checkbox" onchange="toggleFileType('${member}', 'summary')" ${sel.summary ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
-                <span>📄 Summary</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                <input type="checkbox" onchange="toggleFileType('${member}', 'toris')" ${sel.toris ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
-                <span>📋 TORIS Cert</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                <input type="checkbox" onchange="toggleFileType('${member}', 'pg13')" ${sel.pg13 ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
-                <span>📑 PG-13 Forms</span>
-              </label>
-            </div>
-          </div>
-        `;
-      }
-      
-      container.innerHTML = html;
-      updateSelectionSummary();
-    }
 
     function updateSelectionSummary() {
       let memberCount = 0;
       let itemCount = 0;
       
-      for (const member in customSelections) {
-        const sel = customSelections[member];
-        if (sel.enabled) {
+      Object.keys(customSelections).forEach(member => {
+        const s = customSelections[member];
+        if (s.enabled) {
           memberCount++;
-          if (sel.summary) itemCount++;
-          if (sel.toris) itemCount++;
-          if (sel.pg13) itemCount++;
+          if (s.summary) itemCount++;
+          if (s.toris) itemCount++;
+          if (s.pg13) itemCount++;
         }
-      }
-      
-      $("selectedCount").textContent = `${memberCount} members, ${itemCount} items`;
-      
-      const hasSelection = itemCount > 0;
-      $("btnDownloadCustom").disabled = !hasSelection;
-      $("btnMergeCustom").disabled = !hasSelection;
-    }
-
-    function safeText(v) {
-      if (v === null || v === undefined) return "";
-      if (typeof v === "object") return JSON.stringify(v);
-      return String(v);
-    }
-    function pick(obj, keys, fallback="") {
-      if (!obj) return fallback;
-      for (const k of keys) {
-        if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
-      }
-      return fallback;
-    }
-
-    function fitFontToBox(el, opts = {}) {
-      const minPx = (opts.minPx ?? 6);
-      const maxPx = (opts.maxPx ?? null);
-      const mode  = (opts.mode ?? "width");
-
-      if (!el) return;
-
-      const cs = window.getComputedStyle(el);
-      const current = parseFloat(cs.fontSize) || 12;
-      let start = maxPx ? maxPx : current;
-
-      if (el.clientWidth <= 0) return;
-
-      el.style.fontSize = start + "px";
-
-      const overflows = () => {
-        const w = el.scrollWidth > el.clientWidth + 1;
-        if (mode === "width") return w;
-        const h = el.scrollHeight > el.clientHeight + 1;
-        return w || h;
-      };
-
-      let size = start;
-      while (size > minPx && overflows()) {
-        size -= 0.5;
-        el.style.fontSize = size + "px";
-      }
-
-      if (size < minPx) el.style.fontSize = minPx + "px";
-    }
-
-    function autoGrowTextarea(ta) {
-      if (!ta) return;
-      ta.style.height = "auto";
-      ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
-    }
-
-    function patchFitAllReasonCells() {
-      document.querySelectorAll("textarea.override-reason").forEach((ta) => {
-        autoGrowTextarea(ta);
-        fitFontToBox(ta, { minPx: 6, mode: "width" });
       });
-    }
-
-    window.addEventListener("resize", () => {
-      patchFitAllReasonCells();
-    });
-
-    async function jget(url) {
-      const r = await fetch(url, {cache:"no-store"});
-      if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
-      return await r.json();
-    }
-    async function jpost(url, payload) {
-      const r = await fetch(url, {
-        method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) {
-        const t = await r.text().catch(()=> "");
-        throw new Error("POST " + url + " -> " + r.status + " " + t);
-      }
-      return await r.json();
-    }
-
-    async function pollProgress() {
-      try {
-        const data = await jget("/progress");
-        const pct = pick(data, ["percent","progress","pct"], null);
-        const status = pick(data, ["status","state","message"], "Idle");
-        const log = pick(data, ["log","lines","text"], "");
-        if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
-          refreshReviewLists();
-        }
-        lastStatus = status;
-
-        /* ===== PATCH: Progress bar behind status text ===== */
-        const st = $("statusText");
-        if (pct !== null && pct !== undefined && pct !== "") {
-          const p = Math.max(0, Math.min(100, Number(pct)));
-          st.textContent = status + " (" + p + "%)";
-          st.style.setProperty("--pct", p + "%");
-          st.setAttribute("data-has-pct", "1");
-        } else {
-          st.textContent = status;
-          st.style.setProperty("--pct", "0%");
-          st.removeAttribute("data-has-pct");
-        }
-
-        /* ===== PATCH: Auto-manage Cancel button based on status ===== */
-        const cancelBtn = $("btnCancel");
-        const processBtn = $("processBtn");
-        const statusUpper = (status || "").toUpperCase();
-        const isProcessing = status && !["IDLE", "COMPLETE", "CANCELLED", "CANCELLING"].includes(statusUpper);
-        
-        if (isProcessing) {
-          // Processing is active, enable Cancel and disable Process
-          if (cancelBtn.disabled) {
-            cancelBtn.disabled = false;
-            cancelBtn.innerHTML = "⏹️ Cancel";
-          }
-          processBtn.disabled = true;
-        } else {
-          // Not processing, disable Cancel and enable Process
-          if (!cancelBtn.disabled) {
-            cancelBtn.disabled = true;
-          }
-          if (processBtn.disabled && status !== "CANCELLING") {
-            processBtn.disabled = false;
-          }
-        }
-
-        if (typeof log === "string") {
-          const logBox = $("liveLog");
-          const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
-          logBox.textContent = log;
-          if (isAtBottom) {
-            logBox.scrollTop = logBox.scrollHeight;
-          }
-        }
-      } catch (e) {}
-    }
-
-    setInterval(pollProgress, 1000);
-    pollProgress();
-
-    $("processBtn").addEventListener("click", async () => {
-      const fd = new FormData();
-      for (const f of $("pdfs").files) fd.append("pdfs", f);
-      if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
-      if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
-      fd.append("strikeout_color", $("strikeColor").value);
-      fd.append("consolidate_pg13", $("consolidatePG13").checked ? "true" : "false");
       
-      $("processBtn").disabled = true;
-      $("btnCancel").disabled = false;
-      processingAborted = false;
-      
-      try {
-        const r = await fetch("/process", {method:"POST", body: fd});
-        if (!r.ok) throw new Error("Process failed: " + r.status);
-        await refreshReviewLists();
-      } catch (err) {
-        alert(err.message || String(err));
-      } finally {
-        $("processBtn").disabled = false;
-        $("btnCancel").disabled = true;
-      }
-    });
+      $('selectedCount').textContent = `${memberCount} members, ${itemCount} items`;
+      $('downloadCustomBtn').disabled = itemCount === 0;
+      $('mergeCustomBtn').disabled = itemCount === 0;
+    }
 
-    // 🔹 PATCH: Cancel processing button
-    $("btnCancel").addEventListener("click", async () => {
-      // Disable the button immediately to prevent double-clicks
-      const cancelBtn = $("btnCancel");
-      const originalText = cancelBtn.innerHTML;
-      cancelBtn.disabled = true;
-      cancelBtn.innerHTML = "⏳ Cancelling...";
-      
-      try {
-        processingAborted = true;
-        const r = await fetch("/cancel_process", {method:"POST"});
-        if (r.ok) {
-          alert("✅ Processing cancelled successfully");
-          $("processBtn").disabled = false;
-        } else {
-          throw new Error("Failed to cancel: " + r.status);
-        }
-      } catch (err) {
-        console.error("Cancel error:", err);
-        alert("❌ Error cancelling process: " + (err.message || String(err)));
-        // Re-enable if there was an error
-        cancelBtn.disabled = false;
-        cancelBtn.innerHTML = originalText;
-      }
-    });
-
-    $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
-    $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
-    
-    $("btnDownloadSummary").addEventListener("click", () => {
-      const member = $("memberSelect").value;
-      if (!member) {
-        alert("Please select a member first");
-        return;
-      }
-      window.location = "/download_member_summary/" + encodeURIComponent(member);
-    });
-    
-    $("btnDownloadToris").addEventListener("click", () => {
-      const member = $("memberSelect").value;
-      if (!member) {
-        alert("Please select a member first");
-        return;
-      }
-      window.location = "/download_member_toris/" + encodeURIComponent(member);
-    });
-    
-    $("btnDownloadPG13s").addEventListener("click", () => {
-      const member = $("memberSelect").value;
-      if (!member) {
-        alert("Please select a member first");
-        return;
-      }
-      window.location = "/download_member_pg13s/" + encodeURIComponent(member);
-    });
-    
-    $("btnDownloadMemberAll").addEventListener("click", () => {
-      const member = $("memberSelect").value;
-      if (!member) {
-        alert("Please select a member first");
-        return;
-      }
-      window.location = "/download_member/" + encodeURIComponent(member);
-    });
-
-    $("btnSelectAll").addEventListener("click", () => {
-      for (const member in customSelections) {
+    $('selectAllBtn').addEventListener('click', () => {
+      Object.keys(customSelections).forEach(member => {
         customSelections[member].enabled = true;
         customSelections[member].summary = true;
         customSelections[member].toris = true;
         customSelections[member].pg13 = true;
-      }
-      renderMemberSelectionList();
+      });
+      renderMemberList();
     });
 
-    $("btnDeselectAll").addEventListener("click", () => {
-      for (const member in customSelections) {
+    $('deselectAllBtn').addEventListener('click', () => {
+      Object.keys(customSelections).forEach(member => {
         customSelections[member].enabled = false;
         customSelections[member].summary = false;
         customSelections[member].toris = false;
         customSelections[member].pg13 = false;
-      }
-      renderMemberSelectionList();
+      });
+      renderMemberList();
     });
 
-    // 🔹 PATCH: Enhanced custom download with debugging
-    $("btnDownloadCustom").addEventListener("click", async () => {
+    $('downloadCustomBtn').addEventListener('click', async () => {
       const selections = {};
-      let totalItems = 0;
-      
-      // Build selections object
-      for (const member in customSelections) {
-        const sel = customSelections[member];
-        if (sel.enabled) {
-          selections[member] = { 
-            summary: sel.summary, 
-            toris: sel.toris, 
-            pg13: sel.pg13 
-          };
-          if (sel.summary) totalItems++;
-          if (sel.toris) totalItems++;
-          if (sel.pg13) totalItems++;
+      Object.keys(customSelections).forEach(member => {
+        const s = customSelections[member];
+        if (s.enabled) {
+          selections[member] = {summary: s.summary, toris: s.toris, pg13: s.pg13};
         }
-      }
-      
-      console.log("🔍 Download request:", {
-        memberCount: Object.keys(selections).length,
-        totalItems: totalItems,
-        selections: selections
       });
       
-      if (totalItems === 0) {
-        alert("❌ No items selected. Please select at least one file type.");
-        return;
-      }
+      $('downloadCustomBtn').disabled = true;
+      $('downloadCustomBtn').textContent = '📥 Downloading...';
       
       try {
-        $("btnDownloadCustom").disabled = true;
-        $("btnDownloadCustom").textContent = "📥 Downloading...";
-        
-        const response = await fetch("/download_custom", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({action: "download", selections: selections})
+        const res = await fetch('/download_custom', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'download', selections})
         });
         
-        console.log("📡 Server response:", response.status, response.statusText);
+        if (!res.ok) throw new Error(`Download failed: ${res.status}`);
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("❌ Server error:", errorText);
-          throw new Error(`Download failed: ${response.status} - ${errorText}`);
-        }
-        
-        const blob = await response.blob();
-        console.log("✅ Received blob:", blob.size, "bytes");
-        
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         a.href = url;
-        a.download = "CUSTOM_SELECTION.zip";
-        document.body.appendChild(a);
+        a.download = 'CUSTOM_SELECTION.zip';
         a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        console.log("✅ Download completed successfully");
-        
+        URL.revokeObjectURL(url);
       } catch (err) {
-        console.error("❌ Download error:", err);
-        alert("Download failed: " + err.message + "\n\nCheck the browser console (F12) for details.");
+        alert(`Error: ${err.message}`);
       } finally {
-        $("btnDownloadCustom").disabled = false;
-        $("btnDownloadCustom").textContent = "📥 Download ZIP";
+        $('downloadCustomBtn').disabled = false;
+        $('downloadCustomBtn').textContent = '📥 Download ZIP';
       }
     });
 
-    // 🔹 PATCH: Enhanced custom merge with debugging
-    $("btnMergeCustom").addEventListener("click", async () => {
+    $('mergeCustomBtn').addEventListener('click', async () => {
       const selections = {};
-      let totalItems = 0;
-      
-      for (const member in customSelections) {
-        const sel = customSelections[member];
-        if (sel.enabled) {
-          selections[member] = { 
-            summary: sel.summary, 
-            toris: sel.toris, 
-            pg13: sel.pg13 
-          };
-          if (sel.summary) totalItems++;
-          if (sel.toris) totalItems++;
-          if (sel.pg13) totalItems++;
+      Object.keys(customSelections).forEach(member => {
+        const s = customSelections[member];
+        if (s.enabled) {
+          selections[member] = {summary: s.summary, toris: s.toris, pg13: s.pg13};
         }
-      }
-      
-      console.log("🔍 Merge request:", {
-        memberCount: Object.keys(selections).length,
-        totalItems: totalItems,
-        selections: selections
       });
       
-      if (totalItems === 0) {
-        alert("❌ No items selected. Please select at least one file type.");
-        return;
-      }
-      
       try {
-        $("btnMergeCustom").disabled = true;
-        $("btnMergeCustom").textContent = "📦 Merging...";
-        
-        const response = await fetch("/download_custom", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({action: "merge", selections: selections})
+        const res = await fetch('/download_custom', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'merge', selections})
         });
         
-        console.log("📡 Server response:", response.status, response.statusText);
+        if (!res.ok) throw new Error(`Merge failed: ${res.status}`);
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("❌ Server error:", errorText);
-          throw new Error(`Merge failed: ${response.status} - ${errorText}`);
-        }
-        
-        const blob = await response.blob();
-        console.log("✅ Received blob:", blob.size, "bytes");
-        
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         a.href = url;
-        a.download = "CUSTOM_MERGED_PACKAGE.pdf";
-        document.body.appendChild(a);
+        a.download = 'CUSTOM_MERGED_PACKAGE.pdf';
         a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        console.log("✅ Merge completed successfully");
-        
+        URL.revokeObjectURL(url);
       } catch (err) {
-        console.error("❌ Merge error:", err);
-        alert("Merge failed: " + err.message + "\n\nCheck the browser console (F12) for details.");
+        alert(`Error: ${err.message}`);
       } finally {
-        $("btnMergeCustom").disabled = false;
-        $("btnMergeCustom").textContent = "📦 Merge to PDF";
+        $('mergeCustomBtn').disabled = false;
+        $('mergeCustomBtn').textContent = '📦 Merge PDF';
       }
     });
 
-    $("btnReset").addEventListener("click", async () => {
-      if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
-      try {
-        const r = await fetch("/reset", {method:"POST"});
-        if (!r.ok) throw new Error("Reset failed: " + r.status);
-
-        // 🔹 PATCH: Clear all file inputs
-        $("pdfs").value = "";
-        $("ratesCsv").value = "";
-        $("templatePdf").value = "";
-
-        $("memberSelect").innerHTML = '<option value="">Select member</option>';
-        $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
-        $("sheetSelect").disabled = true;
-        $("btnDownloadSummary").disabled = true;
-        $("btnDownloadToris").disabled = true;
-        $("btnDownloadPG13s").disabled = true;
-        $("btnDownloadMemberAll").disabled = true;
-        $("validBody").innerHTML = "";
-        $("invalidBody").innerHTML = "";
-        $("reviewHint").textContent = "👆 Select a member and sheet above to review and override validation results";
-        pendingOverrides = {};
-        customSelections = {};
-        renderMemberSelectionList();
-
-        if($("validCount")) $("validCount").textContent = "0";
-        if($("invalidCount")) $("invalidCount").textContent = "0";
-
-        alert("✅ Reset complete!");
-      } catch (err) {
-        alert(err.message || String(err));
-      }
-    });
-
-    async function refreshReviewLists() {
-      try {
-        const members = await jget("/api/members");
-        const sel = $("memberSelect");
-        const current = sel.value;
-        sel.innerHTML = '<option value="">Select member</option>';
-        
-        customSelections = {};
-        for (const m of members) {
-          const opt = document.createElement("option");
-          opt.value = m;
-          opt.textContent = m;
-          sel.appendChild(opt);
-          
-          customSelections[m] = {
-            enabled: false,
-            summary: false,
-            toris: false,
-            pg13: false
-          };
-        }
-        if (current && members.includes(current)) {
-          sel.value = current;
-        }
-        lastSelectedMember = sel.value;
-        renderMemberSelectionList();
-      } catch (e) {}
-    }
-
-    async function loadSheetsForMember(memberKey) {
-      const hasSelection = !!memberKey;
-      $("btnDownloadSummary").disabled = !hasSelection;
-      $("btnDownloadToris").disabled = !hasSelection;
-      $("btnDownloadPG13s").disabled = !hasSelection;
-      $("btnDownloadMemberAll").disabled = !hasSelection;
-      $("sheetSelect").disabled = true;
-      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
-      $("validBody").innerHTML = "";
-      $("invalidBody").innerHTML = "";
-      $("reviewHint").style.display = "block";
-      $("reviewHint").textContent = "Select a sheet above to review events";
-      if (!memberKey) {
-        if($("validCount")) $("validCount").textContent = "0";
-        if($("invalidCount")) $("invalidCount").textContent = "0";
-        return;
-      }
-      const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
-      const sel = $("sheetSelect");
-      for (const s of sheets) {
-        const opt = document.createElement("option");
-        opt.value = s;
-        opt.textContent = s;
-        sel.appendChild(opt);
-      }
-      sel.disabled = false;
-      lastSelectedSheet = sel.value;
-    }
-
-    function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentStatus, source) {
-      const wrap = document.createElement("div");
-      wrap.className = "override-wrap";
-
-      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
-      const sel = document.createElement("select");
-      sel.setAttribute("data-override-key", key);
-
-      const options = [
-        {v:"", t:"🔄 Auto"},
-        {v:"valid", t:"✅ Valid"},
-        {v:"invalid", t:"❌ Invalid"},
-      ];
-      for (const o of options) {
-        const opt = document.createElement("option");
-        opt.value = o.v;
-        opt.textContent = o.t;
-        sel.appendChild(opt);
-      }
-      sel.value = currentStatus || "";
-
-      function markDirty(reasonText) {
-        wrap.classList.add("dirty");
-        pendingOverrides[key] = {
-          member_key: memberKey,
-          sheet_file: sheetFile,
-          event_index: eventIndex,
-          override_status: sel.value || null,
-          override_reason: reasonText || null
-        };
-      }
-
-      sel.addEventListener("change", () => {
-        const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
-        const reasonText = ta ? ta.value : "";
-        markDirty(reasonText);
-        patchFitAllReasonCells();
-      });
-
-      if (source === "override") {
-        wrap.classList.add("dirty");
-      }
-
-      wrap.appendChild(sel);
-      return wrap;
-    }
-
-    function buildReasonTextarea(memberKey, sheetFile, eventIndex, initialText, currentOverrideReason) {
-      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
-      const ta = document.createElement("textarea");
-      ta.className = "override-reason";
-      ta.rows = 1;
-
-      ta.value = (currentOverrideReason && currentOverrideReason.trim() !== "")
-        ? currentOverrideReason
-        : (initialText || "");
-
-      ta.placeholder = "Optional...";
-      ta.setAttribute("data-override-key", key);
-
-      function markDirty() {
-        const sel = document.querySelector(`select[data-override-key="${CSS.escape(key)}"]`);
-        const statusVal = sel ? sel.value : "";
-
-        pendingOverrides[key] = {
-          member_key: memberKey,
-          sheet_file: sheetFile,
-          event_index: eventIndex,
-          override_status: statusVal || null,
-          override_reason: ta.value || null
-        };
-
-        const wrap = sel ? sel.closest(".override-wrap") : null;
-        if (wrap) wrap.classList.add("dirty");
-      }
-
-      ta.addEventListener("input", () => {
-        autoGrowTextarea(ta);
-        markDirty();
-        fitFontToBox(ta, { minPx: 6, mode: "width" });
-      });
-
-      setTimeout(() => {
-        autoGrowTextarea(ta);
-        fitFontToBox(ta, { minPx: 6, mode: "width" });
-      }, 0);
-
-      return ta;
-    }
-
-    function getOverrideStatus(row) {
-      const direct = (row && row.override_status !== undefined && row.override_status !== null) ? String(row.override_status) : "";
-      if (direct !== "") return direct;
-      const nested = (row && row.override && row.override.status !== undefined && row.override.status !== null) ? String(row.override.status) : "";
-      return nested || "";
-    }
-
-    function getOverrideReason(row) {
-      const direct = (row && row.override_reason !== undefined && row.override_reason !== null) ? String(row.override_reason) : "";
-      if (direct.trim() !== "") return direct;
-      const nested = (row && row.override && row.override.reason !== undefined && row.override.reason !== null) ? String(row.override.reason) : "";
-      return nested || "";
-    }
-
-    async function loadEventTableForSheet(memberKey, sheetFile) {
-      $("validBody").innerHTML = "";
-      $("invalidBody").innerHTML = "";
-      $("reviewHint").textContent = "Loading events...";
-
-      try {
-        const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
-
-        const validRows = data.valid_rows || [];
-        const invalidRows = data.invalid_events || [];
-
-        if($("validCount")) $("validCount").textContent = String(validRows.length);
-        if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
-
-        const validBody = $("validBody");
-        const invalidBody = $("invalidBody");
-
-        if (validRows.length === 0 && invalidRows.length === 0) {
-          $("reviewHint").textContent = "No events found for this sheet";
-          return;
-        }
-
-        $("reviewHint").style.display = "none";
-
-        for (const row of validRows) {
-          const tr = document.createElement("tr");
-          tr.className = "valid";
-
-          const tdDate = document.createElement("td");
-          tdDate.textContent = safeText(row.date);
-
-          const tdShip = document.createElement("td");
-          tdShip.textContent = safeText(row.ship);
-
-          const tdEvent = document.createElement("td");
-          tdEvent.textContent = safeText(row.event);
-
-          const tdStatus = document.createElement("td");
-          tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
-
-          const tdOverride = document.createElement("td");
-          tdOverride.appendChild(
-            buildOverrideSelect(
-              memberKey,
-              sheetFile,
-              row.event_index,
-              getOverrideStatus(row),
-              row.source
-            )
-          );
-
-          const tdReason = document.createElement("td");
-          tdReason.className = "reason-cell";
-          tdReason.appendChild(
-            buildReasonTextarea(
-              memberKey,
-              sheetFile,
-              row.event_index,
-              safeText(row.status_reason),
-              getOverrideReason(row)
-            )
-          );
-
-          tr.appendChild(tdDate);
-          tr.appendChild(tdShip);
-          tr.appendChild(tdEvent);
-          tr.appendChild(tdStatus);
-          tr.appendChild(tdOverride);
-          tr.appendChild(tdReason);
-
-          validBody.appendChild(tr);
-        }
-
-        for (const row of invalidRows) {
-          const tr = document.createElement("tr");
-          tr.className = "invalid";
-
-          const tdDate = document.createElement("td");
-          tdDate.textContent = safeText(row.date);
-
-          const tdShip = document.createElement("td");
-          tdShip.textContent = safeText(row.ship);
-
-          const tdEvent = document.createElement("td");
-          tdEvent.textContent = safeText(row.event);
-
-          const tdStatus = document.createElement("td");
-          tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
-
-          const tdOverride = document.createElement("td");
-          tdOverride.appendChild(
-            buildOverrideSelect(
-              memberKey,
-              sheetFile,
-              row.event_index,
-              getOverrideStatus(row),
-              row.source
-            )
-          );
-
-          const tdReason = document.createElement("td");
-          tdReason.className = "reason-cell";
-          tdReason.appendChild(
-            buildReasonTextarea(
-              memberKey,
-              sheetFile,
-              row.event_index,
-              safeText(row.reason),
-              getOverrideReason(row)
-            )
-          );
-
-          tr.appendChild(tdDate);
-          tr.appendChild(tdShip);
-          tr.appendChild(tdEvent);
-          tr.appendChild(tdStatus);
-          tr.appendChild(tdOverride);
-          tr.appendChild(tdReason);
-
-          invalidBody.appendChild(tr);
-        }
-
-        setTimeout(() => {
-          patchFitAllReasonCells();
-        }, 0);
-
-      } catch (err) {
-        $("reviewHint").textContent = "Error loading events: " + err.message;
-        $("reviewHint").style.display = "block";
-      }
-    }
-
-    $("memberSelect").addEventListener("change", async (e) => {
-      const memberKey = e.target.value;
-      lastSelectedMember = memberKey;
-      pendingOverrides = {};
-      await loadSheetsForMember(memberKey);
-    });
-
-    $("sheetSelect").addEventListener("change", async (e) => {
-      const sheetFile = e.target.value;
-      lastSelectedSheet = sheetFile;
-      pendingOverrides = {};
-      if (!sheetFile || !lastSelectedMember) return;
-      await loadEventTableForSheet(lastSelectedMember, sheetFile);
-    });
-
-    $("saveOverridesBtn").addEventListener("click", async function() {
-      const overrides = Object.values(pendingOverrides);
-      if (overrides.length === 0) {
-        alert("No changes to save");
-        return;
-      }
-
-      const transformedOverrides = overrides.map(override => ({
-        member_key: override.member_key,
-        sheet_file: override.sheet_file,
-        event_index: override.event_index,
-        status: override.override_status || "",
-        reason: override.override_reason || "",
-        source: "manual"
-      }));
-
-      $("saveOverridesBtn").disabled = true;
-      try {
-        await jpost("/api/overrides/batch", transformedOverrides);
-        alert(`✅ Saved ${overrides.length} override(s)`);
-        pendingOverrides = {};
-
-        if (lastSelectedMember && lastSelectedSheet) {
-          await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
-        }
-      } catch (err) {
-        alert("Error saving overrides: " + err.message);
-      } finally {
-        $("saveOverridesBtn").disabled = false;
-      }
-    });
-
-    $("rebuildBtn").addEventListener("click", async function() {
-      if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
-
-      $("rebuildBtn").disabled = true;
-      try {
-        const consolidate = $("consolidatePG13").checked;
-        const resp = await jpost("/rebuild_outputs", { consolidate_pg13: consolidate });
-        alert("✅ " + (resp.status || "Rebuild complete"));
-      } catch (err) {
-        alert("Error rebuilding: " + err.message);
-      } finally {
-        setTimeout(() => {
-          $("rebuildBtn").disabled = false;
-        }, 1000);
-      }
-    });
-
-    if ($("yearNow")) $("yearNow").textContent = new Date().getFullYear();
+    // Initialize
+    $('yearNow').textContent = new Date().getFullYear();
   </script>
 </body>
 </html>
