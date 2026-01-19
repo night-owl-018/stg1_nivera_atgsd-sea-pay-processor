@@ -734,14 +734,20 @@
             <option value="">Select sheet</option>
           </select>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
-            <button class="btn-secondary" type="button" id="downloadSummaryBtn" disabled style="font-size: 11px; padding: 6px 8px;">📄 Summary</button>
-            <button class="btn-secondary" type="button" id="downloadTorisBtn" disabled style="font-size: 11px; padding: 6px 8px;">📋 TORIS</button>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;">
-            <button class="btn-secondary" type="button" id="downloadPG13Btn" disabled style="font-size: 11px; padding: 6px 8px;">📑 PG-13</button>
-            <button class="btn-secondary" type="button" id="downloadMemberAllBtn" disabled style="font-size: 11px; padding: 6px 8px;">📦 All</button>
-          </div>
+          <div style="height: 8px;"></div>
+          
+          <label>Download Type</label>
+          <select id="memberFileTypeSelect" disabled class="mb-1">
+            <option value="">Select file type</option>
+            <option value="summary">📄 Summary</option>
+            <option value="toris">📋 TORIS Cert</option>
+            <option value="pg13">📑 PG-13 Forms</option>
+            <option value="all">📦 All Files</option>
+          </select>
+          
+          <button class="btn-success" type="button" id="downloadMemberFileBtn" disabled style="width: 100%; margin-top: 6px;">
+            📥 Download Selected
+          </button>
         </div>
       </div>
     </div>
@@ -1345,17 +1351,31 @@
     // Downloads
     $('downloadMergedBtn').addEventListener('click', () => window.location = '/download_merged');
     $('downloadAllBtn').addEventListener('click', () => window.location = '/download_all');
-    $('downloadSummaryBtn').addEventListener('click', () => {
-      if (currentMember) window.location = `/download_member_summary/${encodeURIComponent(currentMember)}`;
+    
+    // Member file type selection handling
+    $('memberFileTypeSelect').addEventListener('change', function() {
+      const hasSelection = this.value !== '';
+      $('downloadMemberFileBtn').disabled = !hasSelection || !currentMember;
     });
-    $('downloadTorisBtn').addEventListener('click', () => {
-      if (currentMember) window.location = `/download_member_toris/${encodeURIComponent(currentMember)}`;
-    });
-    $('downloadPG13Btn').addEventListener('click', () => {
-      if (currentMember) window.location = `/download_member_pg13s/${encodeURIComponent(currentMember)}`;
-    });
-    $('downloadMemberAllBtn').addEventListener('click', () => {
-      if (currentMember) window.location = `/download_member/${encodeURIComponent(currentMember)}`;
+    
+    // Download selected member file
+    $('downloadMemberFileBtn').addEventListener('click', () => {
+      const fileType = $('memberFileTypeSelect').value;
+      if (!currentMember || !fileType) {
+        alert('Please select a member and file type');
+        return;
+      }
+      
+      const urls = {
+        summary: `/download_member_summary/${encodeURIComponent(currentMember)}`,
+        toris: `/download_member_toris/${encodeURIComponent(currentMember)}`,
+        pg13: `/download_member_pg13s/${encodeURIComponent(currentMember)}`,
+        all: `/download_member/${encodeURIComponent(currentMember)}`
+      };
+      
+      if (urls[fileType]) {
+        window.location = urls[fileType];
+      }
     });
 
     // Reset
@@ -1371,10 +1391,12 @@
         $('memberSelect').innerHTML = '<option value="">Select member</option>';
         $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
         $('sheetSelect').disabled = true;
-        $('downloadSummaryBtn').disabled = true;
-        $('downloadTorisBtn').disabled = true;
-        $('downloadPG13Btn').disabled = true;
-        $('downloadMemberAllBtn').disabled = true;
+        
+        // Reset member file type dropdown and button
+        $('memberFileTypeSelect').value = '';
+        $('memberFileTypeSelect').disabled = true;
+        $('downloadMemberFileBtn').disabled = true;
+        
         $('validBody').innerHTML = '';
         $('invalidBody').innerHTML = '';
         
@@ -1428,10 +1450,16 @@
 
     async function loadSheets() {
       const hasSelection = !!currentMember;
-      $('downloadSummaryBtn').disabled = !hasSelection;
-      $('downloadTorisBtn').disabled = !hasSelection;
-      $('downloadPG13Btn').disabled = !hasSelection;
-      $('downloadMemberAllBtn').disabled = !hasSelection;
+      
+      // Enable/disable member file type dropdown and download button
+      $('memberFileTypeSelect').disabled = !hasSelection;
+      $('downloadMemberFileBtn').disabled = !hasSelection || $('memberFileTypeSelect').value === '';
+      
+      // Reset file type selection when member changes
+      if (!hasSelection) {
+        $('memberFileTypeSelect').value = '';
+      }
+      
       $('sheetSelect').disabled = true;
       $('sheetSelect').innerHTML = '<option value="">Select sheet</option>';
       $('validBody').innerHTML = '';
@@ -1629,6 +1657,61 @@
     });
 
     // Custom selection
+    // Custom selection toggle functions - Must be defined before renderMemberList
+    window.toggleMember = function(member) {
+      customSelections[member].enabled = !customSelections[member].enabled;
+      
+      // When enabling, auto-select all file types if none are selected
+      if (customSelections[member].enabled) {
+        if (!customSelections[member].summary && !customSelections[member].toris && !customSelections[member].pg13) {
+          customSelections[member].summary = true;
+          customSelections[member].toris = true;
+          customSelections[member].pg13 = true;
+        }
+      }
+      // When disabling, keep file type selections preserved
+      
+      renderMemberList();
+    };
+
+    window.toggleFileType = function(member, type) {
+      customSelections[member][type] = !customSelections[member][type];
+      
+      // If all file types are unchecked, uncheck the member too
+      const s = customSelections[member];
+      if (!s.summary && !s.toris && !s.pg13) {
+        s.enabled = false;
+        renderMemberList(); // Re-render to update member checkbox
+      } else {
+        // If any file type is checked, ensure member is enabled
+        if (!s.enabled) {
+          s.enabled = true;
+          renderMemberList(); // Re-render to update member checkbox
+        } else {
+          updateSelectionSummary(); // Just update counts, don't re-render
+        }
+      }
+    };
+
+    function updateSelectionSummary() {
+      let memberCount = 0;
+      let itemCount = 0;
+      
+      Object.keys(customSelections).forEach(member => {
+        const s = customSelections[member];
+        if (s.enabled) {
+          memberCount++;
+          if (s.summary) itemCount++;
+          if (s.toris) itemCount++;
+          if (s.pg13) itemCount++;
+        }
+      });
+      
+      $('selectedCount').textContent = `${memberCount} members, ${itemCount} items`;
+      $('downloadCustomBtn').disabled = itemCount === 0;
+      $('mergeCustomBtn').disabled = itemCount === 0;
+    }
+
     function renderMemberList() {
       const container = $('memberSelectionList');
       
@@ -1666,40 +1749,6 @@
       
       container.innerHTML = html;
       updateSelectionSummary();
-    }
-
-    window.toggleMember = member => {
-      customSelections[member].enabled = !customSelections[member].enabled;
-      if (customSelections[member].enabled) {
-        customSelections[member].summary = true;
-        customSelections[member].toris = true;
-        customSelections[member].pg13 = true;
-      }
-      renderMemberList();
-    };
-
-    window.toggleFileType = (member, type) => {
-      customSelections[member][type] = !customSelections[member][type];
-      updateSelectionSummary();
-    };
-
-    function updateSelectionSummary() {
-      let memberCount = 0;
-      let itemCount = 0;
-      
-      Object.keys(customSelections).forEach(member => {
-        const s = customSelections[member];
-        if (s.enabled) {
-          memberCount++;
-          if (s.summary) itemCount++;
-          if (s.toris) itemCount++;
-          if (s.pg13) itemCount++;
-        }
-      });
-      
-      $('selectedCount').textContent = `${memberCount} members, ${itemCount} items`;
-      $('downloadCustomBtn').disabled = itemCount === 0;
-      $('mergeCustomBtn').disabled = itemCount === 0;
     }
 
     $('selectAllBtn').addEventListener('click', () => {
