@@ -1026,7 +1026,7 @@
 
   <!-- REVIEW & OVERRIDE MODAL -->
   <div id="reviewModal" class="modal">
-    <div class="modal-content" style="max-width: 1400px;">
+    <div class="modal-content" id="reviewModalContent" style="max-width: 1400px; transition: all 0.3s ease;">
       <div class="card">
         <h3 style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 12px;">
@@ -1042,9 +1042,14 @@
               </div>
             </div>
           </div>
-          <button onclick="hideModal('reviewModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button onclick="toggleMaximizeModal('reviewModal')" class="btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px;" title="Maximize/Restore">
+              <span id="reviewModalMaximizeIcon">⛶</span>
+            </button>
+            <button onclick="hideModal('reviewModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+          </div>
         </h3>
-        <div class="body" style="max-height: 65vh; overflow-y: auto;">
+        <div class="body" id="reviewModalBody" style="max-height: 65vh; overflow-y: auto; transition: max-height 0.3s ease;">
           <div class="hint" id="reviewHint">
             👆 Select a member and sheet in the main page to review validation results
           </div>
@@ -1095,13 +1100,18 @@
 
   <!-- PROCESSING LOG MODAL -->
   <div id="logModal" class="modal">
-    <div class="modal-content" style="max-width: 1200px;">
+    <div class="modal-content" id="logModalContent" style="max-width: 1200px; transition: all 0.3s ease;">
       <div class="card">
         <h3 style="display: flex; justify-content: space-between; align-items: center;">
           <span>📜 Live Processing Log</span>
-          <button onclick="hideModal('logModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button onclick="toggleMaximizeModal('logModal')" class="btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px;" title="Maximize/Restore">
+              <span id="logModalMaximizeIcon">⛶</span>
+            </button>
+            <button onclick="hideModal('logModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+          </div>
         </h3>
-        <div class="body">
+        <div class="body" id="logModalBody" style="transition: height 0.3s ease;">
           <div id="liveLog" class="logbox" style="height: 500px;"></div>
         </div>
       </div>
@@ -1118,14 +1128,15 @@
     // Utility functions - Global scope for onclick attributes
     const $ = id => document.getElementById(id);
     
-    // Modal functions with error handling
+    // Modal functions with error handling - Defined immediately for onclick
     window.showModal = function(modalId) {
       const modal = $(modalId);
       if (modal) {
         modal.style.display = 'block';
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        document.body.style.overflow = 'hidden';
       } else {
         console.error('Modal not found:', modalId);
+        alert('Error: Modal "' + modalId + '" not found. Please refresh the page.');
       }
     };
     
@@ -1133,17 +1144,91 @@
       const modal = $(modalId);
       if (modal) {
         modal.style.display = 'none';
-        document.body.style.overflow = ''; // Restore scrolling
+        document.body.style.overflow = '';
       } else {
         console.error('Modal not found:', modalId);
       }
     };
     
     // Close modal when clicking outside
-    window.addEventListener('click', function(e) {
+    document.addEventListener('click', function(e) {
       if (e.target.classList.contains('modal')) {
         e.target.style.display = 'none';
         document.body.style.overflow = '';
+      }
+    });
+
+    // Toggle maximize/fullscreen for modals
+    window.toggleMaximizeModal = function(modalId) {
+      const modal = $(modalId);
+      const content = $(modalId + 'Content');
+      const body = $(modalId + 'Body');
+      const icon = $(modalId + 'MaximizeIcon');
+      
+      if (!modal || !content) {
+        console.error('Modal elements not found for:', modalId);
+        return;
+      }
+      
+      // Check if currently maximized
+      const isMaximized = content.getAttribute('data-maximized') === 'true';
+      
+      if (isMaximized) {
+        // Restore to normal
+        content.style.maxWidth = modalId === 'reviewModal' ? '1400px' : '1200px';
+        content.style.width = '';
+        content.style.height = '';
+        content.style.margin = '40px auto';
+        
+        if (body) {
+          if (modalId === 'reviewModal') {
+            body.style.maxHeight = '65vh';
+          } else if (modalId === 'logModal') {
+            const logBox = $('liveLog');
+            if (logBox) logBox.style.height = '500px';
+          }
+        }
+        
+        if (icon) icon.textContent = '⛶';
+        content.setAttribute('data-maximized', 'false');
+      } else {
+        // Maximize to fullscreen
+        content.style.maxWidth = 'none';
+        content.style.width = 'calc(100vw - 40px)';
+        content.style.height = 'calc(100vh - 40px)';
+        content.style.margin = '20px';
+        
+        if (body) {
+          if (modalId === 'reviewModal') {
+            body.style.maxHeight = 'calc(100vh - 220px)';
+          } else if (modalId === 'logModal') {
+            const logBox = $('liveLog');
+            if (logBox) logBox.style.height = 'calc(100vh - 200px)';
+          }
+        }
+        
+        if (icon) icon.textContent = '🗗';
+        content.setAttribute('data-maximized', 'true');
+      }
+    };
+
+    // ESC key to close modals
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modal => {
+          if (modal.style.display === 'block') {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+            
+            // Reset maximize state
+            const modalId = modal.id;
+            const content = $(modalId + 'Content');
+            if (content && content.getAttribute('data-maximized') === 'true') {
+              toggleMaximizeModal(modalId);
+            }
+          }
+        });
       }
     });
 
