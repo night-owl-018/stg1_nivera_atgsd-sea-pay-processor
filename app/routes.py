@@ -319,17 +319,16 @@ def api_override_batch():
         reason = (payload.get("reason") or "").strip()
         source = payload.get("source", "manual")
 
-        if status == "" and reason == "":
-            _delete_single_override(member_key, sheet_file, event_index)
-        else:
-            save_override(
-                member_key=member_key,
-                sheet_file=sheet_file,
-                event_index=event_index,
-                status=status or None,
-                reason=reason,
-                source=source,
-            )
+        # 🔹 PATCH FIX: Always save the override, even if status and reason are empty
+        # This allows users to explicitly clear reasons while maintaining override record
+        save_override(
+            member_key=member_key,
+            sheet_file=sheet_file,
+            event_index=event_index,
+            status=status or None,
+            reason=reason,
+            source=source,
+        )
 
     if affected_members:
         state = _load_review()
@@ -357,17 +356,16 @@ def api_override():
     reason = (payload.get("reason") or "").strip()
     source = payload.get("source", "manual")
 
-    if status == "" and reason == "":
-        _delete_single_override(member_key, sheet_file, event_index)
-    else:
-        save_override(
-            member_key=member_key,
-            sheet_file=sheet_file,
-            event_index=event_index,
-            status=status or None,
-            reason=reason,
-            source=source,
-        )
+    # 🔹 PATCH FIX: Always save the override, even if status and reason are empty
+    # This allows users to explicitly clear reasons while maintaining override record
+    save_override(
+        member_key=member_key,
+        sheet_file=sheet_file,
+        event_index=event_index,
+        status=status or None,
+        reason=reason,
+        source=source,
+    )
 
     state = _load_review()
     if member_key in state:
