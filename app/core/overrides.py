@@ -43,9 +43,11 @@ def _stamp_ui_fields(evt, status, reason, source="override"):
     CRITICAL: these fields are what your FRONTEND reads back after reload.
     If these are missing, dropdown snaps to Auto and reason looks unsaved.
     🔹 FIX: Handle None vs "" properly - always set fields explicitly
+    🔹 FIX: Set BOTH override_reason AND reason fields for UI display
     """
     evt["override_status"] = status if status is not None else ""
     evt["override_reason"] = reason if reason is not None else ""
+    evt["reason"] = reason if reason is not None else ""  # 🔹 FIX: UI reads this field!
     evt["source"] = source if source else "override"
 
 
@@ -195,7 +197,7 @@ def apply_overrides(member_key, review_state_member):
                     # Move valid → invalid
                     new_invalid = dict(target_event)
                     new_invalid.update({
-                        "reason": reason if reason else "Forced invalid by override",
+                        "reason": reason if reason is not None else "Forced invalid by override",
                         "category": "override",
                         "source": "override",
                         "override": {
@@ -210,7 +212,7 @@ def apply_overrides(member_key, review_state_member):
                             "source": "override",
                         },
                         "status": "invalid",
-                        "status_reason": reason if reason else "Forced invalid by override",
+                        "status_reason": reason if reason is not None else "Forced invalid by override",
                     })
                     _stamp_ui_fields(new_invalid, status, reason, "override")
                     moves_to_invalid.append((current_idx, new_invalid))
