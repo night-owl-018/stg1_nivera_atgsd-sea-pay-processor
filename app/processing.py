@@ -893,10 +893,12 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
 
     log("REBUILD OUTPUTS COMPLETE")
 
+
 # =============================================================================
 # REBUILD SINGLE MEMBER FUNCTION
 # =============================================================================
 
+def rebuild_single_member(member_key, consolidate_pg13=False):
     """
     Rebuild outputs for a SINGLE member only.
     
