@@ -35,7 +35,7 @@ from app.core.overrides import (
     load_overrides,
 )
 
-from app.processing import rebuild_outputs_from_review
+from app.processing import rebuild_outputs_from_review, rebuild_single_member
 from app.core.merge import merge_all_pdfs
 
 bp = Blueprint("routes", __name__)
@@ -698,3 +698,110 @@ def reset():
     reset_progress()
     log("RESET COMPLETE (files cleared)")
     return jsonify({"status": "reset"})
+
+# =============================================================================
+# REBUILD SINGLE MEMBER ROUTES
+# =============================================================================
+
+
+@bp.route("/rebuild_member/<path:member_key>", methods=["POST"])
+def rebuild_member(member_key):
+    """
+    Rebuild outputs for a single member only.
+    Much faster than rebuilding everything.
+    
+    POST body (optional):
+    {
+        "consolidate_pg13": true/false
+    }
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        consolidate_pg13 = payload.get("consolidate_pg13", False)
+        
+        log(f"=== REBUILD SINGLE MEMBER STARTED: {member_key} ===")
+        
+        result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13)
+        
+        if result["status"] == "error":
+            log(f"REBUILD SINGLE MEMBER ERROR → {result['message']}")
+            return jsonify(result), 404
+        
+        log(f"=== REBUILD SINGLE MEMBER COMPLETE: {member_key} ===")
+        return jsonify(result)
+        
+    except Exception as e:
+        log(f"REBUILD SINGLE MEMBER ERROR → {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+# Alternative: Rebuild member after saving override
+@bp.route("/api/override/save_and_rebuild", methods=["POST"])
+def api_override_save_and_rebuild():
+    """
+    Save an override AND immediately rebuild that member's outputs.
+    
+    This is a convenience endpoint that combines:
+    1. Saving the override (like /api/override)
+    2. Rebuilding just that member (like /rebuild_member)
+    
+    POST body:
+    {
+        "member_key": "STG1 NIVERA,RYAN",
+        "sheet_file": "filename.pdf",
+        "event_index": 123,
+        "status": "valid" | "invalid" | "",
+        "reason": "optional reason text",
+        "consolidate_pg13": true/false  (optional, default false)
+    }
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        
+        member_key = (payload.get("member_key") or "").strip()
+        sheet_file = (payload.get("sheet_file") or "").strip()
+        event_index = _to_int(payload.get("event_index"), default=None)
+        
+        if not member_key or not sheet_file or event_index is None:
+            return jsonify({"error": "member_key, sheet_file, event_index required"}), 400
+        
+        status = _norm_status(payload.get("status"))
+        reason = (payload.get("reason") or "").strip()
+        source = payload.get("source", "manual")
+        consolidate_pg13 = payload.get("consolidate_pg13", False)
+        
+        # 1. Save the override
+        save_override(
+            member_key=member_key,
+            sheet_file=sheet_file,
+            event_index=event_index,
+            status=status or None,
+            reason=reason,
+            source=source,
+        )
+        
+        # 2. Apply overrides and update review JSON
+        state = _load_review()
+        if member_key in state:
+            state[member_key] = apply_overrides(member_key, state[member_key])
+            _write_review(state)
+        
+        # 3. Rebuild just this member's outputs
+        rebuild_result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13)
+        
+        if rebuild_result["status"] == "error":
+            return jsonify({
+                "status": "error",
+                "message": f"Override saved but rebuild failed: {rebuild_result.get('message')}"
+            }), 500
+        
+        return jsonify({
+            "status": "success",
+            "override_saved": True,
+            "rebuild_complete": True,
+            "rebuild_info": rebuild_result
+        })
+        
+    except Exception as e:
+        log(f"SAVE AND REBUILD ERROR → {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
