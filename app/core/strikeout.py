@@ -93,6 +93,7 @@ def mark_sheet_with_strikeouts(
         extracted_total_days: The number parsed from the TORIS text (may be None).
         computed_total_days: The total valid sea pay days we computed from logic.
         strike_color: 'black' or 'red' for strike lines.
+        override_valid_rows: List of valid rows from overrides (to exclude from striking)
     """
 
     # ------------------------------------------------
@@ -111,6 +112,15 @@ def mark_sheet_with_strikeouts(
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
+        
+        # 🔹 FIX: Build set of dates that have valid overrides
+        # These should NEVER be struck out, even if they're in skipped_unknown
+        override_valid_dates = set()
+        if override_valid_rows:
+            for r in override_valid_rows:
+                if r.get("date"):
+                    override_valid_dates.add(r["date"])
+            log(f"OVERRIDE VALID DATES (NO STRIKE) → {', '.join(sorted(override_valid_dates))}")
         
         # Convert all pages to images for positional OCR
         pages = convert_from_path(original_pdf)
@@ -323,11 +333,22 @@ def mark_sheet_with_strikeouts(
             already_struck_date.add(key)
             strike_targets_by_page.setdefault(page_idx, {})[date_str] = y_val
 
+        # ------------------------------------------------
         # 1) Strike rows from skipped_unknown / skipped_duplicates
+        # 🔹 FIX: Skip dates that have valid overrides
+        # ------------------------------------------------
         for row in row_list:
             date = row.get("date")
             occ_idx = row.get("occ_idx")
             if not date or not occ_idx:
+                continue
+
+            # 🔹 FIX: Check if date has a valid override - skip if so
+            if date in override_valid_dates:
+                log(
+                    f"    SKIP STRIKE (VALID OVERRIDE) → {date} OCC#{occ_idx} "
+                    f"PAGE {row['page'] + 1}"
+                )
                 continue
 
             if (date, occ_idx) in targets_invalid:
@@ -343,6 +364,14 @@ def mark_sheet_with_strikeouts(
             if not date or not occ_idx:
                 continue
 
+            # 🔹 FIX: Check if date has a valid override - skip if so
+            if date in override_valid_dates:
+                log(
+                    f"    SKIP STRIKE (VALID OVERRIDE) → {date} OCC#{occ_idx} "
+                    f"PAGE {row['page'] + 1}"
+                )
+                continue
+
             if (date, occ_idx) in targets_dup:
                 _register_strike(row["page"], date, row["y"])
                 log(
@@ -353,6 +382,7 @@ def mark_sheet_with_strikeouts(
         # ------------------------------------------------
         # AUTO-STRIKE INVALID TEXT MARKERS
         # FIX: Now scans ALL rows, not just pre-flagged invalid ones
+        # 🔹 FIX: Also respects override_valid_dates
         # ------------------------------------------------
         INVALID_MARKERS = [
             "SBTT",
@@ -381,6 +411,14 @@ def mark_sheet_with_strikeouts(
                     else:
                         target_date = f"INVALID_ROW_{row['page']}_{row['y']:.1f}"
                         target_y = row["y"]
+        
+                # 🔹 FIX: Check if target date has valid override
+                if target_date in override_valid_dates:
+                    log(
+                        f"SKIP AUTO-STRIKE (VALID OVERRIDE) → '{text[:40]}' "
+                        f"DATE={target_date} PAGE {row['page'] + 1}"
+                    )
+                    continue
         
                 _register_strike(row["page"], target_date, target_y)
         
