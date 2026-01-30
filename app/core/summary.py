@@ -51,12 +51,7 @@ def _parse_any_date(val):
 def _extract_reporting_period(info):
     """
     Extract the earliest and latest reporting period dates from sheets.
-
-    Supports BOTH formats:
-      - process_all() format: {"start": <date>, "end": <date>, "file": "..."}
-      - rebuild_*() format: {"from": "M/D/YYYY", "to": "M/D/YYYY"}
-
-    Returns: (from_date_str, to_date_str) or (None, None)
+    Returns tuple: (from_date_str, to_date_str) or (None, None)
     """
     reporting_periods = info.get("reporting_periods") or []
 
@@ -67,9 +62,8 @@ def _extract_reporting_period(info):
     all_ends = []
 
     for rp in reporting_periods:
-        # Accept either key style
-        start = _parse_any_date(rp.get("start") or rp.get("from"))
-        end = _parse_any_date(rp.get("end") or rp.get("to"))
+        start = _parse_any_date(rp.get("start"))
+        end = _parse_any_date(rp.get("end"))
         if start:
             all_starts.append(start)
         if end:
