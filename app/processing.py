@@ -16,6 +16,7 @@ from app.core.config import (
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
     REVIEW_JSON_PATH,
+    PACKAGE_FOLDER,
 )
 from app.core.ocr import (
     ocr_pdf,
@@ -1207,3 +1208,4 @@ def rebuild_single_member(member_key, consolidate_pg13=False):
         "valid_rows": len(all_valid_rows),
         "invalid_events": len(all_invalid_events),
     }
+
