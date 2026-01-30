@@ -613,6 +613,12 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False):
     # 🔹 PATCH: Merge phase
     progress.phase_merge()
     log("Merging output package...")
+    
+    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
+    if os.path.exists(PACKAGE_FOLDER):
+        shutil.rmtree(PACKAGE_FOLDER)
+        log("Deleted old PACKAGE folder for fresh merge")
+    
     merge_all_pdfs()
 
     log("PROCESS COMPLETE")
@@ -879,6 +885,12 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
     write_summary_files(summary_data)
     
     set_progress(percent=95, current_step="Merging PDFs")
+    
+    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
+    if os.path.exists(PACKAGE_FOLDER):
+        shutil.rmtree(PACKAGE_FOLDER)
+        log("Deleted old PACKAGE folder for fresh merge")
+    
     merge_all_pdfs()
 
     set_progress(
@@ -1173,6 +1185,13 @@ def rebuild_single_member(member_key, consolidate_pg13=False):
     # 7. REBUILD MERGED PACKAGE
     # =============================
     log(f"  → Rebuilding merged package")
+    
+    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
+    # This ensures the merged PDF uses the updated TORIS, not a cached version
+    if os.path.exists(PACKAGE_FOLDER):
+        shutil.rmtree(PACKAGE_FOLDER)
+        log("    - Deleted old PACKAGE folder for fresh merge")
+    
     merge_all_pdfs()
     
     log(f"✅ REBUILD COMPLETE FOR {member_key}")
