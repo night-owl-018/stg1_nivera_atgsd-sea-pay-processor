@@ -17,6 +17,9 @@ from app.core.config import (
     TORIS_CERT_FOLDER,
     REVIEW_JSON_PATH,
     PACKAGE_FOLDER,
+    SUMMARY_TXT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    TRACKER_FOLDER,
 )
 from app.core.ocr import (
     ocr_pdf,
@@ -179,7 +182,16 @@ def extract_event_details(raw_text):
     """
     match = re.search(r'\(([^)]+)\)', raw_text)
     return f"({match.group(1)})" if match else ""
-
+def _coerce_mmddyyyy(date_val):
+    """Return datetime for 'MM/DD/YYYY' strings, pass through datetime, else None."""
+    if isinstance(date_val, datetime):
+        return date_val
+    if isinstance(date_val, str):
+        try:
+            return datetime.strptime(date_val.strip(), "%m/%d/%Y")
+        except Exception:
+            return None
+    return None
 
 def clear_pg13_folder():
     """Clear existing PG-13 outputs at the start of a run."""
@@ -694,23 +706,27 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
         # Collect all valid rows across all sheets
         all_valid_rows = []
         all_invalid_events = []
+        strike_invalid = []
         
         # =============================
         # LOOP SHEETS - COLLECT DATA
         # =============================
         for sheet in member_data.get("sheets", []):
-            src_file = os.path.join(DATA_DIR, sheet["source_file"])
+#            src_file = os.path.join(DATA_DIR, sheet["source_file"])
             
             # ✅ Extract reporting period if present
             if sheet.get("reporting_period"):
                 summary_data[member_key]["reporting_periods"].append({
-                    "start": sheet["reporting_period"].get("start"),
-                    "end": sheet["reporting_period"].get("end"),
+                    "from": sheet["reporting_period"].get("from"),
+                    "to": sheet["reporting_period"].get("to"),
                 })
             
             # ✅ VALID ROWS: All rows with is_valid=True in final_classification
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
+                    dt_obj = _coerce_mmddyyyy(r.get("date"))
+                    if dt_obj:
+                        r["date"] = dt_obj
                     all_valid_rows.append(r)
             
             # ✅ INVALID EVENTS: All events in invalid_events array
@@ -728,7 +744,13 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
                     "category": e.get("category", ""),
                 }
                 all_invalid_events.append(invalid_entry)
-
+                strike_invalid.append({
+                    "date": e.get("date"),
+                    "occ_idx": e.get("occ_idx"),
+                    "raw": e.get("raw", ""),
+                    "reason": final_reason,
+                    "ship": e.get("ship", ""),
+                })
         # =============================
         # BUILD VALID PERIODS (ship continuity grouping)
         # =============================
@@ -771,10 +793,15 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
             (p["ship"], p["start"], p["end"]) for p in valid_periods_list
         ]
         
-        summary_data[member_key]["invalid_events"] = [
-            (e["ship"], datetime.strptime(e["date"], "%m/%d/%Y"), e["reason"])
-            for e in all_invalid_events if e.get("date")
-        ]
+        invalid_tuples = []
+        for e in all_invalid_events:
+            dt_obj = _coerce_mmddyyyy(e.get("date"))
+            if not dt_obj:
+                continue
+            invalid_tuples.append((e.get("ship") or "UNKNOWN", dt_obj, e.get("reason") or "Invalid event"))
+        
+        summary_data[member_key]["invalid_events"] = invalid_tuples
+
         
         # ✅ Build EVENTS FOLLOWED list
         events_followed = []
@@ -798,16 +825,12 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
         
         # Add invalid events
         for e in all_invalid_events:
-            if e.get("date"):
-                try:
-                    dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                    date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-                except:
-                    date_str = e["date"]
-                
-                events_followed.append(
-                    f"{date_str} | {e['ship']} | {e['reason']}"
-                )
+            dt_obj = _coerce_mmddyyyy(e.get("date"))
+            date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}" if dt_obj else (e.get("date") or "UNKNOWN")
+        
+            events_followed.append(
+                f"{date_str} | {e.get('ship') or 'UNKNOWN'} | {e.get('reason') or 'Invalid event'}"
+            )
         
         summary_data[member_key]["events_followed"] = events_followed
         
@@ -832,17 +855,13 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
             )
         
         for e in all_invalid_events:
-            if e.get("date"):
-                try:
-                    dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                    date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-                except:
-                    date_str = e["date"]
-                
-                tracker_lines.append(
-                    f"{rate} {last}, {first} | {e['ship']} | "
-                    f"{date_str} | {e['reason']}"
-                )
+            dt_obj = _coerce_mmddyyyy(e.get("date"))
+            date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}" if dt_obj else (e.get("date") or "UNKNOWN")
+        
+            tracker_lines.append(
+                f"{rate} {last}, {first} | {e.get('ship') or 'UNKNOWN'} | "
+                f"{date_str} | {e.get('reason') or 'Invalid event'}"
+            )
         
         summary_data[member_key]["tracker_lines"] = tracker_lines
 
@@ -870,12 +889,12 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
         mark_sheet_with_strikeouts(
             src_file,
             [],  # No duplicates in rebuild (already filtered)
-            all_invalid_events,  # ✅ Pass complete invalid list
+            strike_invalid,  # ✅ PATCH: correct strikeout input
             toris_path,
-            None,  # No extracted total in rebuild
+            None,
             computed_days,
-            override_valid_rows=all_valid_rows,  # ✅ Pass valid rows for override detection
-        )
+            override_valid_rows=all_valid_rows,
+        )    
 
         toris_total += 1
 
@@ -914,293 +933,195 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
 def rebuild_single_member(member_key, consolidate_pg13=False):
     """
     Rebuild outputs for a SINGLE member only.
-    
-    This is much faster than rebuilding everything when you just changed
-    one member's overrides.
-    
-    Args:
-        member_key: The member to rebuild (e.g., "STG1 NIVERA,RYAN")
-        consolidate_pg13: If True, creates one PG-13 per ship
-    
-    Returns:
-        dict: Status and info about what was rebuilt
     """
-    
+
     if not os.path.exists(REVIEW_JSON_PATH):
-        log(f"REBUILD SINGLE MEMBER ERROR → REVIEW JSON NOT FOUND")
+        log("REBUILD SINGLE MEMBER ERROR → REVIEW JSON NOT FOUND")
         return {"status": "error", "message": "Review JSON not found"}
-    
+
     with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
         review_state = json.load(f)
-    
+
     if member_key not in review_state:
         log(f"REBUILD SINGLE MEMBER ERROR → Member not found: {member_key}")
         return {"status": "error", "message": f"Member not found: {member_key}"}
-    
+
+    # ✅ CRITICAL: apply overrides BEFORE rebuilding outputs
     member_data = review_state[member_key]
-    
+    member_data = apply_overrides(member_key, member_data)
+
     log(f"=== REBUILDING SINGLE MEMBER: {member_key} ===")
-    
+
     rate = member_data["rate"]
     last = member_data["last"]
     first = member_data["first"]
     mi = member_data.get("mi") or member_data.get("middle_initial") or ""
-    
-    # Create safe filename prefix
+
     safe_prefix = f"{rate}_{last}_{first}".replace(" ", "_").replace(",", "_")
-    
-    # =============================
-    # 1. DELETE OLD FILES FOR THIS MEMBER
-    # =============================
+
+    # ------------------------------------------------
+    # 1) DELETE OLD OUTPUTS FOR THIS MEMBER
+    # ------------------------------------------------
     log(f"  → Removing old files for {member_key}")
-    
-    # Delete old PG-13s
+
+    # PG-13
     if os.path.exists(SEA_PAY_PG13_FOLDER):
-        for f in os.listdir(SEA_PAY_PG13_FOLDER):
-            if f.startswith(safe_prefix):
-                os.remove(os.path.join(SEA_PAY_PG13_FOLDER, f))
-                log(f"    - Deleted old PG-13: {f}")
-    
-    # Delete old TORIS
+        for fn in os.listdir(SEA_PAY_PG13_FOLDER):
+            if fn.startswith(safe_prefix):
+                os.remove(os.path.join(SEA_PAY_PG13_FOLDER, fn))
+
+    # TORIS
     if os.path.exists(TORIS_CERT_FOLDER):
-        for f in os.listdir(TORIS_CERT_FOLDER):
-            if f.startswith(safe_prefix):
-                os.remove(os.path.join(TORIS_CERT_FOLDER, f))
-                log(f"    - Deleted old TORIS: {f}")
-    
-    # Delete old summary files
+        for fn in os.listdir(TORIS_CERT_FOLDER):
+            if fn.startswith(safe_prefix):
+                os.remove(os.path.join(TORIS_CERT_FOLDER, fn))
+
+    # Summary TXT/PDF
     summary_txt = os.path.join(SUMMARY_TXT_FOLDER, f"{safe_prefix}_SUMMARY.txt")
     summary_pdf = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
     if os.path.exists(summary_txt):
         os.remove(summary_txt)
-        log(f"    - Deleted old summary TXT")
     if os.path.exists(summary_pdf):
         os.remove(summary_pdf)
-        log(f"    - Deleted old summary PDF")
-    
-    # Delete old tracker
+
+    # Tracker (optional per-member tracker file if you use it)
     tracker_file = os.path.join(TRACKER_FOLDER, f"{safe_prefix}_TRACKER.txt")
     if os.path.exists(tracker_file):
         os.remove(tracker_file)
-        log(f"    - Deleted old tracker")
-    
-    # =============================
-    # 2. COLLECT DATA FROM SHEETS
-    # =============================
-    log(f"  → Collecting data from sheets")
-    
+
+    # ------------------------------------------------
+    # 2) COLLECT VALID ROWS + INVALID EVENTS (POST-OVERRIDE)
+    # ------------------------------------------------
     all_valid_rows = []
     all_invalid_events = []
-    
+
+    for sheet in member_data.get("sheets", []):
+        for row in sheet.get("rows", []):
+            if row.get("final_classification", {}).get("is_valid") is True:
+                dt_obj = _coerce_mmddyyyy(row.get("date"))
+                if dt_obj:
+                    row["date"] = dt_obj
+                all_valid_rows.append(row)
+
+        for ev in sheet.get("invalid_events", []):
+            if ev.get("final_classification", {}).get("is_valid") is False:
+                all_invalid_events.append(ev)
+
+    log(f"    - Valid rows: {len(all_valid_rows)}")
+    log(f"    - Invalid events: {len(all_invalid_events)}")
+
+    # ------------------------------------------------
+    # 3) BUILD VALID PERIODS + PG-13s
+    # ------------------------------------------------
+    groups = group_by_ship(all_valid_rows)  # ✅ returns LIST of {ship,start,end}
+
+    ship_map = {}
+    for g in groups:
+        ship_map.setdefault(g["ship"], []).append(g)
+
+    # Generate PG-13s using the real function signature
+    member_name = f"{first} {last}"
+    pg13_count = 0
+    for ship, ship_periods in ship_map.items():
+        make_pdf_for_ship(ship, ship_periods, member_name, consolidate=consolidate_pg13)
+        pg13_count += 1
+
+    # ------------------------------------------------
+    # 4) BUILD SUMMARY DATA IN THE FORMAT summary.py EXPECTS (Option C)
+    # ------------------------------------------------
+    valid_periods = []
+    computed_days = 0
+
+    for g in sorted(groups, key=lambda x: x["start"]):
+        start_dt = g["start"]
+        end_dt = g["end"]
+        computed_days += (end_dt - start_dt).days + 1
+        valid_periods.append((g["ship"], start_dt, end_dt))
+
+    invalid_events_tuples = []
+    for e in all_invalid_events:
+        d = e.get("date")
+        ship = (e.get("ship") or "UNKNOWN").strip()
+        reason = e.get("reason") or e.get("category") or "Invalid event"
+        if d:
+            try:
+                d_dt = datetime.strptime(d, "%m/%d/%Y")
+                invalid_events_tuples.append((ship, d_dt, reason))
+            except Exception:
+                pass
+
     summary_data = {
         member_key: {
             "rate": rate,
             "last": last,
             "first": first,
             "mi": mi,
-            "valid_periods": [],
-            "invalid_events": [],
-            "events_followed": [],
-            "tracker_lines": [],
+            "valid_periods": valid_periods,
+            "invalid_events": invalid_events_tuples,
+            "events_followed": [],   # let summary.py build it
+            "tracker_lines": [],     # let summary.py build it
             "reporting_periods": [],
         }
     }
-    
+    # ✅ PATCH: Populate reporting_periods for single-member rebuild
     for sheet in member_data.get("sheets", []):
-        # Extract reporting period if present
-        if sheet.get("reporting_period"):
-            summary_data[member_key]["reporting_periods"].append({
-                "start": sheet["reporting_period"].get("start"),
-                "end": sheet["reporting_period"].get("end"),
-            })
-        
-        # Collect valid rows
-        for row in sheet.get("rows", []):
-            all_valid_rows.append(row)
-        
-        # Collect invalid events
-        for ev in sheet.get("invalid_events", []):
-            all_invalid_events.append(ev)
-    
-    log(f"    - Valid rows: {len(all_valid_rows)}")
-    log(f"    - Invalid events: {len(all_invalid_events)}")
-    
-    # =============================
-    # 3. REBUILD PG-13 FORMS
-    # =============================
-    log(f"  → Rebuilding PG-13 forms")
-    
-    ship_groups = group_by_ship(all_valid_rows)
-    pg13_count = 0
-    
-    if consolidate_pg13:
-        # One form per ship
-        for ship, periods in ship_groups.items():
-            if not periods:
-                continue
-            
-            pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}.pdf"
-            pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
-            
-            make_pdf_for_ship(
-                rate=rate,
-                name=f"{first} {last}",
-                ship=ship,
-                periods=periods,
-                output_path=pg13_path,
-            )
-            pg13_count += 1
-            log(f"    - Created consolidated PG-13: {ship}")
-    else:
-        # Multiple forms per ship (one per period)
-        pg13_idx = 1
-        for ship, periods in ship_groups.items():
-            for period in periods:
-                pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}__{pg13_idx:03d}.pdf"
-                pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
-                
-                make_pdf_for_ship(
-                    rate=rate,
-                    name=f"{first} {last}",
-                    ship=ship,
-                    periods=[period],
-                    output_path=pg13_path,
-                )
-                pg13_idx += 1
-                pg13_count += 1
-        log(f"    - Created {pg13_count} separate PG-13 forms")
-    
-    # =============================
-    # 4. BUILD SUMMARY DATA
-    # =============================
-    log(f"  → Building summary data")
-    
-    # Build valid periods list
-    valid_periods_list = []
-    for row in all_valid_rows:
-        valid_periods_list.append({
-            "ship": row.get("ship", ""),
-            "start": row.get("start_date", ""),
-            "end": row.get("end_date", ""),
-            "days": row.get("days", 0),
+        rp = sheet.get("reporting_period") or {}
+        summary_data[member_key]["reporting_periods"].append({
+            "from": rp.get("from"),
+            "to": rp.get("to"),
         })
-    
-    summary_data[member_key]["valid_periods"] = valid_periods_list
-    
-    # Build invalid events list
-    for e in all_invalid_events:
-        summary_data[member_key]["invalid_events"].append({
-            "date": e.get("date", ""),
-            "ship": e.get("ship", ""),
-            "reason": e.get("reason", ""),
-        })
-    
-    # Build events followed list
-    events_followed = []
-    for p in valid_periods_list:
-        try:
-            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
-            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
-            date_str = f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO {end_dt.month}/{end_dt.day}/{end_dt.year}"
-        except:
-            date_str = f"{p['start']} TO {p['end']}"
-        
-        events_followed.append(f"{date_str} | {p['ship']} | VALID")
-    
-    for e in all_invalid_events:
-        if e.get("date"):
-            try:
-                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-            except:
-                date_str = e["date"]
-            
-            events_followed.append(f"{date_str} | {e['ship']} | {e['reason']}")
-    
-    summary_data[member_key]["events_followed"] = events_followed
-    
-    # Build tracker lines
-    tracker_lines = []
-    for p in valid_periods_list:
-        try:
-            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
-            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
-            days = (end_dt - start_dt).days + 1
-            tracker_lines.append(
-                f"{rate} {last}, {first} | {p['ship']} | "
-                f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
-                f"{end_dt.month}/{end_dt.day}/{end_dt.year} "
-                f"({days} day{'s' if days != 1 else ''}) | VALID"
-            )
-        except:
-            pass
-    
-    for e in all_invalid_events:
-        if e.get("date"):
-            try:
-                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-            except:
-                date_str = e["date"]
-            
-            tracker_lines.append(
-                f"{rate} {last}, {first} | {e['ship']} | {date_str} | {e['reason']}"
-            )
-    
-    summary_data[member_key]["tracker_lines"] = tracker_lines
-    
-    # =============================
-    # 5. REBUILD TORIS WITH STRIKEOUTS
-    # =============================
-    log(f"  → Rebuilding TORIS certification")
-    
+    # ------------------------------------------------
+    # 5) REBUILD TORIS WITH STRIKEOUTS
+    # ------------------------------------------------
     first_sheet = member_data.get("sheets", [{}])[0]
     src_file = os.path.join(DATA_DIR, first_sheet.get("source_file", ""))
-    
+
     if os.path.exists(src_file):
         toris_name = f"{safe_prefix}__TORIS_SEA_DUTY_CERT_SHEETS.pdf"
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
-        
-        computed_days = sum(p["days"] for p in valid_periods_list)
-        
+
+        if os.path.exists(toris_path):
+            os.remove(toris_path)
+
+        # Build strike list in the format strikeout.py expects
+        strike_invalid = []
+        for e in all_invalid_events:
+            strike_invalid.append({
+                "date": e.get("date"),
+                "occ_idx": e.get("occ_idx"),
+                "raw": e.get("raw", ""),
+                "reason": e.get("reason", ""),
+                "ship": e.get("ship", ""),
+            })
+
         mark_sheet_with_strikeouts(
             src_file,
-            [],  # No duplicates in rebuild
-            all_invalid_events,
+            [],                 # skipped_duplicates
+            strike_invalid,      # skipped_unknown
             toris_path,
-            None,
-            computed_days,
-            override_valid_rows=all_valid_rows,
+            None,               # extracted_total_days
+            computed_days,       # computed_total_days
+            override_valid_rows=all_valid_rows,  # ✅ stops strikeouts on “forced valid” dates
         )
-        log(f"    - Created TORIS with {computed_days} total days")
     else:
-        log(f"    ⚠️ Source file not found for TORIS: {src_file}")
-    
-    # =============================
-    # 6. WRITE SUMMARY FILES
-    # =============================
-    log(f"  → Writing summary files")
+        log(f"⚠️ TORIS REBUILD SKIP → Source file not found: {src_file}")
+
+    # ------------------------------------------------
+    # 6) WRITE SUMMARY FILES
+    # ------------------------------------------------
     write_summary_files(summary_data)
-    
-    # =============================
-    # 7. REBUILD MERGED PACKAGE
-    # =============================
-    log(f"  → Rebuilding merged package")
-    
-    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
-    # This ensures the merged PDF uses the updated TORIS, not a cached version
+
+    # ------------------------------------------------
+    # 7) REBUILD MERGED PACKAGE (FORCES FRESH ZIP/PDF MERGE)
+    # ------------------------------------------------
     if os.path.exists(PACKAGE_FOLDER):
         shutil.rmtree(PACKAGE_FOLDER)
-        log("    - Deleted old PACKAGE folder for fresh merge")
-    
+        log("Deleted old PACKAGE folder for fresh merge")
+
     merge_all_pdfs()
-    
+
     log(f"✅ REBUILD COMPLETE FOR {member_key}")
-    log(f"   - {pg13_count} PG-13 forms created")
-    log(f"   - TORIS certification updated")
-    log(f"   - Summary files regenerated")
-    log(f"   - Merged package updated")
-    
+
     return {
         "status": "success",
         "member_key": member_key,
@@ -1208,4 +1129,5 @@ def rebuild_single_member(member_key, consolidate_pg13=False):
         "valid_rows": len(all_valid_rows),
         "invalid_events": len(all_invalid_events),
     }
+
 
