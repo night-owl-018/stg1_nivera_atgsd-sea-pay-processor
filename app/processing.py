@@ -16,7 +16,6 @@ from app.core.config import (
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
     REVIEW_JSON_PATH,
-    PACKAGE_FOLDER,
 )
 from app.core.ocr import (
     ocr_pdf,
