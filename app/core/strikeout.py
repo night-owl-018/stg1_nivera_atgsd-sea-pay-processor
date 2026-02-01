@@ -106,6 +106,33 @@ def mark_sheet_with_strikeouts(
     rgb = color_map.get(strike_color.lower(), (0, 0, 0))
 
     try:
+                # 🔹🔹🔹 EXTENSIVE DEBUG LOGGING 🔹🔹🔹
+        log("="*70)
+        log("🔍 STRIKEOUT DEBUG - Finding why overrides don't work")
+        log("="*70)
+        log(f"PDF: {os.path.basename(original_pdf)}")
+        log(f"skipped_unknown count: {len(skipped_unknown)}")
+        log(f"skipped_duplicates count: {len(skipped_duplicates)}")
+        
+        # CRITICAL CHECK 1: Was override_valid_rows passed?
+        if override_valid_rows is None:
+            log("❌❌❌ CRITICAL: override_valid_rows is None!")
+            log("This means the rebuild function didn't pass it!")
+        elif len(override_valid_rows) == 0:
+            log("⚠️⚠️⚠️  WARNING: override_valid_rows is EMPTY!")
+            log("This means no valid rows exist (all events are invalid)")
+        else:
+            log(f"✅ override_valid_rows provided: {len(override_valid_rows)} rows")
+            log("Sample dates from override_valid_rows:")
+            for idx, r in enumerate(override_valid_rows[:5]):
+                log(f"  {idx+1}. {r.get('date')} - {r.get('event', 'N/A')[:40]}")
+        
+        # Show what we're supposed to strike
+        if skipped_unknown:
+            log("Dates in skipped_unknown (will be struck unless overridden):")
+            for u in skipped_unknown[:10]:
+                log(f"  - {u.get('date')} occ#{u.get('occ_idx')}")
+        
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
         # Build sets of (date, occ_idx) to identify which rows are invalid/duplicate
@@ -131,7 +158,11 @@ def mark_sheet_with_strikeouts(
                     except Exception:
                         # If parsing fails, add as-is
                         override_valid_dates.add(date_str)
-            log(f"OVERRIDE VALID DATES (NO STRIKE) → {', '.join(sorted(override_valid_dates))}")
+            log(f"✅ Built override_valid_dates: {len(override_valid_dates)} entries")
+            if override_valid_dates:
+                log("Dates in override_valid_dates (will NOT be struck):")
+                for d in sorted(override_valid_dates):
+                    log(f"  - {d}")
         
         # Convert all pages to images for positional OCR
         pages = convert_from_path(original_pdf)
@@ -354,6 +385,13 @@ def mark_sheet_with_strikeouts(
             if not date or not occ_idx:
                 continue
 
+            # Log specific dates you're testing
+            if date in ["08/28/2025", "8/28/2025", "09/20/2025", "9/20/2025"]:  # Add dates you're testing
+                log(f"  🎯 TESTING {date} OCC#{occ_idx}:")
+                log(f"     In override_valid_dates? {date in override_valid_dates}")
+                log(f"     Row has override=True? {row.get('override') is True}")
+                log(f"     In targets_invalid? {(date, occ_idx) in targets_invalid}")
+            
             # 🔹 LAYER 1: Check override_valid_dates set
             if date in override_valid_dates:
                 log(
@@ -383,6 +421,13 @@ def mark_sheet_with_strikeouts(
             if not date or not occ_idx:
                 continue
 
+            # Log specific dates you're testing
+            if date in ["08/28/2025", "8/28/2025", "09/20/2025", "9/20/2025"]:  # Add dates you're testing
+                log(f"  🎯 TESTING {date} OCC#{occ_idx}:")
+                log(f"     In override_valid_dates? {date in override_valid_dates}")
+                log(f"     Row has override=True? {row.get('override') is True}")
+                log(f"     In targets_invalid? {(date, occ_idx) in targets_invalid}")
+            
             # 🔹 LAYER 1: Check override_valid_dates set
             if date in override_valid_dates:
                 log(
