@@ -579,22 +579,31 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
     # -------------------------------
     if consolidate_all_missions:
         log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
-        from app.core.pdf_writer import make_consolidated_all_missions_pdf
-        
+        try:
+            from app.core.pdf_writer import make_consolidated_all_missions_pdf
+        except Exception as e:
+            log(f"❌ ALL MISSIONS IMPORT FAILED → {e}")
+            raise  # let the outer handler mark ERROR
+    
         for member_key, member_data in summary_data.items():
-            # Group all periods by ship for this member
-            ship_groups = {}
-            for period in member_data.get("periods", []):
-                ship = period["ship"]
-                ship_groups.setdefault(ship, []).append(period)
-            
-            if ship_groups:
-                name = member_key  # Member key is already in "STG1 NIVERA,RYAN" format
-                make_consolidated_all_missions_pdf(ship_groups, name)
-                pg13_total += 1
-                log(f"Created consolidated all missions PG-13 for {member_key}")
-        
+            try:
+                ship_groups = {}
+                for period in member_data.get("periods", []):
+                    ship = period["ship"]
+                    ship_groups.setdefault(ship, []).append(period)
+    
+                if ship_groups:
+                    name = member_key
+                    make_consolidated_all_missions_pdf(ship_groups, name)
+                    pg13_total += 1
+                    add_progress_detail("pg13_created", 1)
+                    log(f"Created consolidated all missions PG-13 for {member_key}")
+            except Exception as e:
+                log(f"❌ ALL MISSIONS PG-13 FAILED for {member_key} → {e}")
+                raise
+    
         log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
+
 
     # -------------------------------
     # FINAL TOTALS AND SUMMARY FILES
@@ -1260,3 +1269,4 @@ def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_mi
         "valid_rows": len(all_valid_rows),
         "invalid_events": len(all_invalid_events),
     }
+
