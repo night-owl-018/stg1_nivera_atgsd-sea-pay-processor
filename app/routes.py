@@ -689,8 +689,11 @@ def download_custom():
                     pg13_parent = writer.add_outline_item("PG-13 Forms", page_count, parent=parent_bookmark)
                     for f in sorted(pg13_files):
                         reader = PdfReader(os.path.join(SEA_PAY_PG13_FOLDER, f))
-                        match = re.search(r'PG13__(.+?)__\d', f)
-                        ship_name = match.group(1).replace("_", " ") if match else f
+                        match = re.search(r'__PG13__(.+?)__', f)
+                        if match:
+                            ship_name = match.group(1).replace("_", " ")
+                        else:
+                            ship_name = f
                         writer.add_outline_item(ship_name, page_count, parent=pg13_parent)
                         for page in reader.pages:
                             writer.add_page(page)
@@ -851,3 +854,4 @@ def api_override_save_and_rebuild():
     except Exception as e:
         log(f"SAVE AND REBUILD ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
+
