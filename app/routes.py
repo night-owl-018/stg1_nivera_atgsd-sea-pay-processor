@@ -855,3 +855,58 @@ def api_override_save_and_rebuild():
         log(f"SAVE AND REBUILD ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
+
+# ------------------------------------------------
+# CERTIFYING OFFICER ROUTES
+# ------------------------------------------------
+
+@bp.route("/api/certifying_officer", methods=["GET"])
+def get_certifying_officer():
+    """
+    Get current certifying officer information.
+    """
+    from app.core.config import load_certifying_officer
+    
+    try:
+        officer = load_certifying_officer()
+        return jsonify({
+            "status": "success",
+            "officer": officer
+        })
+    except Exception as e:
+        log(f"GET CERTIFYING OFFICER ERROR → {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@bp.route("/api/certifying_officer", methods=["POST"])
+def set_certifying_officer():
+    """
+    Set certifying officer information.
+    Expects JSON: { "rate": "...", "last_name": "...", "first_initial": "...", "middle_initial": "..." }
+    """
+    from app.core.config import save_certifying_officer
+    
+    try:
+        data = request.get_json() or {}
+        rate = data.get("rate", "").strip()
+        last_name = data.get("last_name", "").strip()
+        first_initial = data.get("first_initial", "").strip()
+        middle_initial = data.get("middle_initial", "").strip()
+        
+        if not last_name:
+            return jsonify({"status": "error", "error": "Last name is required"}), 400
+        
+        success = save_certifying_officer(rate, last_name, first_initial, middle_initial)
+        
+        if success:
+            log(f"CERTIFYING OFFICER UPDATED → {rate} {last_name}, {first_initial}. {middle_initial}.")
+            return jsonify({
+                "status": "success",
+                "message": "Certifying officer information saved successfully"
+            })
+        else:
+            return jsonify({"status": "error", "error": "Failed to save certifying officer information"}), 500
+            
+    except Exception as e:
+        log(f"SET CERTIFYING OFFICER ERROR → {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
