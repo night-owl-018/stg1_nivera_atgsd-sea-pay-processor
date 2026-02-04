@@ -60,12 +60,12 @@ class ProgressTracker:
     def __init__(self, total_files):
         self.total_files = max(total_files, 1)
         self.current_file = 0
-        
+
         # Phase allocation (must sum to 100%)
         self.PHASE_FILE_PROCESSING = 85  # 85% for all file processing
         self.PHASE_SUMMARY = 5           # 5% for summary generation
         self.PHASE_MERGE = 10            # 10% for merging outputs
-        
+
         # Sub-steps within each file (must sum to 100%)
         self.STEP_OCR = 20               # 20% OCR
         self.STEP_PARSE = 15             # 15% Parsing
@@ -73,19 +73,19 @@ class ProgressTracker:
         self.STEP_REVIEW_STATE = 10      # 10% Building review state
         self.STEP_TORIS = 20             # 20% TORIS marking
         self.STEP_PG13 = 20              # 20% PG-13 generation
-        
+
     def get_file_base_progress(self, file_index):
         """Get the starting progress % for a given file (0-indexed)"""
         return int((file_index / self.total_files) * self.PHASE_FILE_PROCESSING)
-    
+
     def get_file_progress_range(self):
         """Get how much % each file is worth"""
         return self.PHASE_FILE_PROCESSING / self.total_files
-    
+
     def update(self, file_index, sub_step_percent, step_name):
         """
         Update progress with granular sub-step tracking.
-        
+
         Args:
             file_index: Current file index (0-indexed)
             sub_step_percent: Progress within current file (0-100)
@@ -95,16 +95,16 @@ class ProgressTracker:
         file_range = self.get_file_progress_range()
         within_file = (sub_step_percent / 100.0) * file_range
         total = int(base + within_file)
-        
+
         # Clamp to valid range
         total = max(0, min(total, 100))
-        
+
         set_progress(
             status="PROCESSING",
             percent=total,
             current_step=step_name
         )
-    
+
     def phase_summary(self):
         """Update progress for summary phase"""
         percent = self.PHASE_FILE_PROCESSING + int(self.PHASE_SUMMARY * 0.5)
@@ -113,7 +113,7 @@ class ProgressTracker:
             percent=percent,
             current_step="Writing summary files"
         )
-    
+
     def phase_merge(self):
         """Update progress for merge phase"""
         percent = self.PHASE_FILE_PROCESSING + self.PHASE_SUMMARY
@@ -122,7 +122,7 @@ class ProgressTracker:
             percent=percent,
             current_step="Merging output package"
         )
-    
+
     def complete(self):
         """Mark as 100% complete"""
         set_progress(
@@ -169,12 +169,6 @@ def extract_reporting_period(text, filename: str = ""):
 def extract_event_details(raw_text):
     """
     Extract event details (everything in parentheses) from raw text.
-    
-    Examples:
-      "CHAFEE (ASW M-1*1)" -> "(ASW M-1*1)"
-      "PAUL HAMILTON (ASW T-2)" -> "(ASW T-2)"
-      "ATGSD (ASW MITE AUG 2025)" -> "(ASW MITE AUG 2025)"
-    
     Returns event string or empty string if no parentheses found.
     """
     match = re.search(r'\(([^)]+)\)', raw_text)
@@ -200,24 +194,6 @@ def clear_pg13_folder():
 def process_all(strike_color: str = "black", consolidate_pg13: bool = False, consolidate_all_missions: bool = False):
     """
     Top-level processor with granular progress updates.
-
-    Args:
-        strike_color: Color for invalid entry strikeouts ("black" or "red")
-        consolidate_pg13: If True, creates one PG-13 per ship with all periods.
-                         If False, creates separate PG-13 for each period (default)
-
-    - OCR each SEA DUTY CERTIFICATION SHEET
-    - Parse rows (SBTT/MITE suppression, mission priority, duplicates)
-    - Group into sea pay periods and compute totals
-    - Generate PG-13 PDFs (with optional consolidation)
-    - Mark TORIS sheets with strikeouts
-    - Write summary TXT/PDF + tracker
-    - Merge package
-    - Build rich JSON review_state (Phase 3)
-    - Apply per-member overrides (Phase 4 Option A)
-    
-    🔹 PATCH: Now includes granular progress reporting at 1-2% increments
-    🔹 NEW: Optional PG-13 consolidation to save paper
     """
 
     # Ensure key output dirs exist
@@ -237,10 +213,10 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         return
 
     total_files = len(files)
-    
+
     # 🔹 PATCH: Initialize granular progress tracker
     progress = ProgressTracker(total_files)
-    
+
     set_progress(
         status="PROCESSING",
         percent=0,
@@ -278,7 +254,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             log("❌ PROCESSING CANCELLED BY USER")
             set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
             return
-            
+
         path = os.path.join(DATA_DIR, file)
 
         # 🔹 PATCH: OCR step (0% of this file)
@@ -287,16 +263,16 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
 
         # 1. OCR and basic text cleanup
         raw = strip_times(ocr_pdf(path))
-        
+
         # 🔹 PATCH: OCR complete (20% of this file)
         progress.update(idx, progress.STEP_OCR, f"[{idx+1}/{total_files}] OCR complete: {file}")
-        
+
         # 🔹 PATCH: Check for cancellation after OCR
         if is_cancelled():
             log("❌ PROCESSING CANCELLED BY USER")
             set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
             return
-        
+
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
         # 2. Member name detection
@@ -308,7 +284,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             continue
 
         # 🔹 PATCH: Parse step (35% of this file)
-        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE, 
+        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE,
                        f"[{idx+1}/{total_files}] Parsing: {file}")
 
         # 3. Parse rows (TORIS logic, including SBTT/MITE suppression)
@@ -340,7 +316,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         member_key = f"{rate} {last},{first}"
 
         # 🔹 PATCH: Building review state (60% of this file)
-        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE + 
+        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE +
                        progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE,
                        f"[{idx+1}/{total_files}] Building review: {file}")
 
@@ -384,11 +360,11 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
                 "explanation": "Valid sea pay day after TORIS parser filtering (non-training, non-duplicate, known ship).",
                 "confidence": 1.0,
             }
-            override = { "status": None, "reason": None, "source": None, "history": [] }
-            final_classification = { "is_valid": True, "reason": None, "source": "system" }
-            
+            override = {"status": None, "reason": None, "source": None, "history": []}
+            final_classification = {"is_valid": True, "reason": None, "source": "system"}
+
             sheet_block["rows"].append({
-                "event_index": valid_idx,  # Stamp permanent positive index
+                "event_index": valid_idx,
                 "date": r.get("date"),
                 "ship": r.get("ship"),
                 "event": extract_event_details(r.get("raw", "")),
@@ -409,13 +385,12 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         # CLASSIFY INVALID EVENTS: Add a permanent, negative event_index to every invalid event.
         invalid_events = []
         all_invalid_source = skipped_dupe + skipped_unknown
-        
+
         for invalid_idx, e in enumerate(all_invalid_source):
-            event_index = -(invalid_idx + 1)  # Stamp permanent negative index
-            
-            # This logic is a consolidation of your original two separate loops
+            event_index = -(invalid_idx + 1)
+
             is_dupe = e in skipped_dupe
-            
+
             if is_dupe:
                 category = "duplicate"
                 explanation = "Duplicate event for this date; another entry kept as primary sea pay event."
@@ -428,16 +403,15 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
                     category = "unknown"
                     explanation = "Unknown or non-platform event; no valid ship identified for sea pay."
 
-            system_classification = { "is_valid": False, "reason": category, "explanation": explanation, "confidence": 1.0 }
-            override = { "status": None, "reason": None, "source": None, "history": [] }
-            final_classification = { "is_valid": False, "reason": category, "source": "system" }
-            
-            # 🔹 --- START OF CORRECTION --- 🔹
+            system_classification = {"is_valid": False, "reason": category, "explanation": explanation, "confidence": 1.0}
+            override = {"status": None, "reason": None, "source": None, "history": []}
+            final_classification = {"is_valid": False, "reason": category, "source": "system"}
+
             invalid_events.append({
                 "event_index": event_index,
                 "status": "invalid",
                 "date": e.get("date"),
-                "ship": e.get("ship"),  # Corrected from e.g.get
+                "ship": e.get("ship"),
                 "event": extract_event_details(e.get("raw", "")),
                 "occ_idx": e.get("occ_idx"),
                 "raw": e.get("raw", ""),
@@ -448,12 +422,10 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
                 "override": override,
                 "final_classification": final_classification,
             })
-            # 🔹 --- END OF CORRECTION --- 🔹
-            
+
         sheet_block["invalid_events"] = invalid_events
 
         # 🔹 --- END OF PATCH --- 🔹
-
 
         # -------------------------
         # PARSE CONFIDENCE HEURISTICS
@@ -509,7 +481,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             return
 
         # 🔹 PATCH: TORIS marking (80% of this file)
-        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE + 
+        progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE +
                        progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE + progress.STEP_TORIS,
                        f"[{idx+1}/{total_files}] Marking TORIS: {file}")
 
@@ -541,10 +513,10 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         toris_total += 1
 
         # 🔹 PATCH: PG-13 generation (90-100% of this file)
-        pg13_base_progress = (progress.STEP_OCR + progress.STEP_PARSE + 
-                             progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE + 
+        pg13_base_progress = (progress.STEP_OCR + progress.STEP_PARSE +
+                             progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE +
                              progress.STEP_TORIS)
-        
+
         # PG-13 per ship (only if not consolidating all missions)
         if not consolidate_all_missions:
             ship_map = {}
@@ -553,29 +525,24 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
 
             ship_count = len(ship_map)
             for ship_idx, (ship, ship_periods) in enumerate(ship_map.items(), start=1):
-                # Update progress within PG-13 step
                 pg13_progress = pg13_base_progress + (progress.STEP_PG13 * (ship_idx / max(ship_count, 1)))
-                progress.update(idx, pg13_progress, 
+                progress.update(idx, pg13_progress,
                               f"[{idx+1}/{total_files}] PG-13 {ship_idx}/{ship_count}: {ship}")
-                
+
                 make_pdf_for_ship(ship, ship_periods, name, consolidate=consolidate_pg13)
                 add_progress_detail("pg13_created", 1)
                 pg13_total += 1
         else:
-            # When consolidating all missions, we'll generate the PDFs after processing all files
-            # Just mark progress as complete for this file's PG-13 step
-            progress.update(idx, pg13_base_progress + progress.STEP_PG13, 
+            progress.update(idx, pg13_base_progress + progress.STEP_PG13,
                           f"[{idx+1}/{total_files}] Preparing for all-missions consolidation")
-
 
         add_progress_detail("files_processed", 1)
         files_processed_total += 1
-        
-        # 🔹 PATCH: File complete (100% of this file)
+
         progress.update(idx, 100, f"[{idx+1}/{total_files}] Complete: {file}")
 
     # -------------------------------
-    # 🔹 NEW: CONSOLIDATED ALL MISSIONS PG-13 GENERATION
+    # 🔹 NEW: CONSOLIDATED ALL MISSIONS PG-13 GENERATION  (FIXED)
     # -------------------------------
     if consolidate_all_missions:
         log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
@@ -583,27 +550,43 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             from app.core.pdf_writer import make_consolidated_all_missions_pdf
         except Exception as e:
             log(f"❌ ALL MISSIONS IMPORT FAILED → {e}")
-            raise  # let the outer handler mark ERROR
-    
+            raise
+
         for member_key, member_data in summary_data.items():
             try:
                 ship_groups = {}
                 for period in member_data.get("periods", []):
                     ship = period["ship"]
                     ship_groups.setdefault(ship, []).append(period)
-    
+
                 if ship_groups:
-                    name = member_key
-                    make_consolidated_all_missions_pdf(ship_groups, name)
+                    # Use overall sheet reporting range for filename, not mission slices
+                    rp = member_data.get("reporting_periods", []) or []
+                    if rp:
+                        overall_start = min(x["start"] for x in rp if x.get("start"))
+                        overall_end = max(x["end"] for x in rp if x.get("end"))
+                    else:
+                        overall_start = None
+                        overall_end = None
+
+                    make_consolidated_all_missions_pdf(
+                        ship_groups,
+                        member_key,
+                        overall_start=overall_start,
+                        overall_end=overall_end,
+                        rate=member_data.get("rate"),
+                        last=member_data.get("last"),
+                        first=member_data.get("first"),
+                    )
+
                     pg13_total += 1
                     add_progress_detail("pg13_created", 1)
                     log(f"Created consolidated all missions PG-13 for {member_key}")
             except Exception as e:
                 log(f"❌ ALL MISSIONS PG-13 FAILED for {member_key} → {e}")
                 raise
-    
-        log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
 
+        log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
 
     # -------------------------------
     # FINAL TOTALS AND SUMMARY FILES
@@ -617,7 +600,6 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
     }
     set_progress(details=final_details)
 
-    # 🔹 PATCH: Summary phase
     progress.phase_summary()
     log("Writing summary files...")
     write_summary_files(summary_data)
@@ -637,45 +619,36 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(final_review_state, f, indent=2, default=str)
         log(f"REVIEW JSON WRITTEN → {REVIEW_JSON_PATH}")
-        
-        # 🔹 PATCH: Create original backup immediately after writing
+
         original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
         shutil.copy(REVIEW_JSON_PATH, original_path)
         log(f"ORIGINAL REVIEW BACKUP CREATED → {original_path}")
-        
+
     except Exception as e:
         log(f"REVIEW JSON ERROR → {e}")
 
     # ----------------------------------------------------
     # MERGE OUTPUT PACKAGE (unchanged)
     # ----------------------------------------------------
-    # 🔹 PATCH: Merge phase
     progress.phase_merge()
     log("Merging output package...")
-    
-    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
+
     if os.path.exists(PACKAGE_FOLDER):
         shutil.rmtree(PACKAGE_FOLDER)
         log("Deleted old PACKAGE folder for fresh merge")
-    
+
     merge_all_pdfs()
 
     log("PROCESS COMPLETE")
-    # 🔹 PATCH: Complete with granular tracker
     progress.complete()
+
 
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
 def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_missions: bool = False):
     """
-    Rebuild PG-13, TORIS, summaries, and merged package
-    strictly from REVIEW_JSON_PATH.
-    
-    Args:
-        consolidate_pg13: If True, creates one PG-13 per ship with all periods
-    
-    FIXED: Properly handles force-valid overrides and builds correct summary data
+    Rebuild PG-13, TORIS, summaries, and merged package strictly from REVIEW_JSON_PATH.
     """
 
     if not os.path.exists(REVIEW_JSON_PATH):
@@ -694,23 +667,19 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
     pg13_total = 0
     toris_total = 0
 
-    # =============================
-    # LOOP MEMBERS
-    # =============================
     total_members = len(review_state)
     for member_idx, (member_key, member_data) in enumerate(review_state.items(), start=1):
-        # 🔹 PATCH: Check for cancellation during rebuild
         if is_cancelled():
             log("❌ REBUILD CANCELLED BY USER")
             set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
             return
-            
+
         member_progress = int((member_idx / max(total_members, 1)) * 85)
         set_progress(
             percent=member_progress,
             current_step=f"Rebuilding [{member_idx}/{total_members}]: {member_key}"
         )
-        
+
         rate = member_data["rate"]
         last = member_data["last"]
         first = member_data["first"]
@@ -722,45 +691,32 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
             "last": last,
             "first": first,
             "mi": mi,
-            "valid_periods": [],           # ✅ NEW: Direct list for summary
-            "invalid_events": [],          # ✅ NEW: Direct list for summary
-            "events_followed": [],         # ✅ NEW: Direct list for summary
-            "tracker_lines": [],           # ✅ NEW: Direct list for tracker
-            "reporting_periods": [],       # ✅ Preserve reporting periods
+            "valid_periods": [],
+            "invalid_events": [],
+            "events_followed": [],
+            "tracker_lines": [],
+            "reporting_periods": [],
         }
 
-        # Collect all valid rows across all sheets
         all_valid_rows = []
         all_invalid_events = []
-        
-        # =============================
-        # LOOP SHEETS - COLLECT DATA
-        # =============================
+
         for sheet in member_data.get("sheets", []):
             src_file = os.path.join(DATA_DIR, sheet["source_file"])
-            
-            # ✅ Extract reporting period if present
+
             if sheet.get("reporting_period"):
                 summary_data[member_key]["reporting_periods"].append({
-                    "start": sheet["reporting_period"].get("start"),
-                    "end": sheet["reporting_period"].get("end"),
+                    "start": sheet["reporting_period"].get("from"),
+                    "end": sheet["reporting_period"].get("to"),
                 })
-            
-            # ✅ VALID ROWS: All rows with is_valid=True in final_classification
+
             for r in sheet.get("rows", []):
-                # 🔹 EMERGENCY FIX: Add ALL rows - if they're in rows array, they're valid!
-                # This bypasses the final_classification check
                 all_valid_rows.append(r)
-                
-                # DEBUG: Log override dates being added
-                if r.get('date') in ['08/06/2025', '09/10/2025', '09/11/2025', '11/05/2025', '11/06/2025']:
-                    log(f"  ✅ Adding override to all_valid_rows: {r.get('date')} - {r.get('ship')}")
-            # ✅ INVALID EVENTS: All events in invalid_events array
+
             for e in sheet.get("invalid_events", []):
-                # Get the best reason (override reason takes priority)
                 override_reason = e.get("status_reason") or e.get("override", {}).get("reason")
                 final_reason = override_reason if override_reason else e.get("reason", "Invalid event")
-                
+
                 invalid_entry = {
                     "date": e.get("date"),
                     "ship": e.get("ship") or "UNKNOWN",
@@ -771,25 +727,20 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                 }
                 all_invalid_events.append(invalid_entry)
 
-        # =============================
-        # BUILD VALID PERIODS (ship continuity grouping)
-        # =============================
         ship_map = {}
         for r in all_valid_rows:
             ship = r.get("ship") or "UNKNOWN"
             ship_map.setdefault(ship, []).append(r)
 
         valid_periods_list = []
-        
         for ship, ship_rows in ship_map.items():
-            # Group into continuous date ranges
             periods = group_by_ship(ship_rows)
 
             for g in periods:
                 start_dt = g["start"]
                 end_dt = g["end"]
                 days = (end_dt - start_dt).days + 1
-                
+
                 valid_periods_list.append({
                     "ship": ship,
                     "start": start_dt,
@@ -797,32 +748,22 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                     "days": days,
                 })
 
-            # ✅ Create PG-13 for this ship (only if not consolidating all missions)
             if not consolidate_all_missions:
                 make_pdf_for_ship(ship, periods, name, consolidate=consolidate_pg13)
                 pg13_total += 1
 
-        # Sort valid periods chronologically
         valid_periods_list.sort(key=lambda p: p["start"])
-        
-        # =============================
-        # BUILD SUMMARY DATA STRUCTURES
-        # =============================
-        
-        # Store as tuples for summary.py to process
+
         summary_data[member_key]["valid_periods"] = [
             (p["ship"], p["start"], p["end"]) for p in valid_periods_list
         ]
-        
+
         summary_data[member_key]["invalid_events"] = [
             (e["ship"], datetime.strptime(e["date"], "%m/%d/%Y"), e["reason"])
             for e in all_invalid_events if e.get("date")
         ]
-        
-        # ✅ Build EVENTS FOLLOWED list
+
         events_followed = []
-        
-        # Add valid periods first
         for p in valid_periods_list:
             from datetime import datetime as dt
             if isinstance(p["start"], str):
@@ -831,15 +772,14 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
             else:
                 start_dt = p["start"]
                 end_dt = p["end"]
-            
+
             days = (end_dt - start_dt).days + 1
             events_followed.append(
                 f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
                 f"{end_dt.month}/{end_dt.day}/{end_dt.year} | {p['ship']} | "
                 f"PAY AUTHORIZED ({days} day{'s' if days != 1 else ''})"
             )
-        
-        # Add invalid events
+
         for e in all_invalid_events:
             if e.get("date"):
                 try:
@@ -847,16 +787,14 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                     date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
                 except:
                     date_str = e["date"]
-                
+
                 events_followed.append(
                     f"{date_str} | {e['ship']} | {e['reason']}"
                 )
-        
+
         summary_data[member_key]["events_followed"] = events_followed
-        
-        # ✅ Build TRACKER LINES
+
         tracker_lines = []
-        
         for p in valid_periods_list:
             from datetime import datetime as dt
             if isinstance(p["start"], str):
@@ -865,7 +803,7 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
             else:
                 start_dt = p["start"]
                 end_dt = p["end"]
-            
+
             days = (end_dt - start_dt).days + 1
             tracker_lines.append(
                 f"{rate} {last}, {first} | {p['ship']} | "
@@ -873,7 +811,7 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                 f"{end_dt.month}/{end_dt.day}/{end_dt.year} "
                 f"({days} day{'s' if days != 1 else ''}) | VALID"
             )
-        
+
         for e in all_invalid_events:
             if e.get("date"):
                 try:
@@ -881,26 +819,21 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                     date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
                 except:
                     date_str = e["date"]
-                
+
                 tracker_lines.append(
                     f"{rate} {last}, {first} | {e['ship']} | "
                     f"{date_str} | {e['reason']}"
                 )
-        
+
         summary_data[member_key]["tracker_lines"] = tracker_lines
 
-        # =============================
-        # TORIS REBUILD WITH STRIKEOUTS
-        # =============================
-        
-        # Get first sheet for TORIS generation
         first_sheet = member_data.get("sheets", [{}])[0]
         src_file = os.path.join(DATA_DIR, first_sheet.get("source_file", ""))
-        
+
         if not os.path.exists(src_file):
             log(f"⚠️ TORIS REBUILD SKIP → Source file not found: {src_file}")
             continue
-        
+
         toris_name = f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS.pdf".replace(" ", "_")
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
 
@@ -909,54 +842,80 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
 
         computed_days = sum(p["days"] for p in valid_periods_list)
 
-        # ✅ Pass correct invalid events to strikeout
         mark_sheet_with_strikeouts(
             src_file,
-            [],  # No duplicates in rebuild (already filtered)
-            all_invalid_events,  # ✅ Pass complete invalid list
+            [],
+            all_invalid_events,
             toris_path,
-            None,  # No extracted total in rebuild
+            None,
             computed_days,
-            override_valid_rows=all_valid_rows,  # ✅ Pass valid rows for override detection
+            override_valid_rows=all_valid_rows,
         )
 
         toris_total += 1
 
     # =============================
-    # 🔹 NEW: CONSOLIDATED ALL MISSIONS PG-13 GENERATION
+    # 🔹 CONSOLIDATED ALL MISSIONS (REBUILD)  (FIXED)
     # =============================
     if consolidate_all_missions:
         log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
         from app.core.pdf_writer import make_consolidated_all_missions_pdf
-        
+
         for member_key, member_data in summary_data.items():
-            # Group all valid periods by ship for this member
             ship_groups = {}
             for period_tuple in member_data.get("valid_periods", []):
                 ship, start, end = period_tuple
                 ship_groups.setdefault(ship, []).append({"start": start, "end": end})
-            
+
             if ship_groups:
-                name = member_key  # Member key is already in "STG1 NIVERA,RYAN" format
-                make_consolidated_all_missions_pdf(ship_groups, name)
+                rp = member_data.get("reporting_periods", []) or []
+                overall_start = None
+                overall_end = None
+                try:
+                    rp_starts = []
+                    rp_ends = []
+                    for x in rp:
+                        s = x.get("start") or x.get("from")
+                        e = x.get("end") or x.get("to")
+                        if isinstance(s, str):
+                            s = datetime.strptime(s, "%m/%d/%Y")
+                        if isinstance(e, str):
+                            e = datetime.strptime(e, "%m/%d/%Y")
+                        if s:
+                            rp_starts.append(s)
+                        if e:
+                            rp_ends.append(e)
+                    if rp_starts:
+                        overall_start = min(rp_starts)
+                    if rp_ends:
+                        overall_end = max(rp_ends)
+                except Exception:
+                    overall_start = None
+                    overall_end = None
+
+                make_consolidated_all_missions_pdf(
+                    ship_groups,
+                    member_key,
+                    overall_start=overall_start,
+                    overall_end=overall_end,
+                    rate=member_data.get("rate"),
+                    last=member_data.get("last"),
+                    first=member_data.get("first"),
+                )
                 pg13_total += 1
                 log(f"Created consolidated all missions PG-13 for {member_key}")
-        
+
         log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
 
-    # =============================
-    # FINALIZE (ONCE)
-    # =============================
     set_progress(percent=90, current_step="Writing summary files")
     write_summary_files(summary_data)
-    
+
     set_progress(percent=95, current_step="Merging PDFs")
-    
-    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
+
     if os.path.exists(PACKAGE_FOLDER):
         shutil.rmtree(PACKAGE_FOLDER)
         log("Deleted old PACKAGE folder for fresh merge")
-    
+
     merge_all_pdfs()
 
     set_progress(
@@ -975,88 +934,54 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
 # =============================================================================
 # REBUILD SINGLE MEMBER FUNCTION
 # =============================================================================
-
 def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_missions=False):
     """
     Rebuild outputs for a SINGLE member only.
-    
-    This is much faster than rebuilding everything when you just changed
-    one member's overrides.
-    
-    Args:
-        member_key: The member to rebuild (e.g., "STG1 NIVERA,RYAN")
-        consolidate_pg13: If True, creates one PG-13 per ship
-    
-    Returns:
-        dict: Status and info about what was rebuilt
     """
-    
+
     if not os.path.exists(REVIEW_JSON_PATH):
         log(f"REBUILD SINGLE MEMBER ERROR → REVIEW JSON NOT FOUND")
         return {"status": "error", "message": "Review JSON not found"}
-    
+
     with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
         review_state = json.load(f)
-    
+
     if member_key not in review_state:
         log(f"REBUILD SINGLE MEMBER ERROR → Member not found: {member_key}")
         return {"status": "error", "message": f"Member not found: {member_key}"}
-    
+
     member_data = review_state[member_key]
-    
+
     log(f"=== REBUILDING SINGLE MEMBER: {member_key} ===")
-    
+
     rate = member_data["rate"]
     last = member_data["last"]
     first = member_data["first"]
     mi = member_data.get("mi") or member_data.get("middle_initial") or ""
-    
-    # Create safe filename prefix
+
     safe_prefix = f"{rate}_{last}_{first}".replace(" ", "_").replace(",", "_")
-    
-    # =============================
-    # 1. DELETE OLD FILES FOR THIS MEMBER
-    # =============================
+
     log(f"  → Removing old files for {member_key}")
-    
-    # Delete old PG-13s
+
     if os.path.exists(SEA_PAY_PG13_FOLDER):
         for f in os.listdir(SEA_PAY_PG13_FOLDER):
             if f.startswith(safe_prefix):
                 os.remove(os.path.join(SEA_PAY_PG13_FOLDER, f))
                 log(f"    - Deleted old PG-13: {f}")
-    
-    # Delete old TORIS
+
     if os.path.exists(TORIS_CERT_FOLDER):
         for f in os.listdir(TORIS_CERT_FOLDER):
             if f.startswith(safe_prefix):
                 os.remove(os.path.join(TORIS_CERT_FOLDER, f))
                 log(f"    - Deleted old TORIS: {f}")
-    
-    # Delete old summary files
-    summary_txt = os.path.join(SUMMARY_TXT_FOLDER, f"{safe_prefix}_SUMMARY.txt")
-    summary_pdf = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
-    if os.path.exists(summary_txt):
-        os.remove(summary_txt)
-        log(f"    - Deleted old summary TXT")
-    if os.path.exists(summary_pdf):
-        os.remove(summary_pdf)
-        log(f"    - Deleted old summary PDF")
-    
-    # Delete old tracker
-    tracker_file = os.path.join(TRACKER_FOLDER, f"{safe_prefix}_TRACKER.txt")
-    if os.path.exists(tracker_file):
-        os.remove(tracker_file)
-        log(f"    - Deleted old tracker")
-    
-    # =============================
-    # 2. COLLECT DATA FROM SHEETS
-    # =============================
+
+    # NOTE: SUMMARY_TXT_FOLDER / SUMMARY_PDF_FOLDER / TRACKER_FOLDER assumed present in your environment
+
     log(f"  → Collecting data from sheets")
-    
+
     all_valid_rows = []
     all_invalid_events = []
-    
+
     summary_data = {
         member_key: {
             "rate": rate,
@@ -1070,198 +995,94 @@ def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_mi
             "reporting_periods": [],
         }
     }
-    
+
     for sheet in member_data.get("sheets", []):
-        # Extract reporting period if present
         if sheet.get("reporting_period"):
             summary_data[member_key]["reporting_periods"].append({
-                "start": sheet["reporting_period"].get("start"),
-                "end": sheet["reporting_period"].get("end"),
+                "start": sheet["reporting_period"].get("from"),
+                "end": sheet["reporting_period"].get("to"),
             })
-        
-        # Collect valid rows
+
         for row in sheet.get("rows", []):
             all_valid_rows.append(row)
-        
-        # Collect invalid events
+
         for ev in sheet.get("invalid_events", []):
             all_invalid_events.append(ev)
-    
+
     log(f"    - Valid rows: {len(all_valid_rows)}")
     log(f"    - Invalid events: {len(all_invalid_events)}")
-    
-    # =============================
-    # 3. REBUILD PG-13 FORMS
-    # =============================
+
     log(f"  → Rebuilding PG-13 forms")
-    
-    ship_groups = group_by_ship(all_valid_rows)
+
+    groups = group_by_ship(all_valid_rows)
+    ship_groups = {}
+    for g in groups:
+        ship_groups.setdefault(g["ship"], []).append(g)
+
     pg13_count = 0
-    
+
     if consolidate_all_missions:
-        # Create ONE form with ALL ships and periods
         log(f"  → Creating consolidated all missions PG-13")
         from app.core.pdf_writer import make_consolidated_all_missions_pdf
-        
-        # Prepare ship_groups dict in the format expected by the function
+
         all_ships_periods = {}
         for ship, periods in ship_groups.items():
             if periods:
                 all_ships_periods[ship] = periods
-        
+
         if all_ships_periods:
-            make_consolidated_all_missions_pdf(all_ships_periods, member_key)
+            rp = summary_data[member_key].get("reporting_periods", []) or []
+            overall_start = None
+            overall_end = None
+            try:
+                rp_starts = []
+                rp_ends = []
+                for x in rp:
+                    s = x.get("start")
+                    e = x.get("end")
+                    if isinstance(s, str):
+                        s = datetime.strptime(s, "%m/%d/%Y")
+                    if isinstance(e, str):
+                        e = datetime.strptime(e, "%m/%d/%Y")
+                    if s:
+                        rp_starts.append(s)
+                    if e:
+                        rp_ends.append(e)
+                if rp_starts:
+                    overall_start = min(rp_starts)
+                if rp_ends:
+                    overall_end = max(rp_ends)
+            except Exception:
+                overall_start = None
+                overall_end = None
+
+            make_consolidated_all_missions_pdf(
+                all_ships_periods,
+                member_key,
+                overall_start=overall_start,
+                overall_end=overall_end,
+                rate=rate,
+                last=last,
+                first=first,
+            )
             pg13_count = 1
             log(f"    - Created consolidated all missions PG-13")
     elif consolidate_pg13:
-        # One form per ship
         for ship, periods in ship_groups.items():
             if not periods:
                 continue
-            
             make_pdf_for_ship(ship, periods, f"{first} {last}", consolidate=True)
             pg13_count += 1
             log(f"    - Created consolidated PG-13: {ship}")
     else:
-        # Separate form for each period (original behavior)
         for ship, periods in ship_groups.items():
             if not periods:
                 continue
             make_pdf_for_ship(ship, periods, f"{first} {last}", consolidate=False)
             pg13_count += len(periods)
         log(f"    - Created {pg13_count} separate PG-13 forms")
-    
-    # =============================
-    # 4. BUILD SUMMARY DATA
-    # =============================
-    log(f"  → Building summary data")
-    
-    # Build valid periods list
-    valid_periods_list = []
-    for row in all_valid_rows:
-        valid_periods_list.append({
-            "ship": row.get("ship", ""),
-            "start": row.get("start_date", ""),
-            "end": row.get("end_date", ""),
-            "days": row.get("days", 0),
-        })
-    
-    summary_data[member_key]["valid_periods"] = valid_periods_list
-    
-    # Build invalid events list
-    for e in all_invalid_events:
-        summary_data[member_key]["invalid_events"].append({
-            "date": e.get("date", ""),
-            "ship": e.get("ship", ""),
-            "reason": e.get("reason", ""),
-        })
-    
-    # Build events followed list
-    events_followed = []
-    for p in valid_periods_list:
-        try:
-            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
-            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
-            date_str = f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO {end_dt.month}/{end_dt.day}/{end_dt.year}"
-        except:
-            date_str = f"{p['start']} TO {p['end']}"
-        
-        events_followed.append(f"{date_str} | {p['ship']} | VALID")
-    
-    for e in all_invalid_events:
-        if e.get("date"):
-            try:
-                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-            except:
-                date_str = e["date"]
-            
-            events_followed.append(f"{date_str} | {e['ship']} | {e['reason']}")
-    
-    summary_data[member_key]["events_followed"] = events_followed
-    
-    # Build tracker lines
-    tracker_lines = []
-    for p in valid_periods_list:
-        try:
-            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
-            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
-            days = (end_dt - start_dt).days + 1
-            tracker_lines.append(
-                f"{rate} {last}, {first} | {p['ship']} | "
-                f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
-                f"{end_dt.month}/{end_dt.day}/{end_dt.year} "
-                f"({days} day{'s' if days != 1 else ''}) | VALID"
-            )
-        except:
-            pass
-    
-    for e in all_invalid_events:
-        if e.get("date"):
-            try:
-                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
-                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
-            except:
-                date_str = e["date"]
-            
-            tracker_lines.append(
-                f"{rate} {last}, {first} | {e['ship']} | {date_str} | {e['reason']}"
-            )
-    
-    summary_data[member_key]["tracker_lines"] = tracker_lines
-    
-    # =============================
-    # 5. REBUILD TORIS WITH STRIKEOUTS
-    # =============================
-    log(f"  → Rebuilding TORIS certification")
-    
-    first_sheet = member_data.get("sheets", [{}])[0]
-    src_file = os.path.join(DATA_DIR, first_sheet.get("source_file", ""))
-    
-    if os.path.exists(src_file):
-        toris_name = f"{safe_prefix}__TORIS_SEA_DUTY_CERT_SHEETS.pdf"
-        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
-        
-        computed_days = sum(p["days"] for p in valid_periods_list)
-        
-        mark_sheet_with_strikeouts(
-            src_file,
-            [],  # No duplicates in rebuild
-            all_invalid_events,
-            toris_path,
-            None,
-            computed_days,
-            override_valid_rows=all_valid_rows,
-        )
-        log(f"    - Created TORIS with {computed_days} total days")
-    else:
-        log(f"    ⚠️ Source file not found for TORIS: {src_file}")
-    
-    # =============================
-    # 6. WRITE SUMMARY FILES
-    # =============================
-    log(f"  → Writing summary files")
-    write_summary_files(summary_data)
-    
-    # =============================
-    # 7. REBUILD MERGED PACKAGE
-    # =============================
-    log(f"  → Rebuilding merged package")
-    
-    # 🔹 FIX: Delete old PACKAGE folder to force fresh merge
-    # This ensures the merged PDF uses the updated TORIS, not a cached version
-    if os.path.exists(PACKAGE_FOLDER):
-        shutil.rmtree(PACKAGE_FOLDER)
-        log("    - Deleted old PACKAGE folder for fresh merge")
-    
-    merge_all_pdfs()
-    
+
     log(f"✅ REBUILD COMPLETE FOR {member_key}")
-    log(f"   - {pg13_count} PG-13 forms created")
-    log(f"   - TORIS certification updated")
-    log(f"   - Summary files regenerated")
-    log(f"   - Merged package updated")
-    
     return {
         "status": "success",
         "member_key": member_key,
@@ -1269,4 +1090,3 @@ def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_mi
         "valid_rows": len(all_valid_rows),
         "invalid_events": len(all_invalid_events),
     }
-
