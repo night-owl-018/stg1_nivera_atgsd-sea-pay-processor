@@ -665,6 +665,7 @@
           </svg>
           GitHub
         </a>
+        <button onclick="showModal('certifyingOfficerModal'); loadCertifyingOfficer();" class="header-btn">👤 Certifying Officer</button>
         <button onclick="showModal('aboutModal')" class="header-btn">ℹ️ About</button>
         <button onclick="showModal('helpModal')" class="header-btn">📖 Help</button>
       </div>
@@ -1047,6 +1048,61 @@
       </div>
     </div>
   </div>
+
+  <!-- CERTIFYING OFFICER MODAL -->
+  <div id="certifyingOfficerModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="card">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>👤 Set Certifying Officer</span>
+          <button onclick="hideModal('certifyingOfficerModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+        </h3>
+        <div class="body">
+          <p style="margin-bottom: 16px; color: rgba(245,248,255,0.72); font-size: 13px;">
+            Enter the certifying officer information. This name will appear on TORIS certification sheets and PG-13 forms.
+          </p>
+          
+          <form id="certifyingOfficerForm" style="display: grid; gap: 12px;">
+            <div>
+              <label>Rate *</label>
+              <input type="text" id="certifyingOfficerRate" placeholder="e.g., STG1" required style="text-transform: uppercase;">
+            </div>
+            
+            <div>
+              <label>Last Name *</label>
+              <input type="text" id="certifyingOfficerLastName" placeholder="e.g., NIVERA" required style="text-transform: uppercase;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label>First Initial *</label>
+                <input type="text" id="certifyingOfficerFirstInitial" placeholder="e.g., R" maxlength="1" required style="text-transform: uppercase;">
+              </div>
+              
+              <div>
+                <label>Middle Initial</label>
+                <input type="text" id="certifyingOfficerMiddleInitial" placeholder="e.g., A" maxlength="1" style="text-transform: uppercase;">
+              </div>
+            </div>
+            
+            <div style="margin-top: 8px; padding: 12px; background: rgba(111,183,255,0.08); border-radius: 10px; border: 1px solid rgba(111,183,255,0.2);">
+              <div style="font-size: 11px; font-weight: 650; margin-bottom: 6px; color: rgba(111,183,255,0.95);">Preview:</div>
+              <div id="certifyingOfficerPreview" style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: rgba(245,248,255,0.95);">
+                (Enter information above)
+              </div>
+            </div>
+            
+            <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px;">
+              💾 Save Certifying Officer
+            </button>
+            
+            <div id="certifyingOfficerStatus" style="display: none; padding: 10px; border-radius: 10px; text-align: center; font-size: 12px; font-weight: 650;"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <footer class="app-footer">
     <div class="footer-inner">
@@ -1611,8 +1667,107 @@
     $('mergeCustomBtn').addEventListener('click', () => handleCustomDownload('merge'));
 
     // Initialize
+    // Certifying Officer Functions
+    function updateCertifyingOfficerPreview() {
+      const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
+      const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
+      const firstInitial = $('certifyingOfficerFirstInitial').value.trim().toUpperCase();
+      const middleInitial = $('certifyingOfficerMiddleInitial').value.trim().toUpperCase();
+      
+      let preview = '';
+      if (rate) preview += rate + ' ';
+      if (lastName) {
+        preview += lastName;
+        if (firstInitial) {
+          preview += ', ' + firstInitial + '.';
+          if (middleInitial) {
+            preview += ' ' + middleInitial + '.';
+          }
+        }
+      }
+      
+      $('certifyingOfficerPreview').textContent = preview || '(Enter information above)';
+    }
+    
+    async function loadCertifyingOfficer() {
+      try {
+        const response = await apiGet('/api/certifying_officer');
+        if (response.status === 'success' && response.officer) {
+          const officer = response.officer;
+          $('certifyingOfficerRate').value = officer.rate || '';
+          $('certifyingOfficerLastName').value = officer.last_name || '';
+          $('certifyingOfficerFirstInitial').value = officer.first_initial || '';
+          $('certifyingOfficerMiddleInitial').value = officer.middle_initial || '';
+          updateCertifyingOfficerPreview();
+        }
+      } catch (error) {
+        console.error('Failed to load certifying officer:', error);
+      }
+    }
+    
+    $('certifyingOfficerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
+      const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
+      const firstInitial = $('certifyingOfficerFirstInitial').value.trim().toUpperCase();
+      const middleInitial = $('certifyingOfficerMiddleInitial').value.trim().toUpperCase();
+      
+      if (!lastName) {
+        alert('Last name is required');
+        return;
+      }
+      
+      const statusDiv = $('certifyingOfficerStatus');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.innerHTML;
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '💾 Saving...';
+      statusDiv.style.display = 'none';
+      
+      try {
+        const response = await apiPost('/api/certifying_officer', {
+          rate: rate,
+          last_name: lastName,
+          first_initial: firstInitial,
+          middle_initial: middleInitial
+        });
+        
+        if (response.status === 'success') {
+          statusDiv.textContent = '✅ Certifying officer saved successfully!';
+          statusDiv.style.display = 'block';
+          statusDiv.style.background = 'rgba(22, 199, 132, 0.15)';
+          statusDiv.style.border = '1px solid rgba(22, 199, 132, 0.3)';
+          statusDiv.style.color = '#16c784';
+          
+          setTimeout(() => {
+            statusDiv.style.display = 'none';
+          }, 3000);
+        } else {
+          throw new Error(response.error || 'Failed to save');
+        }
+      } catch (error) {
+        statusDiv.textContent = '❌ Error: ' + error.message;
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = 'rgba(255, 91, 107, 0.15)';
+        statusDiv.style.border = '1px solid rgba(255, 91, 107, 0.3)';
+        statusDiv.style.color = '#ff5b6b';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+      }
+    });
+    
+    // Add event listeners for live preview
+    ['certifyingOfficerRate', 'certifyingOfficerLastName', 'certifyingOfficerFirstInitial', 'certifyingOfficerMiddleInitial'].forEach(id => {
+      $(id).addEventListener('input', updateCertifyingOfficerPreview);
+    });
+
+
     $('yearNow').textContent = new Date().getFullYear();
     loadMembers(); // Load member list on page load
+    loadCertifyingOfficer(); // Load certifying officer on page load
   </script>
 </body>
 </html>
