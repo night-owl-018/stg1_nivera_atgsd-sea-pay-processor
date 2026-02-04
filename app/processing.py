@@ -509,6 +509,18 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             strike_color=strike_color,
         )
 
+        # Add certifying officer name to TORIS sheet
+        from app.core.toris_certifier import add_certifying_officer_to_toris
+        temp_toris = toris_path + ".tmp"
+        try:
+            add_certifying_officer_to_toris(toris_path, temp_toris)
+            if os.path.exists(temp_toris):
+                os.replace(temp_toris, toris_path)
+        except Exception as e:
+            log(f"⚠️ FAILED TO ADD CERTIFYING OFFICER TO TORIS → {e}")
+            if os.path.exists(temp_toris):
+                os.remove(temp_toris)
+
         add_progress_detail("toris_marked", 1)
         toris_total += 1
 
@@ -851,6 +863,18 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
             computed_days,
             override_valid_rows=all_valid_rows,
         )
+
+        # Add certifying officer name to TORIS sheet
+        from app.core.toris_certifier import add_certifying_officer_to_toris
+        temp_toris = toris_path + ".tmp"
+        try:
+            add_certifying_officer_to_toris(toris_path, temp_toris)
+            if os.path.exists(temp_toris):
+                os.replace(temp_toris, toris_path)
+        except Exception as e:
+            log(f"⚠️ FAILED TO ADD CERTIFYING OFFICER TO TORIS → {e}")
+            if os.path.exists(temp_toris):
+                os.remove(temp_toris)
 
         toris_total += 1
 
