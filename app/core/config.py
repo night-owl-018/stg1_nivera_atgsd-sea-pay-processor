@@ -111,17 +111,10 @@ def save_certifying_officer(rate, last_name, first_initial, middle_initial):
 
 def get_certifying_officer_name():
     """
-    Get formatted certifying officer name for display on forms.
-
-    REQUIRED FORMAT (per your PG-13 requirement):
-      "LAST_NAME, FI MI"
-      - NO rate
-      - NO auto-periods added
-      - Initials are returned exactly as saved (user controls punctuation)
-
-    Examples:
-      last=NIVERA, fi="R.", mi="N."  -> "NIVERA, R. N."
-      last=NIVERA, fi="R",  mi="N"   -> "NIVERA, R N"
+    Generic display format (kept as-is).
+    Format: "LAST_NAME, FI MI"
+    - NO rate
+    - NO auto-periods added
     """
     officer = load_certifying_officer()
     if not officer or not officer.get('last_name'):
@@ -141,6 +134,40 @@ def get_certifying_officer_name():
             name += f" {mi}"
 
     return name
+
+
+def get_certifying_officer_printed_name():
+    """
+    PG-13 Printed Name block format:
+      "FI MI LASTNAME"
+
+    Examples:
+      fi="R.", mi="N.", last="NIVERA" -> "R. N. NIVERA"
+      fi="R",  mi="N",  last="NIVERA" -> "R N NIVERA"
+
+    Notes:
+    - NO rate
+    - NO auto-periods (user controls punctuation)
+    """
+    officer = load_certifying_officer()
+    if not officer or not officer.get('last_name'):
+        return ""
+
+    last_name = (officer.get('last_name') or "").strip().upper()
+    fi = (officer.get('first_initial') or "").strip().upper()
+    mi = (officer.get('middle_initial') or "").strip().upper()
+
+    if not last_name:
+        return ""
+
+    parts = []
+    if fi:
+        parts.append(fi)
+    if mi:
+        parts.append(mi)
+    parts.append(last_name)
+
+    return " ".join(parts)
 
 
 # -----------------------------------
