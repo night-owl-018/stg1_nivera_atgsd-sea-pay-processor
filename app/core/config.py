@@ -74,7 +74,7 @@ def load_certifying_officer():
     """
     if not os.path.exists(CERTIFYING_OFFICER_FILE):
         return {}
-    
+
     try:
         with open(CERTIFYING_OFFICER_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -99,7 +99,7 @@ def save_certifying_officer(rate, last_name, first_initial, middle_initial):
         'first_initial': first_initial.strip(),
         'middle_initial': middle_initial.strip(),
     }
-    
+
     try:
         with open(CERTIFYING_OFFICER_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
@@ -112,26 +112,35 @@ def save_certifying_officer(rate, last_name, first_initial, middle_initial):
 def get_certifying_officer_name():
     """
     Get formatted certifying officer name for display on forms.
-    Returns formatted name or empty string if not set.
-    Format: "RATE LAST_NAME, F. M." (e.g., "STG1 NIVERA, R. A.")
+
+    REQUIRED FORMAT (per your PG-13 requirement):
+      "LAST_NAME, FI MI"
+      - NO rate
+      - NO auto-periods added
+      - Initials are returned exactly as saved (user controls punctuation)
+
+    Examples:
+      last=NIVERA, fi="R.", mi="N."  -> "NIVERA, R. N."
+      last=NIVERA, fi="R",  mi="N"   -> "NIVERA, R N"
     """
     officer = load_certifying_officer()
     if not officer or not officer.get('last_name'):
         return ""
-    
-    parts = []
-    if officer.get('rate'):
-        parts.append(officer['rate'])
-    
-    if officer.get('last_name'):
-        name = officer['last_name']
-        if officer.get('first_initial'):
-            name += f", {officer['first_initial']}."
-            if officer.get('middle_initial'):
-                name += f" {officer['middle_initial']}."
-        parts.append(name)
-    
-    return " ".join(parts)
+
+    last_name = (officer.get('last_name') or "").strip().upper()
+    fi = (officer.get('first_initial') or "").strip().upper()
+    mi = (officer.get('middle_initial') or "").strip().upper()
+
+    if not last_name:
+        return ""
+
+    name = last_name
+    if fi:
+        name += f", {fi}"
+        if mi:
+            name += f" {mi}"
+
+    return name
 
 
 # -----------------------------------
