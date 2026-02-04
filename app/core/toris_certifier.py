@@ -16,7 +16,8 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
     """
     Add the certifying officer's name to a TORIS Sea Duty Certification Sheet PDF.
     
-    The name is added above the "PRINTED NAME OF CERTIFYING OFFICER" line.
+    The name is added ABOVE the "PRINTED NAME OF CERTIFYING OFFICER" line,
+    on the blank line between the two underscores.
     
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -35,16 +36,20 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
             return
         
         # Create an overlay with the certifying officer name
-        # Position it above the "PRINTED NAME OF CERTIFYING OFFICER" line
-        # Based on standard TORIS form layout, this is approximately at Y=95-105
+        # Position it ABOVE the "PRINTED NAME OF CERTIFYING OFFICER" line
+        # Based on the actual TORIS form, this is at approximately Y=110
+        # (on the blank line between the two underscores)
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont("Helvetica-Bold", 10)
         
-        # Position above the "PRINTED NAME OF CERTIFYING OFFICER" line
-        # The signature area is typically at the bottom of the form
-        x_position = 100  # Left margin
-        y_position = 95   # Above the printed name line
+        # Position on the blank line ABOVE "PRINTED NAME OF CERTIFYING OFFICER"
+        # The signature area at bottom of form:
+        # Line 1 (upper): ___________________________________
+        # Line 2 (name here): STG1 NIVERA, R. N.  <-- We put it here
+        # Line 3 (label): PRINTED NAME OF CERTIFYING OFFICER
+        x_position = 100  # Left aligned with the form
+        y_position = 110  # Above the "PRINTED NAME" label, on the blank line
         
         c.drawString(x_position, y_position, certifying_officer_name)
         c.save()
