@@ -51,59 +51,37 @@ def flatten_pdf(path):
 
 
 # ------------------------------------------------
+# 🔹 PATCH HELPER: Safe filename pieces
+# ------------------------------------------------
+def _safe_filename_piece(s: str) -> str:
+    """
+    Normalize filename parts so you don't get commas, double underscores, or leading underscores.
+    """
+    if s is None:
+        return ""
+    s = str(s).strip()
+    # Replace separators that break readability
+    s = s.replace(",", "_").replace(" ", "_")
+    # Collapse multiple underscores
+    while "__" in s:
+        s = s.replace("__", "_")
+    # Trim underscores
+    s = s.strip("_")
+    return s
+
+
+# ------------------------------------------------
 # 🔹 NEW: CONSOLIDATED ALL MISSIONS (ALL SHIPS ON ONE FORM)
 # ------------------------------------------------
 def make_consolidated_all_missions_pdf(ship_groups, name):
     """
     Creates a SINGLE PG-13 form with ALL missions across ALL ships for a member.
     Each ship gets its own section with all its date ranges.
-    
-    Args:
-        ship_groups: Dict of {ship_name: [periods]} where periods is list of date dicts
-        name: Member name string
-    
-    Example output:
-        ____. REPORT CAREER SEA PAY FROM 08/11/2025 TO 08/13/2025.
-        ____. REPORT CAREER SEA PAY FROM 08/22/2025 TO 08/22/2025.
-        Member performed eight continuous hours per day on-board: PAUL HAMILTON Category A vessel.
-        
-        ____. REPORT CAREER SEA PAY FROM 09/08/2025 TO 09/12/2025.
-        ____. REPORT CAREER SEA PAY FROM 10/24/2025 TO 10/29/2025.
-        Member performed eight continuous hours per day on-board: CHOSIN Category A vessel.
-        
-        ____. REPORT CAREER SEA PAY FROM 10/06/2025 TO 10/07/2025.
-        Member performed eight continuous hours per day on-board: STERETT Category A vessel.
     """
     if not ship_groups:
         return
 
-    # 🔹 PATCH: Make identity parsing safe for member_key format like "STG1 NIVERA,RYAN"
-    try:
-        rate, last, first = resolve_identity(name)
-    except Exception:
-        rate = ""
-        last = ""
-        first = ""
-        s = (name or "").strip()
-
-        # Expected: "RATE LAST,FIRST" (e.g., "STG1 NIVERA,RYAN")
-        if "," in s:
-            left, right = s.split(",", 1)
-            left_parts = left.strip().split()
-            if len(left_parts) >= 2:
-                rate = left_parts[0]
-                last = " ".join(left_parts[1:])
-            else:
-                last = left.strip()
-            first = right.strip()
-        else:
-            # Fallback: "FIRST LAST"
-            parts = s.split()
-            if len(parts) >= 2:
-                first = parts[0]
-                last = " ".join(parts[1:])
-            else:
-                last = s
+    rate, last, first = resolve_identity(name)
 
     # Sort ships alphabetically for consistency
     sorted_ships = sorted(ship_groups.items())
@@ -126,11 +104,16 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
     s_fn = first_period["start"].strftime("%m-%d-%Y")
     e_fn = last_period["end"].strftime("%m-%d-%Y")
 
+    # 🔹 PATCH: Make the "who" part clean + consistent
+    who_parts = [_safe_filename_piece(rate), _safe_filename_piece(last), _safe_filename_piece(first)]
+    who_parts = [p for p in who_parts if p]
+    who = "_".join(who_parts) if who_parts else "UNKNOWN_MEMBER"
+
+    # 🔹 PATCH: Use the same token as legacy PG-13 so packaging/merging finds it
     filename = (
-        f"{rate}_{last}_{first}"
-        f"__PG13__ALL_MISSIONS__{s_fn}_TO_{e_fn}.pdf"
+        f"{who}"
+        f"__SEA_PAY_PG13__ALL_MISSIONS__{s_fn}_TO_{e_fn}.pdf"
     )
-    filename = filename.replace(" ", "_")
 
     outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
 
@@ -164,8 +147,11 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
             s = g["start"].strftime("%m/%d/%Y")
             e = g["end"].strftime("%m/%d/%Y")
 
-            c.drawString(38.8, y - (current_line * line_spacing),
-                         f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
+            c.drawString(
+                38.8,
+                y - (current_line * line_spacing),
+                f"____. REPORT CAREER SEA PAY FROM {s} TO {e}."
+            )
             current_line += 1
 
         # Ship information line (after periods for this ship)
@@ -182,11 +168,8 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
             current_line += 1
 
     # 🔹 SIGNATURE AREAS - Adjust position based on content
-    # Calculate how far down we need to move the signature block
     content_height = current_line * line_spacing
     base_sig_y = 499.5
-
-    # Move signatures down if content would overlap
     sig_y = min(base_sig_y, 595 - content_height - 40)
 
     c.drawString(356.26, sig_y, "_________________________")
@@ -210,7 +193,7 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
     writer = PdfWriter()
     writer.add_page(base)
 
-    # 🔹 PATCH: ensure folder exists before writing
+    # 🔹 PATCH: ensure output folder exists before writing
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
 
     with open(outpath, "wb") as f:
@@ -228,13 +211,6 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
 def make_consolidated_pdf_for_ship(ship, periods, name):
     """
     Creates a SINGLE PG-13 form with multiple date ranges for the same ship.
-    Saves paper by combining all periods for one ship on one form.
-    
-    Example output:
-        REPORT CAREER SEA PAY FROM 01/15/2024 TO 01/31/2024.
-        REPORT CAREER SEA PAY FROM 03/01/2024 TO 03/15/2024.
-        REPORT CAREER SEA PAY FROM 06/10/2024 TO 06/20/2024.
-        Member performed eight continuous hours per day on-board: USS SHIP Category A vessel.
     """
     if not periods:
         return
@@ -242,7 +218,6 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     rate, last, first = resolve_identity(name)
     periods_sorted = sorted(periods, key=lambda g: g["start"])
 
-    # Create filename with consolidated date range
     first_period = periods_sorted[0]
     last_period = periods_sorted[-1]
 
@@ -257,36 +232,33 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
 
     outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
 
-    # Create overlay with multiple period entries
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    # HEADER BLOCK
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
-    # Member identity
     c.setFont(FONT_NAME, FONT_SIZE)
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
-    # 🔹 MAIN TEXT BLOCK - MULTIPLE PERIODS
     y = 595
-    line_spacing = 12  # Space between each period line
+    line_spacing = 12
 
-    # Add each period as a separate line
     for idx, g in enumerate(periods_sorted):
         s = g["start"].strftime("%m/%d/%Y")
         e = g["end"].strftime("%m/%d/%Y")
 
-        c.drawString(38.8, y - (idx * line_spacing),
-                     f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
+        c.drawString(
+            38.8,
+            y - (idx * line_spacing),
+            f"____. REPORT CAREER SEA PAY FROM {s} TO {e}."
+        )
 
-    # Ship information line (after all periods)
     ship_line_y = y - (len(periods_sorted) * line_spacing) - 12
     c.drawString(
         64,
@@ -295,7 +267,6 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         f"{ship.upper()} Category A vessel."
     )
 
-    # SIGNATURE AREAS
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
@@ -304,11 +275,9 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
-    # Finish overlay
     c.save()
     buf.seek(0)
 
-    # MERGE WITH TEMPLATE
     template = PdfReader(TEMPLATE)
     overlay = PdfReader(buf)
     base = template.pages[0]
@@ -332,36 +301,24 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
 def make_pdf_for_ship(ship, periods, name, consolidate=False):
     """
     Creates PG-13 forms for ship periods.
-    
-    Args:
-        ship: Ship name
-        periods: List of period dictionaries with 'start' and 'end' dates
-        name: Member name string
-        consolidate: If True, creates one PG-13 with all periods.
-                    If False, creates separate PG-13 for each period (original behavior)
     """
-
     if not periods:
         return
 
-    # 🔹 NEW: If consolidate mode, create single form with all periods
     if consolidate and len(periods) > 1:
         make_consolidated_pdf_for_ship(ship, periods, name)
         return
 
-    # 🔹 ORIGINAL: One form per period (default behavior)
     rate, last, first = resolve_identity(name)
     periods_sorted = sorted(periods, key=lambda g: g["start"])
 
     for g in periods_sorted:
-        # Dates for filename OR print
         s = g["start"].strftime("%m/%d/%Y")
         e = g["end"].strftime("%m/%d/%Y")
 
         s_fn = s.replace("/", "-")
         e_fn = e.replace("/", "-")
 
-        # ⭐ ORIGINAL FILENAME FORMAT
         filename = (
             f"{rate}_{last}_{first}"
             f"__SEA_PAY_PG13__{ship.upper()}__{s_fn}_TO_{e_fn}.pdf"
@@ -370,24 +327,20 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
 
         outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
 
-        # ⭐ ORIGINAL PG13 OVERLAY CODE
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont(FONT_NAME, FONT_SIZE)
 
-        # HEADER BLOCK
         c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
         c.drawString(373, 671, "X")
         c.setFont(FONT_NAME, 8)
         c.drawString(39, 650, "ENTITLEMENT")
         c.drawString(345, 641, "OPNAVINST 7220.14")
 
-        # Member identity
         c.setFont(FONT_NAME, FONT_SIZE)
         identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
         c.drawString(39, 41, identity)
 
-        # MAIN TEXT BLOCK — EXACT ORIGINAL FORMAT
         y = 595
         c.drawString(38.8, y, f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
 
@@ -398,7 +351,6 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
             f"{ship.upper()} Category A vessel."
         )
 
-        # SIGNATURE AREAS — EXACT COORDS
         c.drawString(356.26, 499.5, "_________________________")
         c.drawString(363.8, 487.5, "Certifying Official & Date")
         c.drawString(356.26, 427.5, "_________________________")
@@ -407,11 +359,9 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
-        # Finish overlay
         c.save()
         buf.seek(0)
 
-        # MERGE WITH TEMPLATE
         template = PdfReader(TEMPLATE)
         overlay = PdfReader(buf)
         base = template.pages[0]
