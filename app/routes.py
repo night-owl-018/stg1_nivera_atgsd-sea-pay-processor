@@ -882,7 +882,7 @@ def get_certifying_officer():
 def set_certifying_officer():
     """
     Set certifying officer information.
-    Expects JSON: { "rate": "...", "last_name": "...", "first_initial": "...", "middle_initial": "..." }
+    Expects JSON: { "rate": "...", "last_name": "...", "first_name": "...", "middle_name": "..." }
     """
     from app.core.config import save_certifying_officer
     
@@ -890,15 +890,17 @@ def set_certifying_officer():
         data = request.get_json() or {}
         rate = data.get("rate", "").strip()
         last_name = data.get("last_name", "").strip()
-        first_initial = data.get("first_initial", "").strip()
-        middle_initial = data.get("middle_initial", "").strip()
+        first_name = data.get("first_name", "").strip()
+        middle_name = data.get("middle_name", "").strip()
         
         if not last_name:
             return jsonify({"status": "error", "error": "Last name is required"}), 400
         
-        success = save_certifying_officer(rate, last_name, first_initial, middle_initial)
+        success = save_certifying_officer(rate, last_name, first_name, middle_name)
         
         if success:
+            first_initial = first_name[0] if first_name else ""
+            middle_initial = middle_name[0] if middle_name else ""
             log(f"CERTIFYING OFFICER UPDATED → {rate} {last_name}, {first_initial}. {middle_initial}.")
             return jsonify({
                 "status": "success",
