@@ -1075,13 +1075,13 @@
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
-                <label>First Initial *</label>
-                <input type="text" id="certifyingOfficerFirstInitial" placeholder="e.g., R" maxlength="1" required style="text-transform: uppercase;">
+                <label>First Name *</label>
+                <input type="text" id="certifyingOfficerFirstName" placeholder="e.g., RYAN" required style="text-transform: uppercase;">
               </div>
               
               <div>
-                <label>Middle Initial</label>
-                <input type="text" id="certifyingOfficerMiddleInitial" placeholder="e.g., A" maxlength="1" style="text-transform: uppercase;">
+                <label>Middle Name</label>
+                <input type="text" id="certifyingOfficerMiddleName" placeholder="e.g., NICOLAS" style="text-transform: uppercase;">
               </div>
             </div>
             
@@ -1671,17 +1671,19 @@
     function updateCertifyingOfficerPreview() {
       const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
       const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
-      const firstInitial = $('certifyingOfficerFirstInitial').value.trim().toUpperCase();
-      const middleInitial = $('certifyingOfficerMiddleInitial').value.trim().toUpperCase();
+      const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
+      const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
       
       let preview = '';
       if (rate) preview += rate + ' ';
       if (lastName) {
         preview += lastName;
-        if (firstInitial) {
-          preview += ', ' + firstInitial + '.';
-          if (middleInitial) {
-            preview += ' ' + middleInitial + '.';
+        if (firstName) {
+          // Take first letter of first name
+          preview += ', ' + firstName[0] + '.';
+          if (middleName) {
+            // Take first letter of middle name
+            preview += ' ' + middleName[0] + '.';
           }
         }
       }
@@ -1696,8 +1698,8 @@
           const officer = response.officer;
           $('certifyingOfficerRate').value = officer.rate || '';
           $('certifyingOfficerLastName').value = officer.last_name || '';
-          $('certifyingOfficerFirstInitial').value = officer.first_initial || '';
-          $('certifyingOfficerMiddleInitial').value = officer.middle_initial || '';
+          $('certifyingOfficerFirstName').value = officer.first_name || '';
+          $('certifyingOfficerMiddleName').value = officer.middle_name || '';
           updateCertifyingOfficerPreview();
         }
       } catch (error) {
@@ -1710,8 +1712,8 @@
       
       const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
       const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
-      const firstInitial = $('certifyingOfficerFirstInitial').value.trim().toUpperCase();
-      const middleInitial = $('certifyingOfficerMiddleInitial').value.trim().toUpperCase();
+      const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
+      const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
       
       if (!lastName) {
         alert('Last name is required');
@@ -1730,8 +1732,8 @@
         const response = await apiPost('/api/certifying_officer', {
           rate: rate,
           last_name: lastName,
-          first_initial: firstInitial,
-          middle_initial: middleInitial
+          first_name: firstName,
+          middle_name: middleName
         });
         
         if (response.status === 'success') {
@@ -1760,7 +1762,7 @@
     });
     
     // Add event listeners for live preview
-    ['certifyingOfficerRate', 'certifyingOfficerLastName', 'certifyingOfficerFirstInitial', 'certifyingOfficerMiddleInitial'].forEach(id => {
+    ['certifyingOfficerRate', 'certifyingOfficerLastName', 'certifyingOfficerFirstName', 'certifyingOfficerMiddleName'].forEach(id => {
       $(id).addEventListener('input', updateCertifyingOfficerPreview);
     });
 
