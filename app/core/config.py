@@ -69,7 +69,7 @@ FONT_SIZE = 12
 def load_certifying_officer():
     """
     Load certifying officer information from JSON file.
-    Returns dict with keys: rate, last_name, first_initial, middle_initial
+    Returns dict with keys: rate, last_name, first_name, middle_name
     Returns empty dict if file doesn't exist or can't be read.
     """
     if not os.path.exists(CERTIFYING_OFFICER_FILE):
@@ -81,23 +81,23 @@ def load_certifying_officer():
             return {
                 'rate': data.get('rate', '').strip(),
                 'last_name': data.get('last_name', '').strip(),
-                'first_initial': data.get('first_initial', '').strip(),
-                'middle_initial': data.get('middle_initial', '').strip(),
+                'first_name': data.get('first_name', '').strip(),
+                'middle_name': data.get('middle_name', '').strip(),
             }
     except Exception as e:
         print(f"Warning: Could not load certifying officer info: {e}")
         return {}
 
 
-def save_certifying_officer(rate, last_name, first_initial, middle_initial):
+def save_certifying_officer(rate, last_name, first_name, middle_name):
     """
     Save certifying officer information to JSON file.
     """
     data = {
         'rate': rate.strip(),
         'last_name': last_name.strip(),
-        'first_initial': first_initial.strip(),
-        'middle_initial': middle_initial.strip(),
+        'first_name': first_name.strip(),
+        'middle_name': middle_name.strip(),
     }
 
     try:
@@ -111,36 +111,58 @@ def save_certifying_officer(rate, last_name, first_initial, middle_initial):
 
 def get_certifying_officer_name():
     """
-    Get formatted certifying officer name for display on forms.
-
-    REQUIRED FORMAT (per your PG-13 requirement):
-      "LAST_NAME, FI MI"
-      - NO rate
-      - NO auto-periods added
-      - Initials are returned exactly as saved (user controls punctuation)
-
-    Examples:
-      last=NIVERA, fi="R.", mi="N."  -> "NIVERA, R. N."
-      last=NIVERA, fi="R",  mi="N"   -> "NIVERA, R N"
+    Get formatted certifying officer name for display on TORIS forms.
+    Returns formatted name or empty string if not set.
+    Format: "RATE LAST_NAME, F. M." (e.g., "STG1 NIVERA, R. N.")
     """
     officer = load_certifying_officer()
     if not officer or not officer.get('last_name'):
         return ""
+    
+    parts = []
+    if officer.get('rate'):
+        parts.append(officer['rate'])
+    
+    if officer.get('last_name'):
+        name = officer['last_name']
+        if officer.get('first_name'):
+            # Take first letter of first name
+            first_initial = officer['first_name'][0].upper()
+            name += f", {first_initial}."
+            if officer.get('middle_name'):
+                # Take first letter of middle name
+                middle_initial = officer['middle_name'][0].upper()
+                name += f" {middle_initial}."
+        parts.append(name)
+    
+    return " ".join(parts)
 
-    last_name = (officer.get('last_name') or "").strip().upper()
-    fi = (officer.get('first_initial') or "").strip().upper()
-    mi = (officer.get('middle_initial') or "").strip().upper()
 
-    if not last_name:
+def get_certifying_officer_name_pg13():
+    """
+    Get formatted certifying officer name for display on PG-13 forms.
+    Returns formatted name or empty string if not set.
+    Format: "F. M. LAST_NAME" (e.g., "R. N. NIVERA")
+    """
+    officer = load_certifying_officer()
+    if not officer or not officer.get('last_name'):
         return ""
-
-    name = last_name
-    if fi:
-        name += f", {fi}"
-        if mi:
-            name += f" {mi}"
-
-    return name
+    
+    parts = []
+    if officer.get('first_name'):
+        # Take first letter of first name
+        first_initial = officer['first_name'][0].upper()
+        parts.append(f"{first_initial}.")
+    
+    if officer.get('middle_name'):
+        # Take first letter of middle name
+        middle_initial = officer['middle_name'][0].upper()
+        parts.append(f"{middle_initial}.")
+    
+    if officer.get('last_name'):
+        parts.append(officer['last_name'])
+    
+    return " ".join(parts)
 
 
 # -----------------------------------
