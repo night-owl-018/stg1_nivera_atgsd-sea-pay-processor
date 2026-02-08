@@ -27,6 +27,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
          and chooses the lowest match on the page (most likely the signature block).
       6) Uses Times New Roman (Times_New_Roman.ttf) from repo root.
       7) Centers baseline within the two lines and clamps with padding so text never touches rules.
+      8) Registers the font BEFORE any calls to pdfmetrics.getFont() or setFont() (fixes KeyError 'TimesNewRoman').
 
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -54,6 +55,54 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 page_height = float(page.height)
 
                 words = page.extract_words() or []
+
+                # Font choice
+                font_name = "TimesNewRoman"
+                font_size = 10
+
+                # ----------------------------
+                # Register Times New Roman from repo root (MUST happen before pdfmetrics.getFont())
+                # ----------------------------
+                if font_name not in pdfmetrics.getRegisteredFontNames():
+                    font_path = os.path.abspath(
+                        os.path.join(os.path.dirname(__file__), "..", "..", "Times_New_Roman.ttf")
+                    )
+                    if not os.path.exists(font_path):
+                        raise FileNotFoundError(f"Times_New_Roman.ttf not found at: {font_path}")
+                    pdfmetrics.registerFont(TTFont(font_name, font_path))
+                    log(f"Registered font {font_name} from {font_path}")
+
+                def compute_baseline_between_rules(y_a_from_bottom: float, y_b_from_bottom: float) -> float:
+                    """
+                    Compute a baseline Y that places the text box centered between two rules,
+                    with padding so it never touches either rule.
+
+                    Uses actual font metrics from the registered Times New Roman font,
+                    plus a small downward bias (scaled by font size) to avoid riding high.
+                    """
+                    # Get true font metrics (1000-em units -> points)
+                    f = pdfmetrics.getFont(font_name)
+                    ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
+                    descent = (abs(float(getattr(f.face, "descent", -220))) / 1000.0) * font_size
+
+                    # Padding inside the band so text never touches the rules
+                    pad = font_size * 0.20  # ~2pt at 10pt
+
+                    # Small downward bias so text sits visually between the rules (not kissing the top)
+                    bias_down = font_size * 0.10  # ~1pt at 10pt
+
+                    lo = min(y_a_from_bottom, y_b_from_bottom)
+                    hi = max(y_a_from_bottom, y_b_from_bottom)
+                    mid = (lo + hi) / 2.0
+
+                    # Baseline that centers the text box in the band, with slight downward bias
+                    ideal = mid - ((ascent - descent) / 2.0) - bias_down
+
+                    # Clamp baseline so the entire glyph box stays inside the rules with padding
+                    min_base = lo + pad + descent
+                    max_base = hi - pad - ascent
+
+                    return max(min(ideal, max_base), min_base)
 
                 # ----------------------------
                 # 5) Tighter label anchor (same-line requirement)
@@ -130,43 +179,6 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     if len(picked_lines) == 2:
                         break
 
-                # Font choice and metrics for positioning
-                font_name = "TimesNewRoman"
-                font_size = 10
-
-                def compute_baseline_between_rules(y_a_from_bottom: float, y_b_from_bottom: float) -> float:
-                    """
-                    Compute a baseline Y that places the text box centered between two rules,
-                    with padding so it never touches either rule.
-                
-                    Uses actual font metrics from the registered Times New Roman font,
-                    plus a small downward bias (scaled by font size) to avoid riding high.
-                    """
-                    # Get true font metrics (1000-em units -> points)
-                    f = pdfmetrics.getFont(font_name)
-                    ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
-                    descent = (abs(float(getattr(f.face, "descent", -220))) / 1000.0) * font_size
-                
-                    # Padding inside the band so text never touches the rules
-                    pad = font_size * 0.20  # ~2pt at 10pt
-                
-                    # Small downward bias so text sits visually “between” the rules (not kissing the top)
-                    # (still clamped below, so it can’t hit the lower line)
-                    bias_down = font_size * 0.10  # ~1pt at 10pt
-                
-                    lo = min(y_a_from_bottom, y_b_from_bottom)
-                    hi = max(y_a_from_bottom, y_b_from_bottom)
-                    mid = (lo + hi) / 2.0
-                
-                    # Baseline that centers the text box in the band
-                    ideal = mid - ((ascent - descent) / 2.0) - bias_down
-                
-                    # Clamp baseline so the entire glyph box stays inside the rules with padding
-                    min_base = lo + pad + descent
-                    max_base = hi - pad - ascent
-                
-                    return max(min(ideal, max_base), min_base)
-
                 if len(picked_lines) == 2:
                     y1_from_bottom = page_height - picked_lines[0]["y"]
                     y2_from_bottom = page_height - picked_lines[1]["y"]
@@ -221,18 +233,6 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                         name_x = 63
                         log("No vector/underscore lines found reliably; using label-based fallback")
                         log(f"Placing '{certifying_officer_name}' at (X={name_x}, Y={name_y:.1f})")
-
-                # ----------------------------
-                # Register Times New Roman from repo root
-                # ----------------------------
-                if font_name not in pdfmetrics.getRegisteredFontNames():
-                    font_path = os.path.abspath(
-                        os.path.join(os.path.dirname(__file__), "..", "..", "Times_New_Roman.ttf")
-                    )
-                    if not os.path.exists(font_path):
-                        raise FileNotFoundError(f"Times_New_Roman.ttf not found at: {font_path}")
-                    pdfmetrics.registerFont(TTFont(font_name, font_path))
-                    log(f"Registered font {font_name} from {font_path}")
 
                 # Build overlay on the ACTUAL TORIS page size, not letter
                 buf = io.BytesIO()
