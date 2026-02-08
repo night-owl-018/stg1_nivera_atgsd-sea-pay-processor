@@ -5,6 +5,7 @@ import zipfile
 import shutil
 import threading
 import re
+import csv
 from flask import Blueprint, request, jsonify, send_file, send_from_directory
 
 from app.core.logger import (
@@ -878,37 +879,60 @@ def get_certifying_officer():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
-@bp.route("/api/certifying_officer", methods=["POST"])
-def set_certifying_officer():
+@bp.route("/api/certifying_officer_choices", methods=["GET"])
+def get_certifying_officer_choices():
     """
-    Set certifying officer information.
-    Expects JSON: { "rate": "...", "last_name": "...", "first_name": "...", "middle_name": "..." }
+    Return certifying-officer choices from config/atgsd_n811.csv
+
+    CSV headers expected:
+      rate,last,first
+
+    The "first" field may include a middle initial (e.g. "RYAN N")
     """
-    from app.core.config import save_certifying_officer
-    
     try:
-        data = request.get_json() or {}
-        rate = data.get("rate", "").strip()
-        last_name = data.get("last_name", "").strip()
-        first_name = data.get("first_name", "").strip()
-        middle_name = data.get("middle_name", "").strip()
-        
-        if not last_name:
-            return jsonify({"status": "error", "error": "Last name is required"}), 400
-        
-        success = save_certifying_officer(rate, last_name, first_name, middle_name)
-        
-        if success:
-            first_initial = first_name[0] if first_name else ""
-            middle_initial = middle_name[0] if middle_name else ""
-            log(f"CERTIFYING OFFICER UPDATED → {rate} {last_name}, {first_initial}. {middle_initial}.")
-            return jsonify({
-                "status": "success",
-                "message": "Certifying officer information saved successfully"
-            })
-        else:
-            return jsonify({"status": "error", "error": "Failed to save certifying officer information"}), 500
-            
+        choices = []
+
+        if not os.path.exists(RATE_FILE):
+            return jsonify({"status": "success", "choices": choices})
+
+        def clean(v):
+            return (v or "").replace("\t", " ").strip().upper()
+
+        with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rate = clean(row.get("rate"))
+                last = clean(row.get("last"))
+                first_raw = clean(row.get("first"))
+
+                if not last:
+                    continue
+
+                parts = re.split(r"\s+", first_raw)
+                first_name = parts[0] if parts else ""
+                middle_initial = ""
+
+                if len(parts) > 1:
+                    middle = re.sub(r"[^A-Z]", "", parts[1])
+                    middle_initial = middle[:1] if middle else ""
+
+                display = f"{rate} {last}, {first_name}"
+                if middle_initial:
+                    display += f" {middle_initial}."
+
+                choices.append({
+                    "rate": rate,
+                    "last_name": last,
+                    "first_name": first_name,
+                    "middle_initial": middle_initial,
+                    "display": display,
+                })
+
+        choices.sort(key=lambda x: (x["last_name"], x["first_name"], x["rate"]))
+        return jsonify({"status": "success", "choices": choices})
+
     except Exception as e:
-        log(f"SET CERTIFYING OFFICER ERROR → {e}")
+        log(f"CERTIFYING OFFICER CHOICES ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
