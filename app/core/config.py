@@ -113,29 +113,28 @@ def get_certifying_officer_name():
     """
     Get formatted certifying officer name for display on TORIS forms.
     Returns formatted name or empty string if not set.
-    Format: "RATE LAST_NAME, F. M." (e.g., "STG1 NIVERA, R. N.")
+    Format: "LAST_NAME, FULL_FIRST_NAME M." (e.g., "NIVERA, RYAN N.")
+    NOTE: No rate prefix, full first name, middle initial only
     """
     officer = load_certifying_officer()
     if not officer or not officer.get('last_name'):
         return ""
     
-    parts = []
-    if officer.get('rate'):
-        parts.append(officer['rate'])
+    # Build name as: LASTNAME, FIRSTNAME M.
+    name_parts = [officer['last_name']]
     
-    if officer.get('last_name'):
-        name = officer['last_name']
-        if officer.get('first_name'):
-            # Take first letter of first name
-            first_initial = officer['first_name'][0].upper()
-            name += f", {first_initial}."
-            if officer.get('middle_name'):
-                # Take first letter of middle name
-                middle_initial = officer['middle_name'][0].upper()
-                name += f" {middle_initial}."
-        parts.append(name)
+    if officer.get('first_name'):
+        # Use FULL first name (not just initial)
+        first_name = officer['first_name'].upper()
+        
+        if officer.get('middle_name'):
+            # Add middle initial with period
+            middle_initial = officer['middle_name'][0].upper()
+            name_parts.append(f"{first_name} {middle_initial}.")
+        else:
+            name_parts.append(first_name)
     
-    return " ".join(parts)
+    return ", ".join(name_parts)
 
 
 def get_certifying_officer_name_pg13():
