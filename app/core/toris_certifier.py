@@ -33,6 +33,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
       8) Registers the font BEFORE any calls to pdfmetrics.getFont() or setFont() (fixes KeyError 'TimesNewRoman').
       9) DEBUG: prints baseline clamp math so we can prove if you’re clamping to the same Y each run.
      10) DEBUG: prints a patch fingerprint so you can confirm the container is running this exact version.
+     11) PATCH: reduce pad + relax lower clamp slightly so baseline can sit lower (avoid touching top rule).
 
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -40,7 +41,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
     """
     try:
         # 🔎 PATCH: fingerprint for runtime verification
-        log("TORIS CERT PATCH CHECK → compute_baseline_between_rules DEBUG v2026-02-08-01")
+        log("TORIS CERT PATCH CHECK → compute_baseline_between_rules DEBUG v2026-02-08-02")
 
         certifying_officer_name = get_certifying_officer_name()
 
@@ -83,8 +84,12 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 def compute_baseline_between_rules(y_a_from_bottom: float, y_b_from_bottom: float) -> float:
                     """
                     Place the baseline inside the two signature rules.
-                    Uses real Times New Roman font metrics and positions the text
-                    slightly BELOW center so it never rides high.
+
+                    IMPORTANT:
+                    On TORIS the band between rules is often very tight. If we use conservative
+                    ascent/descent + padding, the clamp will force us to min_base every time.
+                    This patch reduces padding and relaxes the lower clamp slightly so the
+                    baseline can sit lower and stop kissing the upper rule.
                     """
                     f = pdfmetrics.getFont(font_name)
                     ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
@@ -94,8 +99,8 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     lo = min(y_a_from_bottom, y_b_from_bottom)
                     hi = max(y_a_from_bottom, y_b_from_bottom)
 
-                    # Small padding from rules
-                    pad = font_size * 0.12
+                    # PATCH: smaller padding from rules (was 0.12)
+                    pad = font_size * 0.06  # ~0.6pt @ 10pt
 
                     # Total text height
                     text_h = ascent + descent
@@ -103,12 +108,11 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     band_h = hi - lo
                     free = band_h - (2 * pad) - text_h
 
-                    # Safety fallback (extremely rare)
+                    # Safety fallback (extremely rare): keep it simple and safe
                     if free < 0:
                         min_base = lo + pad + descent
                         max_base = hi - pad - ascent
 
-                        # 🔎 PATCH: clamp debug for fallback too
                         raw = (lo + hi) / 2.0
                         log(
                             "BASELINE DEBUG (free<0) → "
@@ -117,7 +121,6 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                             f"band_h={band_h:.2f} free={free:.2f} raw={raw:.2f} "
                             f"min_base={min_base:.2f} max_base={max_base:.2f}"
                         )
-
                         return max(min(raw, max_base), min_base)
 
                     # 🔑 Key control:
@@ -127,11 +130,17 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     baseline = lo + pad + descent + (free * frac)
 
                     # extra small downward nudge (still scaled to font size, not a fixed Y)
-                    baseline -= (font_size * 0.30)
+                    baseline -= (font_size * 0.30)  # ~3.0pt? no, 0.30*10=3.0pt
 
-                    # Final clamp bounds
-                    min_base = lo + pad + descent
-                    max_base = hi - pad - ascent
+                    # PATCH: relaxed clamp bounds (this is what changes the final result)
+                    effective_descent = descent * 0.55   # allows a slightly lower baseline
+                    effective_ascent = ascent * 0.95     # keep top safety mostly intact
+
+                    min_base = lo + pad + effective_descent
+                    max_base = hi - pad - effective_ascent
+
+                    # tiny extra down nudge (still clamped)
+                    baseline -= (font_size * 0.05)  # ~0.5pt @ 10pt
 
                     # 🔎 PATCH: full clamp debug
                     log(
