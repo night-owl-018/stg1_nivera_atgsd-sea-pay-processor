@@ -189,7 +189,7 @@ def make_consolidated_all_missions_pdf(
 
     # ✅ Certifying officer name: centered, no rate, no auto-periods, LOWER (closer to underline)
     certifying_officer_name = get_certifying_officer_name_pg13()
-    _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=6)
+    _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=1.5)
 
     # Always show the FI MI Last Name label below
     c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
@@ -283,7 +283,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
 
     # ✅ Certifying officer name: centered + LOWER (closer to underline)
     certifying_officer_name = get_certifying_officer_name_pg13()
-    _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
+    _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
 
     # Always show the FI MI Last Name label below
     c.drawString(384.1, 415.2, "FI MI Last Name")
@@ -374,7 +374,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
 
         # ✅ Certifying officer name: centered + LOWER (closer to underline)
         certifying_officer_name = get_certifying_officer_name_pg13()
-        _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
+        _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
 
         # Always show the FI MI Last Name label below
         c.drawString(384.1, 415.2, "FI MI Last Name")
