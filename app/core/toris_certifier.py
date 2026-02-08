@@ -16,8 +16,14 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
     """
     Add the certifying officer's name to a TORIS Sea Duty Certification Sheet PDF.
     
-    The name is added ABOVE the "PRINTED NAME OF CERTIFYING OFFICER" line,
-    dynamically finding the label position rather than using fixed coordinates.
+    The name is placed BETWEEN two underscore lines, ABOVE the 
+    "PRINTED NAME OF CERTIFYING OFFICER" label.
+    
+    Layout:
+    ___________________________________  (first underscore)
+    STG1 NIVERA, R. N.                   (name - placed here)
+    ___________________________________  (second underscore)
+    PRINTED NAME OF CERTIFYING OFFICER   (label)
     
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -35,58 +41,17 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 shutil.copy2(input_pdf_path, output_pdf_path)
             return
         
-        # Read the PDF to find the position of "PRINTED NAME OF CERTIFYING OFFICER"
-        reader = PdfReader(input_pdf_path)
-        target_page_index = len(reader.pages) - 1  # Last page (where signature section is)
-        target_page = reader.pages[target_page_index]
+        # COORDINATES for certifying officer name:
+        # Based on TORIS form structure where:
+        # - "PRINTED NAME OF CERTIFYING OFFICER" label is around Y=361
+        # - Second underscore line is about 12 points above label (Y=373)
+        # - Name goes about 6 points above the second underscore (Y=379)
+        # This places the name in the space between the two underscore lines
         
-        # Try to find the Y-position by searching in the page's content stream
-        y_position = None
-        x_position = 63  # Default X position
+        x_position = 63   # Left margin alignment
+        y_position = 379  # Between the two underscore lines
         
-        try:
-            # Extract text to verify the label exists
-            text_content = target_page.extract_text()
-            
-            if "PRINTED NAME OF CERTIFYING OFFICER" in text_content:
-                # The label exists - now we need to find its position
-                # Since PyPDF2 doesn't give us easy coordinate access, we'll use pdfplumber
-                try:
-                    import pdfplumber
-                    
-                    with pdfplumber.open(input_pdf_path) as pdf:
-                        page = pdf.pages[target_page_index]
-                        
-                        # Search for the text
-                        words = page.extract_words()
-                        
-                        for word in words:
-                            if "PRINTED" in word['text'] and "NAME" in text_content:
-                                # Found it! The word dict has 'top', 'bottom', 'x0', 'x1'
-                                # Convert from pdfplumber coords (top-down) to ReportLab coords (bottom-up)
-                                page_height = float(page.height)
-                                label_y_from_top = word['top']
-                                label_y_from_bottom = page_height - label_y_from_top
-                                
-                                # Place name about 12-15 points ABOVE the label
-                                y_position = label_y_from_bottom + 15
-                                x_position = word['x0']  # Align with label
-                                
-                                log(f"Found 'PRINTED NAME' at Y={label_y_from_bottom:.1f}, placing name at Y={y_position:.1f}")
-                                break
-                
-                except ImportError:
-                    log("pdfplumber not available, using fallback positioning")
-                except Exception as e:
-                    log(f"Error using pdfplumber: {e}")
-        
-        except Exception as e:
-            log(f"Error extracting text: {e}")
-        
-        # If we couldn't find it dynamically, use a reasonable default
-        if y_position is None:
-            y_position = 165
-            log(f"Using default Y position: {y_position}")
+        log(f"Placing '{certifying_officer_name}' at (X={x_position}, Y={y_position})")
         
         # Create an overlay with the certifying officer name
         buf = io.BytesIO()
@@ -102,8 +67,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
         overlay = PdfReader(buf)
         writer = PdfWriter()
         
-        # Merge the overlay onto the first page (TORIS sheets are typically single page)
-        # For multi-page TORIS sheets, we add to the last page
+        # Merge the overlay onto the last page (where signature section is)
         for i, page in enumerate(reader.pages):
             if i == len(reader.pages) - 1:  # Last page
                 page.merge_page(overlay.pages[0])
@@ -113,7 +77,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
         with open(output_pdf_path, "wb") as f:
             writer.write(f)
         
-        log(f"ADDED CERTIFYING OFFICER TO TORIS → {certifying_officer_name} in {os.path.basename(output_pdf_path)}")
+        log(f"✅ ADDED CERTIFYING OFFICER TO TORIS → {certifying_officer_name}")
         
     except Exception as e:
         log(f"⚠️ ERROR ADDING CERTIFYING OFFICER TO TORIS → {e}")
