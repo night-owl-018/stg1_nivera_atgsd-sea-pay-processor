@@ -103,12 +103,12 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 
                     # 🔑 Key control:
                     # smaller = lower placement, larger = higher placement
-                    frac = 0.30  # was 0.42 (too high on TORIS)
+                    frac = 0.26  # was 0.42 (too high on TORIS)
                     
                     baseline = lo + pad + descent + (free * frac)
                     
                     # extra small downward nudge (still scaled to font size, not a fixed Y)
-                    baseline -= (font_size * 0.12)  # ~1.2pt at 10pt
+                    baseline -= (font_size * 0.18)  # ~1.2pt at 10pt
                 
                     # Final clamp
                     min_base = lo + pad + descent
