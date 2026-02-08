@@ -54,7 +54,7 @@ def flatten_pdf(path):
 # INTERNAL HELPER: Draw centered certifying officer name,
 # slightly LOWER (closer to the signature line below)
 # ------------------------------------------------
-def _draw_centered_certifying_officer(c, sig_line_left_x, sig_line_y, name, y_above_line=6):
+def _draw_centered_certifying_officer(c, sig_line_left_x, sig_line_y, name, y_above_line=1.5):
     """
     Centers `name` horizontally over the signature underline, and places it
     y_above_line points ABOVE the underline (lower than the old placement).
