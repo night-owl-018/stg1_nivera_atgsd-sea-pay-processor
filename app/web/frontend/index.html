@@ -25,7 +25,7 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     img, svg, video, canvas { max-width: 100%; height: auto; }
-    
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       background: radial-gradient(900px 380px at 50% -60px, rgba(90,160,255,0.22), transparent 60%),
@@ -47,7 +47,7 @@
       backdrop-filter: blur(14px);
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    
+
     .header-inner {
       max-width: 1600px;
       margin: 0 auto;
@@ -57,7 +57,7 @@
       gap: 16px;
       position: relative;
     }
-    
+
     .header-inner::after {
       content: "";
       position: absolute;
@@ -78,20 +78,20 @@
       align-items: center;
       flex: 1;
     }
-    
+
     .subtitle {
       font-size: clamp(11px, 1.6vw, 13px);
       opacity: 0.88;
       margin-top: 2px;
       color: rgba(245,248,255,0.72);
     }
-    
+
     .header-buttons {
       display: flex;
       gap: 8px;
       align-items: center;
     }
-    
+
     .header-btn {
       padding: 8px 14px;
       border-radius: 10px;
@@ -108,7 +108,7 @@
       gap: 6px;
       text-decoration: none;
     }
-    
+
     .header-btn:hover {
       background: rgba(255,255,255,0.08);
       border-color: rgba(111,183,255,0.35);
@@ -139,7 +139,7 @@
       backdrop-filter: blur(10px);
       position: relative;
     }
-    
+
     .card::before {
       content: "";
       position: absolute;
@@ -149,7 +149,7 @@
                   radial-gradient(420px 150px at 85% 10%, rgba(22,199,132,0.08), transparent 60%);
       opacity: 0.8;
     }
-    
+
     .card > * { position: relative; }
 
     .card h3 {
@@ -164,7 +164,7 @@
       align-items: center;
       gap: 8px;
     }
-    
+
     .card .body { padding: 10px; }
 
     /* Form Elements */
@@ -176,7 +176,7 @@
       color: var(--text-secondary);
     }
 
-    input[type=file], select, textarea {
+    input[type=file], select, textarea, input[type=text] {
       width: 100%;
       padding: 7px 8px;
       border: 1px solid rgba(255,255,255,0.12);
@@ -188,7 +188,7 @@
       outline: none;
       font-family: inherit;
     }
-    
+
     input[type=file]::file-selector-button {
       border: 1px solid rgba(255,255,255,0.14);
       background: rgba(255,255,255,0.06);
@@ -199,21 +199,21 @@
       cursor: pointer;
       transition: all 0.18s ease;
     }
-    
+
     input[type=file]::file-selector-button:hover {
       background: rgba(255,255,255,0.09);
       border-color: rgba(120,190,255,0.30);
     }
-    
-    input[type=file]:hover, select:hover, textarea:hover {
+
+    input[type=file]:hover, select:hover, textarea:hover, input[type=text]:hover {
       border-color: rgba(120,190,255,0.35);
     }
-    
-    input[type=file]:focus, select:focus, textarea:focus {
+
+    input[type=file]:focus, select:focus, textarea:focus, input[type=text]:focus {
       border-color: rgba(120,190,255,0.55);
       box-shadow: 0 0 0 3px rgba(120,190,255,0.18);
     }
-    
+
     textarea {
       resize: vertical;
       min-height: 34px;
@@ -240,12 +240,12 @@
       padding: 7px 10px;
       font-size: 12px;
     }
-    
+
     button:disabled {
       opacity: 0.55;
       cursor: not-allowed;
     }
-    
+
     button:not(:disabled):active {
       transform: scale(0.99);
     }
@@ -256,7 +256,7 @@
       border-color: rgba(111,183,255,0.26);
       box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
-    
+
     .btn-primary:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(111,183,255,0.42);
@@ -268,7 +268,7 @@
       color: var(--text-primary);
       border-color: rgba(255,255,255,0.10);
     }
-    
+
     .btn-secondary:not(:disabled):hover {
       background: rgba(255,255,255,0.06);
       border-color: rgba(111,183,255,0.24);
@@ -280,7 +280,7 @@
       color: var(--text-primary);
       border-color: rgba(255,91,107,0.32);
     }
-    
+
     .btn-danger:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(255,91,107,0.45);
@@ -293,7 +293,7 @@
       border-color: rgba(22,199,132,0.30);
       box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
-    
+
     .btn-success:not(:disabled):hover {
       transform: translateY(-1px);
       border-color: rgba(22,199,132,0.42);
@@ -306,7 +306,7 @@
       gap: 6px;
       margin-top: 6px;
     }
-    
+
     .btn-row button {
       width: 100%;
     }
@@ -317,7 +317,7 @@
       gap: 6px;
       margin-top: 6px;
     }
-    
+
     .system-actions button {
       width: 100%;
     }
@@ -337,7 +337,7 @@
       position: relative;
       overflow: hidden;
     }
-    
+
     .status::before {
       content: '';
       width: 8px;
@@ -349,7 +349,7 @@
       position: relative;
       z-index: 1;
     }
-    
+
     .status::after {
       content: "";
       position: absolute;
@@ -360,11 +360,11 @@
       transition: width 250ms ease, opacity 200ms ease;
       z-index: 0;
     }
-    
+
     .status[data-has-pct="1"]::after {
       opacity: 1;
     }
-    
+
     #statusText {
       position: relative;
       z-index: 1;
@@ -381,7 +381,7 @@
       gap: 8px;
       margin-left: auto;
     }
-    
+
     .stat-badge {
       display: inline-flex;
       align-items: center;
@@ -393,13 +393,13 @@
       border: 1px solid;
       white-space: nowrap;
     }
-    
+
     .stat-badge.valid {
       background: rgba(22,199,132,0.16);
       color: rgba(22,199,132,1);
       border-color: rgba(22,199,132,0.35);
     }
-    
+
     .stat-badge.invalid {
       background: rgba(255,91,107,0.16);
       color: rgba(255,91,107,1);
@@ -414,7 +414,7 @@
       background: rgba(6,10,18,0.40);
       margin-top: 6px;
     }
-    
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -422,14 +422,14 @@
       min-width: 900px;
       color: var(--text-primary);
     }
-    
+
     thead {
       background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       position: sticky;
       top: 0;
       z-index: 10;
     }
-    
+
     th {
       padding: 8px 10px;
       text-align: left;
@@ -441,25 +441,25 @@
       border-bottom: 1px solid rgba(255,255,255,0.10);
       white-space: nowrap;
     }
-    
+
     td {
       padding: 7px 10px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       vertical-align: middle;
     }
-    
+
     tr:last-child td {
       border-bottom: none;
     }
-    
+
     tr.valid {
       background: rgba(22,199,132,0.09);
     }
-    
+
     tr.invalid {
       background: rgba(255,91,107,0.09);
     }
-    
+
     tr:hover {
       background: rgba(255,255,255,0.04);
     }
@@ -470,14 +470,14 @@
       gap: 10px;
       position: relative;
     }
-    
+
     .override-wrap select {
       width: auto;
       min-width: 140px;
       padding: 8px 10px;
       font-size: 13px;
     }
-    
+
     .override-wrap.dirty::after {
       content: '●';
       color: var(--warning);
@@ -545,36 +545,36 @@
       overflow-y: auto;
       backdrop-filter: blur(8px);
     }
-    
+
     .modal-content {
       max-width: 900px;
       margin: 40px auto;
       padding: 20px;
     }
-    
+
     .modal h4 {
       color: var(--accent);
       margin-top: 24px;
       font-size: 16px;
     }
-    
+
     .modal h4:first-of-type {
       margin-top: 0;
     }
-    
+
     .modal p, .modal ul, .modal ol {
       line-height: 1.8;
       font-size: 14px;
     }
-    
+
     .modal ul, .modal ol {
       padding-left: 20px;
     }
-    
+
     .modal a {
       color: var(--accent);
     }
-    
+
     /* New Style for Review Modal Controls */
     .review-controls-grid {
       display: grid;
@@ -589,14 +589,13 @@
       }
     }
 
-
     /* Footer */
     .app-footer {
       max-width: 1600px;
       margin: 16px auto 22px;
       padding: 0 16px;
     }
-    
+
     .footer-inner {
       padding: 12px 14px;
       border: 1px solid rgba(255,255,255,0.10);
@@ -607,13 +606,13 @@
       color: rgba(245,248,255,0.55);
       font-size: 12px;
     }
-    
+
     .app-footer a {
       color: rgba(170,205,255,0.95);
       font-weight: 850;
       text-decoration: none;
     }
-    
+
     .app-footer a:hover {
       text-decoration: underline;
     }
@@ -635,11 +634,11 @@
       .btn-row, .system-actions {
         grid-template-columns: 1fr;
       }
-      
+
       table {
         min-width: 860px;
       }
-      
+
       .header-buttons {
         flex-wrap: wrap;
       }
@@ -655,10 +654,10 @@
         <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
       </div>
       <div class="header-buttons">
-        <a href="https://github.com/night-owl-018/stg1_nivera_atgsd-sea-pay-processor/tree/main" 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="header-btn" 
+        <a href="https://github.com/night-owl-018/stg1_nivera_atgsd-sea-pay-processor/tree/main"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="header-btn"
            title="View source code on GitHub">
           <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
@@ -675,7 +674,7 @@
   <div class="wrap">
     <!-- First Row: Input, System, Downloads, Custom -->
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;">
-      
+
       <!-- INPUT FILES -->
       <div class="card">
         <h3>📂 Files</h3>
@@ -712,16 +711,16 @@
             <input type="checkbox" id="consolidatePG13">
             <span>Consolidate PG-13s (one per ship)</span>
           </label>
-          
+
           <div style="height:4px;"></div>
-          
+
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
             <input type="checkbox" id="consolidateAllMissions">
             <span>Consolidate All Missions (one per member)</span>
           </label>
-          
+
           <div style="height:8px;"></div>
-          
+
           <label>Action</label>
           <select id="actionSelect" style="margin-bottom: 6px;">
             <option value="">Select action</option>
@@ -729,7 +728,7 @@
             <option value="cancel" disabled id="cancelOption">⏹️ Cancel Processing</option>
             <option value="reset">🗑️ Reset All Data</option>
           </select>
-          
+
           <button type="button" id="actionGoBtn" class="btn-primary" disabled style="width: 100%;">
             ⚡ Go
           </button>
@@ -824,7 +823,7 @@
           <button onclick="hideModal('helpModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
         </h3>
         <div class="body" style="max-height: 75vh; overflow-y: auto;">
-          
+
           <div style="background: rgba(111,183,255,0.1); padding: 16px; border-radius: 10px; border-left: 4px solid var(--accent); margin-bottom: 24px;">
             <h4 style="margin: 0 0 12px 0; color: var(--accent); font-size: 16px;">🚀 Quick Start (First Time Users)</h4>
             <ol style="margin: 0; padding-left: 20px; line-height: 1.8;">
@@ -840,9 +839,9 @@
           </p>
 
           <h4 style="color: var(--accent); margin-top: 0;">🖥️ Main Interface Overview</h4>
-          
+
           <div style="display: grid; gap: 12px; margin-bottom: 24px;">
-            
+
             <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid #6fb7ff;">
               <div style="font-weight: 700; margin-bottom: 8px; color: #6fb7ff;">📂 Files - Upload Your Documents</div>
               <ul style="margin: 0; padding-left: 20px; line-height: 1.6; font-size: 14px;">
@@ -881,7 +880,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- CUSTOM DOWNLOAD MODAL -->
   <div id="customModal" class="modal">
     <div class="modal-content">
@@ -894,22 +893,22 @@
           <div style="font-size: 12px; color: rgba(245,248,255,0.72); margin-bottom: 10px;">
             Select members and file types to download or merge into a package:
           </div>
-          
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
             <button class="btn-secondary" type="button" id="selectAllBtn">☑ Select All</button>
             <button class="btn-secondary" type="button" id="deselectAllBtn">☐ Deselect All</button>
           </div>
-          
+
           <div id="memberSelectionList" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; background: rgba(6,10,18,0.35); margin-bottom: 12px;">
             <div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px; font-size: 12px;">
               Process files first to see member list
             </div>
           </div>
-          
+
           <div id="selectionSummary" style="padding: 10px; background: rgba(111,183,255,0.1); border-radius: 10px; font-size: 13px; text-align: center; color: rgba(245,248,255,0.82); margin-bottom: 12px;">
             Selection: <span id="selectedCount">0 members, 0 items</span>
           </div>
-          
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <button class="btn-success" type="button" id="downloadCustomBtn" disabled>📥 Download ZIP</button>
             <button class="btn-primary" type="button" id="mergeCustomBtn" disabled>📦 Merge to PDF</button>
@@ -977,7 +976,7 @@
               </button>
             </div>
           </div>
-          
+
           <div style="height: 12px; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;"></div>
 
           <div class="hint" id="reviewHint">
@@ -1020,7 +1019,7 @@
             </div>
           </div>
         </div>
-        
+
         <div style="padding: 12px; border-top: 1px solid rgba(255,255,255,0.1); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.05)); display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <button type="button" id="saveOverridesBtn" class="btn-success">💾 Save Overrides</button>
           <button type="button" id="rebuildBtn" class="btn-primary">🔄 Rebuild Outputs</button>
@@ -1049,11 +1048,100 @@
     </div>
   </div>
 
+  <!-- CERTIFYING OFFICER MODAL -->
+  <div id="certifyingOfficerModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="card">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>👤 Set Certifying Officer</span>
+          <button onclick="hideModal('certifyingOfficerModal')" class="btn-danger" style="width: auto; padding: 8px 16px;">✕ Close</button>
+        </h3>
+
+        <div class="body">
+          <p style="margin-bottom: 16px; color: rgba(245,248,255,0.72); font-size: 13px;">
+            Enter the certifying officer information. This name will appear on TORIS certification sheets and PG-13 forms.
+          </p>
+
+          <button type="button"
+                  class="btn-secondary"
+                  style="width: 100%; margin-bottom: 10px;"
+                  onclick="showModal('certOfficerPickModal'); loadCertOfficerPickList();">
+            📋 Pick from N811 list
+          </button>
+
+          <form id="certifyingOfficerForm" style="display: grid; gap: 12px;">
+            <div>
+              <label>Rate *</label>
+              <input type="text" id="certifyingOfficerRate" placeholder="e.g., STG1" required style="text-transform: uppercase;">
+            </div>
+
+            <div>
+              <label>Last Name *</label>
+              <input type="text" id="certifyingOfficerLastName" placeholder="e.g., SAILOR" required style="text-transform: uppercase;">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label>First Name *</label>
+                <input type="text" id="certifyingOfficerFirstName" placeholder="e.g., ROGER" required style="text-transform: uppercase;">
+              </div>
+
+              <div>
+                <label>Middle Initial</label>
+                <input type="text" id="certifyingOfficerMiddleName" placeholder="e.g., T" maxlength="1" style="text-transform: uppercase;">
+              </div>
+            </div>
+
+            <div style="margin-top: 8px; padding: 12px; background: rgba(111,183,255,0.08); border-radius: 10px; border: 1px solid rgba(111,183,255,0.2);">
+              <div style="font-size: 11px; font-weight: 650; margin-bottom: 6px; color: rgba(111,183,255,0.95);">Preview:</div>
+              <div id="certifyingOfficerPreview" style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: rgba(245,248,255,0.95);">
+                (Enter information above)
+              </div>
+            </div>
+
+            <div id="certifyingOfficerStatus" style="display:none; margin-top: 6px; padding: 10px; border-radius: 10px; text-align: center; font-size: 12px; font-weight: 650;"></div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px;">
+              💾 Save Certifying Officer
+            </button>
+          </form>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- CERTIFYING OFFICER PICKER MODAL (N811) -->
+  <div id="certOfficerPickModal" class="modal">
+    <div class="modal-content" style="max-width: 750px;">
+      <div class="card">
+        <h3 style="display:flex; justify-content:space-between; align-items:center;">
+          <span>📋 Select Certifying Officer (N811)</span>
+          <button onclick="hideModal('certOfficerPickModal')" class="btn-danger" style="width:auto; padding:8px 16px;">✕ Close</button>
+        </h3>
+
+        <div class="body">
+          <div style="margin-bottom: 10px;">
+            <label>Search</label>
+            <input type="text" id="certOfficerPickSearch" placeholder="Type last name, rate, or first name..." style="width:100%;">
+          </div>
+
+          <div id="certOfficerPickList"
+               style="max-height: 360px; overflow-y:auto; border:1px solid rgba(255,255,255,0.10); border-radius:10px; padding:10px; background: rgba(6,10,18,0.35);">
+            <div style="text-align:center; color: rgba(245,248,255,0.55); padding: 18px; font-size: 12px;">
+              Loading list...
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+            <button type="button" class="btn-secondary" onclick="clearCertOfficerPickSelection()">☐ Clear</button>
+            <button type="button" class="btn-success" onclick="applySelectedCertOfficer()">✅ Set Selected</button>
+          </div>
+
+          <div id="certOfficerPickStatus" style="display:none; margin-top:10px; padding:10px; border-radius:10px; text-align:center; font-size:12px; font-weight:650;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <footer class="app-footer">
     <div class="footer-inner">
@@ -1064,7 +1152,7 @@
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     // Utility functions
     const $ = id => document.getElementById(id);
-    
+
     // Modal functions
     window.showModal = function(modalId) {
       const modal = $(modalId);
@@ -1075,7 +1163,7 @@
         console.error('Modal not found:', modalId);
       }
     };
-    
+
     window.hideModal = function(modalId) {
       const modal = $(modalId);
       if (modal) {
@@ -1083,7 +1171,7 @@
         document.body.style.overflow = '';
       }
     };
-    
+
     document.addEventListener('click', e => {
       if (e.target.classList.contains('modal')) hideModal(e.target.id);
     });
@@ -1093,9 +1181,9 @@
       const body = $(modalId + 'Body');
       const icon = $(modalId + 'MaximizeIcon');
       if (!content) return;
-      
+
       const isMaximized = content.getAttribute('data-maximized') === 'true';
-      
+
       if (isMaximized) {
         content.style.maxWidth = modalId === 'reviewModal' ? '1400px' : '1200px';
         content.style.width = '';
@@ -1211,20 +1299,20 @@
       btn.disabled = this.value === '';
       btn.className = this.value === 'reset' ? 'btn-danger' : 'btn-primary';
     });
-    
+
     // Make consolidate checkboxes mutually exclusive
     $('consolidatePG13').addEventListener('change', function() {
       if (this.checked) {
         $('consolidateAllMissions').checked = false;
       }
     });
-    
+
     $('consolidateAllMissions').addEventListener('change', function() {
       if (this.checked) {
         $('consolidatePG13').checked = false;
       }
     });
-    
+
     // Action Go button handler
     $('actionGoBtn').addEventListener('click', async () => {
       const action = $('actionSelect').value;
@@ -1263,11 +1351,11 @@
     // Downloads
     $('downloadMergedBtn').addEventListener('click', () => window.location = '/download_merged');
     $('downloadAllBtn').addEventListener('click', () => window.location = '/download_all');
-    
+
     $('memberFileTypeSelect').addEventListener('change', function() {
       $('downloadMemberFileBtn').disabled = !this.value || !currentMember;
     });
-    
+
     $('downloadMemberFileBtn').addEventListener('click', () => {
       const fileType = $('memberFileTypeSelect').value;
       if (!currentMember || !fileType) return;
@@ -1287,13 +1375,13 @@
         const sel = $('memberSelect');
         const current = sel.value;
         sel.innerHTML = '<option value="">Select member</option>';
-        
+
         customSelections = {};
         members.forEach(m => {
           sel.appendChild(new Option(m, m));
           customSelections[m] = {enabled: false, summary: false, toris: false, pg13: false};
         });
-        
+
         if (current && members.includes(current)) sel.value = current;
         currentMember = sel.value;
         renderMemberList();
@@ -1314,19 +1402,19 @@
         const members = await apiGet('/api/members');
         const sel = $('memberSelect');
         sel.innerHTML = '<option value="">Select member</option>';
-        
+
         if (members.length === 0) {
           sel.innerHTML = '<option value="">No members found - process files first</option>';
           return;
         }
-        
+
         members.forEach(m => {
           const opt = document.createElement('option');
           opt.value = m;
           opt.textContent = m;
           sel.appendChild(opt);
         });
-        
+
         console.log(`Loaded ${members.length} members`);
       } catch (e) {
         console.error('Load members error:', e);
@@ -1337,11 +1425,11 @@
     async function loadSheets() {
       pendingOverrides = {};
       const hasMember = !!currentMember;
-      
+
       $('memberFileTypeSelect').disabled = !hasMember;
       $('downloadMemberFileBtn').disabled = !hasMember || !$('memberFileTypeSelect').value;
       if (!hasMember) $('memberFileTypeSelect').value = '';
-      
+
       const sheetSelect = $('sheetSelect');
       sheetSelect.innerHTML = '<option value="">Select sheet</option>';
       sheetSelect.disabled = !hasMember;
@@ -1353,9 +1441,9 @@
       $('reviewHint').textContent = hasMember ? 'Select a sheet to review' : '👆 Select a member to begin review';
       $('reviewTablesContainer').style.display = 'none';
       ['validCountModal', 'invalidCountModal'].forEach(id => $(id).textContent = '0');
-      
+
       if (!hasMember) return;
-      
+
       try {
         const sheets = await apiGet(`/api/member/${encodeURIComponent(currentMember)}/sheets`);
         sheets.forEach(s => sheetSelect.appendChild(new Option(s, s)));
@@ -1375,15 +1463,15 @@
       $('reviewHint').style.display = 'block';
       $('reviewTablesContainer').style.display = 'none';
       $('reviewHint').textContent = 'Loading...';
-      
+
       try {
         const data = await apiGet(`/api/member/${encodeURIComponent(currentMember)}/sheet/${encodeURIComponent(currentSheet)}`);
         const valid = data.valid_rows || [];
         const invalid = data.invalid_events || [];
-        
+
         $('validCountModal').textContent = valid.length;
         $('invalidCountModal').textContent = invalid.length;
-        
+
         if (valid.length === 0 && invalid.length === 0) {
           $('reviewHint').textContent = 'No events found for this sheet.';
         } else {
@@ -1408,7 +1496,7 @@
         <td></td>
         <td class="reason-cell"></td>
       `;
-      
+
       const key = `${currentMember}|||${currentSheet}|||${row.event_index}`;
       const status = row.override_status || (row.override && row.override.status) || '';
       const reason = row.override_reason || (row.override && row.override.reason) || '';
@@ -1422,11 +1510,11 @@
       const wrap = document.createElement('div');
       wrap.className = 'override-wrap';
       if (source === 'override') wrap.classList.add('dirty');
-      
+
       const sel = document.createElement('select');
       sel.innerHTML = `<option value="">🔄 Auto</option><option value="valid">✅ Valid</option><option value="invalid">❌ Invalid</option>`;
       sel.value = status;
-      
+
       sel.addEventListener('change', () => {
         wrap.classList.add('dirty');
         const [member, sheet, index] = key.split('|||');
@@ -1438,7 +1526,7 @@
           override_reason: document.querySelector(`textarea[data-key="${key}"]`).value
         };
       });
-      
+
       wrap.appendChild(sel);
       return wrap;
     }
@@ -1449,11 +1537,11 @@
       ta.value = overrideReason || initialText || '';
       ta.placeholder = 'Optional reason...';
       ta.dataset.key = key;
-      
+
       ta.addEventListener('input', () => {
         const sel = ta.closest('tr').querySelector('select');
         if (sel) sel.closest('.override-wrap').classList.add('dirty');
-        
+
         const [member, sheet, index] = key.split('|||');
         pendingOverrides[key] = {
           member_key: member,
@@ -1470,11 +1558,11 @@
     $('saveOverridesBtn').addEventListener('click', async () => {
       const overrides = Object.values(pendingOverrides);
       if (overrides.length === 0) return alert('No changes to save.');
-      
+
       const transformed = overrides.map(o => ({
         ...o, status: o.override_status || '', reason: o.override_reason || '', source: 'manual'
       }));
-      
+
       $('saveOverridesBtn').disabled = true;
       try {
         await apiPost('/api/overrides/batch', transformed);
@@ -1492,7 +1580,7 @@
       if (!confirm('🔄 Rebuild all outputs?')) return;
       $('rebuildBtn').disabled = true;
       try {
-        const res = await apiPost('/rebuild_outputs', { 
+        const res = await apiPost('/rebuild_outputs', {
           consolidate_pg13: $('consolidatePG13').checked,
           consolidate_all_missions: $('consolidateAllMissions').checked
         });
@@ -1533,7 +1621,7 @@
       }).join('');
       updateSelectionSummary();
     }
-    
+
     window.toggleMember = function(member) {
       customSelections[member].enabled = !customSelections[member].enabled;
       if (customSelections[member].enabled && !customSelections[member].summary && !customSelections[member].toris && !customSelections[member].pg13) {
@@ -1596,7 +1684,7 @@
           body: JSON.stringify({action, selections})
         });
         if (!res.ok) throw new Error(`${action} failed: ${res.status}`);
-        
+
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1617,106 +1705,233 @@
     $('downloadCustomBtn').addEventListener('click', () => handleCustomDownload('download'));
     $('mergeCustomBtn').addEventListener('click', () => handleCustomDownload('merge'));
 
-    // Initialize
+    // ------------------------------
+    // N811 Certifying Officer Picker
+    // ------------------------------
+    let certOfficerChoices = [];
+    let selectedCertOfficer = null;
+
+    async function loadCertOfficerPickList() {
+      try {
+        if (!certOfficerChoices.length) {
+          const res = await apiGet('/api/certifying_officer_choices');
+          certOfficerChoices = (res && res.status === 'success' && Array.isArray(res.choices)) ? res.choices : [];
+        }
+        renderCertOfficerPickList();
+      } catch (e) {
+        console.error('Failed to load N811 list:', e);
+        const box = $('certOfficerPickList');
+        if (box) box.innerHTML = `<div style="text-align:center; color: rgba(255,91,107,0.9); padding:18px; font-size:12px;">❌ Failed to load list</div>`;
+      }
+    }
+
+    function renderCertOfficerPickList() {
+      const box = $('certOfficerPickList');
+      if (!box) return;
+
+      const q = ($('certOfficerPickSearch')?.value || '').trim().toUpperCase();
+
+      const filtered = certOfficerChoices.filter(c => {
+        const hay = `${c.rate || ''} ${c.last_name || ''} ${c.first_name || ''} ${c.middle_initial || ''} ${c.display || ''}`.toUpperCase();
+        return !q || hay.includes(q);
+      });
+
+      if (!filtered.length) {
+        box.innerHTML = `<div style="text-align:center; color: rgba(245,248,255,0.55); padding:18px; font-size:12px;">No matches.</div>`;
+        return;
+      }
+
+      box.innerHTML = filtered.map(c => {
+        const key = `${c.rate}|${c.last_name}|${c.first_name}|${c.middle_initial || ''}`;
+        const checked = selectedCertOfficer && selectedCertOfficer.key === key ? 'checked' : '';
+        return `
+          <label style="display:flex; align-items:center; gap:10px; padding:10px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background: rgba(20,28,48,0.35); margin-bottom:8px; cursor:pointer;">
+            <input type="checkbox" data-key="${key}" onchange="onCertOfficerPickChange(this)" ${checked}>
+            <div style="display:flex; flex-direction:column; line-height:1.2;">
+              <div style="font-weight:750; font-size:13px; color: rgba(245,248,255,0.92);">${c.display || ''}</div>
+              <div style="font-size:11px; color: rgba(245,248,255,0.62);">
+                Rate: ${c.rate || ''} | Last: ${c.last_name || ''} | First: ${c.first_name || ''} | MI: ${(c.middle_initial || '').toUpperCase()}
+              </div>
+            </div>
+          </label>
+        `;
+      }).join('');
+    }
+
+    window.onCertOfficerPickChange = function(checkbox) {
+      const key = checkbox.getAttribute('data-key');
+      if (!key) return;
+
+      if (checkbox.checked) {
+        document.querySelectorAll('#certOfficerPickList input[type="checkbox"]').forEach(cb => {
+          if (cb !== checkbox) cb.checked = false;
+        });
+        const [rate, last, first, mi] = key.split('|');
+        selectedCertOfficer = { key, rate, last, first, mi };
+      } else {
+        selectedCertOfficer = null;
+      }
+    };
+
+    window.clearCertOfficerPickSelection = function() {
+      selectedCertOfficer = null;
+      document.querySelectorAll('#certOfficerPickList input[type="checkbox"]').forEach(cb => cb.checked = false);
+      const s = $('certOfficerPickStatus');
+      if (s) s.style.display = 'none';
+    };
+
+    window.applySelectedCertOfficer = async function() {
+      if (!selectedCertOfficer) {
+        alert('Select one name first.');
+        return;
+      }
+
+      $('certifyingOfficerRate').value = (selectedCertOfficer.rate || '').toUpperCase();
+      $('certifyingOfficerLastName').value = (selectedCertOfficer.last || '').toUpperCase();
+      $('certifyingOfficerFirstName').value = (selectedCertOfficer.first || '').toUpperCase();
+      $('certifyingOfficerMiddleName').value = (selectedCertOfficer.mi || '').toUpperCase();
+
+      updateCertifyingOfficerPreview();
+
+      try {
+        const res = await apiPost('/api/certifying_officer', {
+          rate: $('certifyingOfficerRate').value.trim().toUpperCase(),
+          last_name: $('certifyingOfficerLastName').value.trim().toUpperCase(),
+          first_name: $('certifyingOfficerFirstName').value.trim().toUpperCase(),
+          middle_name: $('certifyingOfficerMiddleName').value.trim().toUpperCase()
+        });
+
+        const s = $('certOfficerPickStatus');
+        if (s) {
+          s.style.display = 'block';
+          if (res.status === 'success') {
+            s.textContent = '✅ Certifier saved. This will stay until you change it or reset all data.';
+            s.style.background = 'rgba(22, 199, 132, 0.15)';
+            s.style.border = '1px solid rgba(22, 199, 132, 0.3)';
+            s.style.color = '#16c784';
+            setTimeout(() => hideModal('certOfficerPickModal'), 400);
+          } else {
+            s.textContent = '❌ Failed to save.';
+            s.style.background = 'rgba(255, 91, 107, 0.15)';
+            s.style.border = '1px solid rgba(255, 91, 107, 0.3)';
+            s.style.color = '#ff5b6b';
+          }
+        }
+      } catch (e) {
+        alert('Error saving certifier: ' + e.message);
+      }
+    };
+
+    document.addEventListener('input', (e) => {
+      if (e.target && e.target.id === 'certOfficerPickSearch') {
+        renderCertOfficerPickList();
+      }
+    });
+
     // Certifying Officer Functions
     function updateCertifyingOfficerPreview() {
-      const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
-      const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
-      const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
-      const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
-      
+      const rate = $('certifyingOfficerRate') ? $('certifyingOfficerRate').value.trim().toUpperCase() : '';
+      const lastName = $('certifyingOfficerLastName') ? $('certifyingOfficerLastName').value.trim().toUpperCase() : '';
+      const firstName = $('certifyingOfficerFirstName') ? $('certifyingOfficerFirstName').value.trim().toUpperCase() : '';
+      const middleName = $('certifyingOfficerMiddleName') ? $('certifyingOfficerMiddleName').value.trim().toUpperCase() : '';
+
       let preview = '';
       if (rate) preview += rate + ' ';
       if (lastName) {
         preview += lastName;
         if (firstName) {
-          // Take first letter of first name
           preview += ', ' + firstName[0] + '.';
           if (middleName) {
-            // Take first letter of middle name
             preview += ' ' + middleName[0] + '.';
           }
         }
       }
-      
-      $('certifyingOfficerPreview').textContent = preview || '(Enter information above)';
+
+      if ($('certifyingOfficerPreview')) {
+        $('certifyingOfficerPreview').textContent = preview || '(Enter information above)';
+      }
     }
-    
+
     async function loadCertifyingOfficer() {
       try {
         const response = await apiGet('/api/certifying_officer');
         if (response.status === 'success' && response.officer) {
           const officer = response.officer;
-          $('certifyingOfficerRate').value = officer.rate || '';
-          $('certifyingOfficerLastName').value = officer.last_name || '';
-          $('certifyingOfficerFirstName').value = officer.first_name || '';
-          $('certifyingOfficerMiddleName').value = officer.middle_name || '';
+          if ($('certifyingOfficerRate')) $('certifyingOfficerRate').value = officer.rate || '';
+          if ($('certifyingOfficerLastName')) $('certifyingOfficerLastName').value = officer.last_name || '';
+          if ($('certifyingOfficerFirstName')) $('certifyingOfficerFirstName').value = officer.first_name || '';
+          if ($('certifyingOfficerMiddleName')) $('certifyingOfficerMiddleName').value = officer.middle_name || '';
           updateCertifyingOfficerPreview();
         }
       } catch (error) {
         console.error('Failed to load certifying officer:', error);
       }
     }
-    
-    $('certifyingOfficerForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
-      const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
-      const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
-      const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
-      
-      if (!lastName) {
-        alert('Last name is required');
-        return;
-      }
-      
-      const statusDiv = $('certifyingOfficerStatus');
-      const submitBtn = e.target.querySelector('button[type="submit"]');
-      const originalBtnText = submitBtn.innerHTML;
-      
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '💾 Saving...';
-      statusDiv.style.display = 'none';
-      
-      try {
-        const response = await apiPost('/api/certifying_officer', {
-          rate: rate,
-          last_name: lastName,
-          first_name: firstName,
-          middle_name: middleName
-        });
-        
-        if (response.status === 'success') {
-          statusDiv.textContent = '✅ Certifying officer saved successfully!';
-          statusDiv.style.display = 'block';
-          statusDiv.style.background = 'rgba(22, 199, 132, 0.15)';
-          statusDiv.style.border = '1px solid rgba(22, 199, 132, 0.3)';
-          statusDiv.style.color = '#16c784';
-          
-          setTimeout(() => {
-            statusDiv.style.display = 'none';
-          }, 3000);
-        } else {
-          throw new Error(response.error || 'Failed to save');
-        }
-      } catch (error) {
-        statusDiv.textContent = '❌ Error: ' + error.message;
-        statusDiv.style.display = 'block';
-        statusDiv.style.background = 'rgba(255, 91, 107, 0.15)';
-        statusDiv.style.border = '1px solid rgba(255, 91, 107, 0.3)';
-        statusDiv.style.color = '#ff5b6b';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
-      }
-    });
-    
-    // Add event listeners for live preview
-    ['certifyingOfficerRate', 'certifyingOfficerLastName', 'certifyingOfficerFirstName', 'certifyingOfficerMiddleName'].forEach(id => {
-      $(id).addEventListener('input', updateCertifyingOfficerPreview);
-    });
 
+    const certForm = $('certifyingOfficerForm');
+    if (certForm) {
+      certForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const rate = $('certifyingOfficerRate').value.trim().toUpperCase();
+        const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
+        const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
+        const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
+
+        if (!lastName) {
+          alert('Last name is required');
+          return;
+        }
+
+        const statusDiv = $('certifyingOfficerStatus');
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '💾 Saving...';
+        if (statusDiv) statusDiv.style.display = 'none';
+
+        try {
+          const response = await apiPost('/api/certifying_officer', {
+            rate: rate,
+            last_name: lastName,
+            first_name: firstName,
+            middle_name: middleName
+          });
+
+          if (response.status === 'success') {
+            if (statusDiv) {
+              statusDiv.textContent = '✅ Certifying officer saved successfully!';
+              statusDiv.style.display = 'block';
+              statusDiv.style.background = 'rgba(22, 199, 132, 0.15)';
+              statusDiv.style.border = '1px solid rgba(22, 199, 132, 0.3)';
+              statusDiv.style.color = '#16c784';
+              setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+            }
+          } else {
+            throw new Error(response.error || 'Failed to save');
+          }
+        } catch (error) {
+          if (statusDiv) {
+            statusDiv.textContent = '❌ Error: ' + error.message;
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(255, 91, 107, 0.15)';
+            statusDiv.style.border = '1px solid rgba(255, 91, 107, 0.3)';
+            statusDiv.style.color = '#ff5b6b';
+          } else {
+            alert('❌ Error: ' + error.message);
+          }
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnText;
+        }
+      });
+    }
+
+    ['certifyingOfficerRate', 'certifyingOfficerLastName', 'certifyingOfficerFirstName', 'certifyingOfficerMiddleName'].forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener('input', updateCertifyingOfficerPreview);
+    });
 
     $('yearNow').textContent = new Date().getFullYear();
     loadMembers(); // Load member list on page load
