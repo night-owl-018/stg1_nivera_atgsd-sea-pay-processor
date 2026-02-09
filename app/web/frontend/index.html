@@ -173,13 +173,35 @@
 
     .card .body { padding: 10px; }
 
-    /* Form Elements */
-    label {
-      display: block;
+    /* =========================
+       PATCH: Summary font sizing
+       Make <summary> match <label>
+       ========================= */
+    details > summary {
       font-size: 11px;
       font-weight: 650;
-      margin-bottom: 4px;
       color: var(--text-secondary);
+      cursor: pointer;
+      list-style: none;
+    }
+    
+    /* Hide default marker so we control the arrow */
+    details > summary::-webkit-details-marker {
+      display: none;
+    }
+    
+    /* Custom arrow */
+    details > summary::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: 6px;
+      transform: rotate(0deg);
+      transition: transform 0.2s ease;
+      color: rgba(245,248,255,0.55);
+    }
+    
+    details[open] > summary::before {
+      transform: rotate(90deg);
     }
 
     input[type=file], select, textarea, input[type=text] {
@@ -693,7 +715,7 @@
 
           <details class="advanced">
             <summary>🧰 Optional: Roster & PG13 Template PDF</summary>
-            <div class="hint">Most users can leave this closed. Open only if you need to override the built-in rates or PG-13 template.</div>
+            <div class="hint">Most users can leave this closed. Open only if you need to override the built-in Roster or PG-13 template.</div>
 
             <div class="advanced-inner">
               <label>Roster</label>
