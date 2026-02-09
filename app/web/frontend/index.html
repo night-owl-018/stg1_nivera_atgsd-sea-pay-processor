@@ -580,7 +580,7 @@
       display: grid;
       grid-template-columns: repeat(2, 1fr) auto auto;
       gap: 10px;
-      align-items: end; /* Aligns items at the bottom for a clean look */
+      align-items: end;
     }
 
     @media (max-width: 900px) {
@@ -660,11 +660,10 @@
            class="header-btn"
            title="View source code on GitHub">
           <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4. hookup.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
           </svg>
           GitHub
         </a>
-        <button onclick="showModal('certifyingOfficerModal'); loadCertifyingOfficer();" class="header-btn">👤 Certifying Officer</button>
         <button onclick="showModal('aboutModal')" class="header-btn">ℹ️ About</button>
         <button onclick="showModal('helpModal')" class="header-btn">📖 Help</button>
       </div>
@@ -672,7 +671,6 @@
   </header>
 
   <div class="wrap">
-    <!-- First Row: Input, System, Downloads, Custom -->
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;">
 
       <!-- INPUT FILES -->
@@ -699,6 +697,15 @@
 
           <div style="height:6px;"></div>
 
+          <button type="button"
+                  class="btn-secondary"
+                  style="width: 100%;"
+                  onclick="showModal('certifyingOfficerModal'); loadCertifyingOfficer();">
+            👤 Certifying Officer
+          </button>
+
+          <div style="height:6px;"></div>
+
           <label>Strikeout</label>
           <select id="strikeColor">
             <option value="Black" selected>⚫ Black</option>
@@ -707,17 +714,12 @@
 
           <div style="height:6px;"></div>
 
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
-            <input type="checkbox" id="consolidatePG13">
-            <span>Consolidate PG-13s (one per ship)</span>
-          </label>
-
-          <div style="height:4px;"></div>
-
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
-            <input type="checkbox" id="consolidateAllMissions">
-            <span>Consolidate All Missions (one per member)</span>
-          </label>
+          <label>Consolidation</label>
+          <select id="consolidateMode">
+            <option value="none">None</option>
+            <option value="pg13">Consolidate PG-13s (one per ship)</option>
+            <option value="missions">Consolidate All Missions (one per member)</option>
+          </select>
 
           <div style="height:8px;"></div>
 
@@ -744,7 +746,7 @@
         </div>
       </div>
 
-      <!-- QUICK DOWNLOADS (REVISED) -->
+      <!-- QUICK DOWNLOADS -->
       <div class="card">
         <h3>📥 Downloads</h3>
         <div class="body">
@@ -918,7 +920,7 @@
     </div>
   </div>
 
-  <!-- REVIEW & OVERRIDE MODAL (REVISED) -->
+  <!-- REVIEW & OVERRIDE MODAL -->
   <div id="reviewModal" class="modal">
     <div class="modal-content" id="reviewModalContent" style="max-width: 1400px; transition: all 0.3s ease;">
       <div class="card">
@@ -945,7 +947,6 @@
         </h3>
         <div class="body" id="reviewModalBody" style="max-height: 65vh; overflow-y: auto; transition: max-height 0.3s ease;">
 
-          <!-- New Integrated Controls -->
           <div class="review-controls-grid">
             <div>
               <label>Member</label>
@@ -1228,7 +1229,7 @@
     let customSelections = {};
     let currentMember = '';
     let currentSheet = '';
-    let lastPollStatus = ''; // PATCH: For preventing repeated member refresh
+    let lastPollStatus = '';
 
     // API helpers
     async function apiGet(url) {
@@ -1250,7 +1251,7 @@
       return res.json();
     }
 
-    // PATCHED Status polling function
+    // Status polling
     async function pollProgress() {
       try {
         const data = await apiGet('/progress');
@@ -1300,18 +1301,21 @@
       btn.className = this.value === 'reset' ? 'btn-danger' : 'btn-primary';
     });
 
-    // Make consolidate checkboxes mutually exclusive
-    $('consolidatePG13').addEventListener('change', function() {
-      if (this.checked) {
-        $('consolidateAllMissions').checked = false;
-      }
-    });
+    // Persist Consolidation selection
+    const CONSOLIDATE_MODE_KEY = 'atgsd_consolidate_mode';
+    (function initConsolidationMode() {
+      const sel = $('consolidateMode');
+      if (!sel) return;
 
-    $('consolidateAllMissions').addEventListener('change', function() {
-      if (this.checked) {
-        $('consolidatePG13').checked = false;
+      const saved = localStorage.getItem(CONSOLIDATE_MODE_KEY);
+      if (saved && ['none', 'pg13', 'missions'].includes(saved)) {
+        sel.value = saved;
       }
-    });
+
+      sel.addEventListener('change', () => {
+        localStorage.setItem(CONSOLIDATE_MODE_KEY, sel.value);
+      });
+    })();
 
     // Action Go button handler
     $('actionGoBtn').addEventListener('click', async () => {
@@ -1325,9 +1329,13 @@
           for (const f of $('pdfs').files) fd.append('pdfs', f);
           if ($('ratesCsv').files[0]) fd.append('rates_csv', $('ratesCsv').files[0]);
           if ($('templatePdf').files[0]) fd.append('template_pdf', $('templatePdf').files[0]);
+
           fd.append('strikeout_color', $('strikeColor').value);
-          fd.append('consolidate_pg13', $('consolidatePG13').checked);
-          fd.append('consolidate_all_missions', $('consolidateAllMissions').checked);
+
+          const mode = ($('consolidateMode') ? $('consolidateMode').value : 'none');
+          fd.append('consolidate_pg13', mode === 'pg13');
+          fd.append('consolidate_all_missions', mode === 'missions');
+
           await fetch('/process', {method: 'POST', body: fd});
         } else if (action === 'cancel') {
           await fetch('/cancel_process', {method: 'POST'});
@@ -1337,9 +1345,9 @@
           await fetch('/reset', {method: 'POST'});
           ['pdfs', 'ratesCsv', 'templatePdf'].forEach(id => $(id).value = '');
           $('memberSelect').innerHTML = '<option value="">Select member</option>';
-          await loadSheets(); // Resets downstream elements
+          await loadSheets();
           alert('✅ Reset complete');
-          $('actionSelect').value = ''; // Only reset dropdown after actual reset
+          $('actionSelect').value = '';
         }
       } catch (err) {
         alert(err.message);
@@ -1385,7 +1393,7 @@
         if (current && members.includes(current)) sel.value = current;
         currentMember = sel.value;
         renderMemberList();
-        await loadSheets(); // Load sheets for currently selected member
+        await loadSheets();
       } catch (e) {
         console.error('Refresh members error:', e);
       }
@@ -1396,7 +1404,6 @@
       await loadSheets();
     });
 
-    // Load member list from API
     async function loadMembers() {
       try {
         const members = await apiGet('/api/members');
@@ -1434,7 +1441,6 @@
       sheetSelect.innerHTML = '<option value="">Select sheet</option>';
       sheetSelect.disabled = !hasMember;
 
-      // Reset tables and hint
       $('validBody').innerHTML = '';
       $('invalidBody').innerHTML = '';
       $('reviewHint').style.display = 'block';
@@ -1580,9 +1586,10 @@
       if (!confirm('🔄 Rebuild all outputs?')) return;
       $('rebuildBtn').disabled = true;
       try {
+        const mode = ($('consolidateMode') ? $('consolidateMode').value : 'none');
         const res = await apiPost('/rebuild_outputs', {
-          consolidate_pg13: $('consolidatePG13').checked,
-          consolidate_all_missions: $('consolidateAllMissions').checked
+          consolidate_pg13: mode === 'pg13',
+          consolidate_all_missions: mode === 'missions'
         });
         alert('✅ ' + (res.status || 'Rebuild complete'));
       } catch (err) {
@@ -1705,9 +1712,7 @@
     $('downloadCustomBtn').addEventListener('click', () => handleCustomDownload('download'));
     $('mergeCustomBtn').addEventListener('click', () => handleCustomDownload('merge'));
 
-    // ------------------------------
     // N811 Certifying Officer Picker
-    // ------------------------------
     let certOfficerChoices = [];
     let selectedCertOfficer = null;
 
@@ -1934,8 +1939,8 @@
     });
 
     $('yearNow').textContent = new Date().getFullYear();
-    loadMembers(); // Load member list on page load
-    loadCertifyingOfficer(); // Load certifying officer on page load
+    loadMembers();
+    loadCertifyingOfficer();
   </script>
 </body>
 </html>
