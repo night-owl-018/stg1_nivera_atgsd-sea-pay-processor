@@ -471,8 +471,8 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # FI MI Last Name centered
         c.setFont(FONT_NAME, 8)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
-    c.setFont(FONT_NAME, 11)
-    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+        c.setFont(FONT_NAME, 11)
+        c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
         # ✅ PG-13 DATE box (YYYYMMDD)
