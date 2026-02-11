@@ -83,13 +83,14 @@ def load_certifying_officer():
                 'last_name': data.get('last_name', '').strip(),
                 'first_name': data.get('first_name', '').strip(),
                 'middle_name': data.get('middle_name', '').strip(),
+                'date_yyyymmdd': data.get('date_yyyymmdd', '').strip(),
             }
     except Exception as e:
         print(f"Warning: Could not load certifying officer info: {e}")
         return {}
 
 
-def save_certifying_officer(rate, last_name, first_name, middle_name):
+def save_certifying_officer(rate, last_name, first_name, middle_name, date_yyyymmdd=""):
     """
     Save certifying officer information to JSON file.
     """
@@ -98,6 +99,7 @@ def save_certifying_officer(rate, last_name, first_name, middle_name):
         'last_name': last_name.strip(),
         'first_name': first_name.strip(),
         'middle_name': middle_name.strip(),
+        'date_yyyymmdd': (date_yyyymmdd or '').strip(),
     }
 
     try:
@@ -163,6 +165,16 @@ def get_certifying_officer_name_pg13():
     
     return " ".join(parts)
 
+def get_certifying_date_yyyymmdd():
+    """
+    Get certifier DATE as YYYYMMDD for PG-13.
+    Returns "" if not set or invalid.
+    """
+    officer = load_certifying_officer()
+    d = (officer.get("date_yyyymmdd") or "").strip()
+    if d and len(d) == 8 and d.isdigit():
+        return d
+    return ""
 
 # -----------------------------------
 # ENSURE DIRECTORIES EXIST
