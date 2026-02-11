@@ -141,7 +141,7 @@ def make_consolidated_all_missions_pdf(
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
     # Member identity
-    c.setFont(FONT_NAME, FONT_SIZE)
+    c.setFont(FONT_NAME, 10)
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
@@ -182,18 +182,22 @@ def make_consolidated_all_missions_pdf(
 
     sig_left_x = 356.26
 
+    c.setFont(FONT_NAME, 8)
     c.drawString(sig_left_x, sig_y, "_________________________")
     c.drawString(363.8, sig_y - 12, "Certifying Official & Date")
 
     c.drawString(sig_left_x, sig_y - 72, "_________________________")
 
     # ✅ Certifying officer name: centered, no rate, no auto-periods, LOWER (closer to underline)
+    c.setFont(FONT_NAME, 10)
     certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=1.5)
 
     # Always show the FI MI Last Name label below
+    c.setFont(FONT_NAME, 8)
     c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
 
+    c.setFont(FONT_NAME, 8)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -252,7 +256,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
-    c.setFont(FONT_NAME, FONT_SIZE)
+    c.setFont(FONT_NAME, 10)
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
@@ -277,17 +281,21 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     top_sig_y = 499.5
     bottom_line_y = 427.5
 
+    c.setFont(FONT_NAME, 8)
     c.drawString(sig_left_x, top_sig_y, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(sig_left_x, bottom_line_y, "_________________________")
 
     # ✅ Certifying officer name: centered + LOWER (closer to underline)
+    c.setFont(FONT_NAME, 10)
     certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
 
     # Always show the FI MI Last Name label below
+    c.setFont(FONT_NAME, 8)
     c.drawString(384.1, 415.2, "FI MI Last Name")
 
+    c.setFont(FONT_NAME, 8)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -350,7 +358,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(39, 650, "ENTITLEMENT")
         c.drawString(345, 641, "OPNAVINST 7220.14")
 
-        c.setFont(FONT_NAME, FONT_SIZE)
+        c.setFont(FONT_NAME, 10)
         identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
         c.drawString(39, 41, identity)
 
@@ -368,17 +376,21 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         top_sig_y = 499.5
         bottom_line_y = 427.5
 
+        c.setFont(FONT_NAME, 8)
         c.drawString(sig_left_x, top_sig_y, "_________________________")
         c.drawString(363.8, 487.5, "Certifying Official & Date")
         c.drawString(sig_left_x, bottom_line_y, "_________________________")
 
         # ✅ Certifying officer name: centered + LOWER (closer to underline)
+        c.setFont(FONT_NAME, 10)
         certifying_officer_name = get_certifying_officer_name_pg13()
         _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
 
         # Always show the FI MI Last Name label below
+        c.setFont(FONT_NAME, 8)
         c.drawString(384.1, 415.2, "FI MI Last Name")
 
+        c.setFont(FONT_NAME, 8)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
