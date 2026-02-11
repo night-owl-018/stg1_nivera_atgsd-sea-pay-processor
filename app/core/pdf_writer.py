@@ -14,7 +14,8 @@ from app.core.config import (
     FONT_SIZE,
     SEA_PAY_PG13_FOLDER,
     get_certifying_officer_name,
-    get_certifying_officer_name_pg13
+    get_certifying_officer_name_pg13,
+    get_certifying_date_yyyymmdd
 )
 from app.core.rates import resolve_identity
 
@@ -82,6 +83,26 @@ def _draw_centered_certifying_officer(
 
     c.drawCentredString(sig_mid_x, sig_line_y + y_above_line, name)
 
+
+
+# ------------------------------------------------
+# INTERNAL HELPER: Draw PG-13 certifier DATE (YYYYMMDD)
+# ------------------------------------------------
+def _draw_pg13_certifier_date(c, date_yyyymmdd):
+    """
+    Draws the certifier date inside the PG-13 DATE box (format: YYYYMMDD).
+    Coordinates are tuned for the NAVPERS 1070/613 template in pdf_template/.
+    If your template shifts, adjust the X/Y below by a few points.
+    """
+    if not date_yyyymmdd:
+        return
+
+    # ✅ START HERE (template-aligned): tweak +/- 1–3 pts if needed
+    date_center_x = 277.0  # center of the DATE entry box
+    date_y = 533.5         # baseline inside the DATE box
+
+    c.setFont(FONT_NAME, 8)
+    c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
 
 # ------------------------------------------------
 # 🔹 NEW: CONSOLIDATED ALL MISSIONS (ALL SHIPS ON ONE FORM)
@@ -230,6 +251,9 @@ def make_consolidated_all_missions_pdf(
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
+    # ✅ PG-13 DATE box (YYYYMMDD)
+    _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
+
     c.save()
     buf.seek(0)
 
@@ -341,6 +365,9 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
+    # ✅ PG-13 DATE box (YYYYMMDD)
+    _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
+
     c.save()
     buf.seek(0)
 
@@ -448,6 +475,9 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.setFont(FONT_NAME, 8)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
+
+    # ✅ PG-13 DATE box (YYYYMMDD)
+    _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
         c.save()
         buf.seek(0)
