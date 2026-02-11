@@ -98,7 +98,7 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
         return
 
     # ✅ START HERE (template-aligned): tweak +/- 1–3 pts if needed
-    date_center_x = 280.0  # DATE box next to SEA PAY CERTIFIER (tweak +/- 1–5)
+    date_center_x = 278.0  # DATE box next to SEA PAY CERTIFIER (tweak +/- 1–5)
     date_y = 81.5          # baseline aligned with SEA PAY CERTIFIER line (tweak +/- 1–3)
 
     c.setFont(FONT_NAME, 10)
