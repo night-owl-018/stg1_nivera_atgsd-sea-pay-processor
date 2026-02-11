@@ -101,7 +101,7 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
     date_center_x = 280.0  # DATE box next to SEA PAY CERTIFIER (tweak +/- 1–5)
     date_y = 81.5          # baseline aligned with SEA PAY CERTIFIER line (tweak +/- 1–3)
 
-    c.setFont(FONT_NAME, 11)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
 
 # ------------------------------------------------
@@ -175,7 +175,7 @@ def make_consolidated_all_missions_pdf(
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
     # Member identity
-    c.setFont(FONT_NAME, 10)
+    c.setFont(FONT_NAME, 11)
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
@@ -247,7 +247,7 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, 8)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
-    c.setFont(FONT_NAME, 11)
+    c.setFont(FONT_NAME, 10)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -309,7 +309,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(39, 650, "ENTITLEMENT")
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
-    c.setFont(FONT_NAME, 10)
+    c.setFont(FONT_NAME, 11)
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
@@ -361,7 +361,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.setFont(FONT_NAME, 8)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
-    c.setFont(FONT_NAME, 11)
+    c.setFont(FONT_NAME, 10)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -427,7 +427,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(39, 650, "ENTITLEMENT")
         c.drawString(345, 641, "OPNAVINST 7220.14")
 
-        c.setFont(FONT_NAME, 10)
+        c.setFont(FONT_NAME, 11)
         identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
         c.drawString(39, 41, identity)
 
@@ -471,7 +471,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # FI MI Last Name centered
         c.setFont(FONT_NAME, 8)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
-        c.setFont(FONT_NAME, 11)
+        c.setFont(FONT_NAME, 10)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
