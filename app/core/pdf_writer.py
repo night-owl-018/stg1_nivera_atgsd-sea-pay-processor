@@ -476,8 +476,8 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
-    # ✅ PG-13 DATE box (YYYYMMDD)
-    _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
+        # ✅ PG-13 DATE box (YYYYMMDD)
+        _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
         c.save()
         buf.seek(0)
