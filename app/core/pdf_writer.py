@@ -8,7 +8,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
 
 from app.core.logger import log
-from app.core.config import TEMPLATE, FONT_NAME, FONT_SIZE, SEA_PAY_PG13_FOLDER, get_certifying_officer_name, get_certifying_officer_name_pg13
+from app.core.config import (
+    TEMPLATE,
+    FONT_NAME,
+    FONT_SIZE,
+    SEA_PAY_PG13_FOLDER,
+    get_certifying_officer_name,
+    get_certifying_officer_name_pg13
+)
 from app.core.rates import resolve_identity
 
 
@@ -51,22 +58,28 @@ def flatten_pdf(path):
 
 
 # ------------------------------------------------
-# INTERNAL HELPER: Draw centered certifying officer name,
-# slightly LOWER (closer to the signature line below)
+# INTERNAL HELPER: Draw centered certifying officer name
 # ------------------------------------------------
-def _draw_centered_certifying_officer(c, sig_line_left_x, sig_line_y, name, y_above_line=1.5):
+def _draw_centered_certifying_officer(
+    c,
+    sig_line_left_x,
+    sig_line_y,
+    name,
+    y_above_line=1.5,
+    sig_line_text="_________________________",
+    sig_line_font_size=8,
+):
     """
     Centers `name` horizontally over the signature underline, and places it
-    y_above_line points ABOVE the underline (lower than the old placement).
+    y_above_line points ABOVE the underline.
     """
     if not name:
         return
 
-    sig_line = "_________________________"
-    sig_line_w = c.stringWidth(sig_line, FONT_NAME, FONT_SIZE)
+    # IMPORTANT: measure underline width using the SAME font size used to draw it
+    sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
     sig_mid_x = sig_line_left_x + (sig_line_w / 2.0)
 
-    # Place the text slightly above the underline, but lower than before
     c.drawCentredString(sig_mid_x, sig_line_y + y_above_line, name)
 
 
@@ -181,21 +194,37 @@ def make_consolidated_all_missions_pdf(
     sig_y = min(base_sig_y, 595 - content_height - 40)
 
     sig_left_x = 356.26
+    sig_line_text = "_________________________"
+    sig_line_font_size = 8
 
-    c.setFont(FONT_NAME, 8)
-    c.drawString(sig_left_x, sig_y, "_________________________")
-    c.drawString(363.8, sig_y - 12, "Certifying Official & Date")
+    # Calculate center from underline width (same font size used to draw it)
+    sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
+    sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
-    c.drawString(sig_left_x, sig_y - 72, "_________________________")
+    c.setFont(FONT_NAME, sig_line_font_size)
+    c.drawString(sig_left_x, sig_y, sig_line_text)
+    c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
-    # ✅ Certifying officer name: centered, no rate, no auto-periods, LOWER (closer to underline)
+    # Tighten vertical spacing (was sig_y - 72, too large)
+    bottom_line_y = sig_y - 52
+    c.drawString(sig_left_x, bottom_line_y, sig_line_text)
+
+    # ✅ Certifying officer name centered over underline
     c.setFont(FONT_NAME, 10)
     certifying_officer_name = get_certifying_officer_name_pg13()
-    _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=1.5)
+    _draw_centered_certifying_officer(
+        c,
+        sig_left_x,
+        bottom_line_y,
+        certifying_officer_name,
+        y_above_line=1.5,
+        sig_line_text=sig_line_text,
+        sig_line_font_size=sig_line_font_size,
+    )
 
-    # Always show the FI MI Last Name label below
+    # FI MI Last Name centered under underline
     c.setFont(FONT_NAME, 8)
-    c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
+    c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
     c.setFont(FONT_NAME, 8)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
@@ -281,19 +310,32 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     top_sig_y = 499.5
     bottom_line_y = 427.5
 
-    c.setFont(FONT_NAME, 8)
-    c.drawString(sig_left_x, top_sig_y, "_________________________")
-    c.drawString(363.8, 487.5, "Certifying Official & Date")
-    c.drawString(sig_left_x, bottom_line_y, "_________________________")
+    sig_line_text = "_________________________"
+    sig_line_font_size = 8
+    sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
+    sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
-    # ✅ Certifying officer name: centered + LOWER (closer to underline)
+    c.setFont(FONT_NAME, sig_line_font_size)
+    c.drawString(sig_left_x, top_sig_y, sig_line_text)
+    c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+    c.drawString(sig_left_x, bottom_line_y, sig_line_text)
+
+    # ✅ Certifying officer name centered + lower
     c.setFont(FONT_NAME, 10)
     certifying_officer_name = get_certifying_officer_name_pg13()
-    _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
+    _draw_centered_certifying_officer(
+        c,
+        sig_left_x,
+        bottom_line_y,
+        certifying_officer_name,
+        y_above_line=1.5,
+        sig_line_text=sig_line_text,
+        sig_line_font_size=sig_line_font_size,
+    )
 
-    # Always show the FI MI Last Name label below
+    # FI MI Last Name centered
     c.setFont(FONT_NAME, 8)
-    c.drawString(384.1, 415.2, "FI MI Last Name")
+    c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
     c.setFont(FONT_NAME, 8)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
@@ -376,19 +418,32 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         top_sig_y = 499.5
         bottom_line_y = 427.5
 
-        c.setFont(FONT_NAME, 8)
-        c.drawString(sig_left_x, top_sig_y, "_________________________")
-        c.drawString(363.8, 487.5, "Certifying Official & Date")
-        c.drawString(sig_left_x, bottom_line_y, "_________________________")
+        sig_line_text = "_________________________"
+        sig_line_font_size = 8
+        sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
+        sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
-        # ✅ Certifying officer name: centered + LOWER (closer to underline)
+        c.setFont(FONT_NAME, sig_line_font_size)
+        c.drawString(sig_left_x, top_sig_y, sig_line_text)
+        c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+        c.drawString(sig_left_x, bottom_line_y, sig_line_text)
+
+        # ✅ Certifying officer name centered + lower
         c.setFont(FONT_NAME, 10)
         certifying_officer_name = get_certifying_officer_name_pg13()
-        _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=1.5)
+        _draw_centered_certifying_officer(
+            c,
+            sig_left_x,
+            bottom_line_y,
+            certifying_officer_name,
+            y_above_line=1.5,
+            sig_line_text=sig_line_text,
+            sig_line_font_size=sig_line_font_size,
+        )
 
-        # Always show the FI MI Last Name label below
+        # FI MI Last Name centered
         c.setFont(FONT_NAME, 8)
-        c.drawString(384.1, 415.2, "FI MI Last Name")
+        c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
         c.setFont(FONT_NAME, 8)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
