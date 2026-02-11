@@ -99,7 +99,7 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
 
     # ✅ START HERE (template-aligned): tweak +/- 1–3 pts if needed
     date_center_x = 275.0  # DATE box next to SEA PAY CERTIFIER (tweak +/- 1–5)
-    date_y = 83.0          # baseline aligned with SEA PAY CERTIFIER line (tweak +/- 1–3)
+    date_y = 82.0          # baseline aligned with SEA PAY CERTIFIER line (tweak +/- 1–3)
 
     c.setFont(FONT_NAME, 11)
     c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
@@ -231,7 +231,7 @@ def make_consolidated_all_missions_pdf(
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
     # ✅ Certifying officer name centered over underline
-    c.setFont(FONT_NAME, 10)
+    c.setFont(FONT_NAME, 11)
     certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(
         c,
@@ -345,7 +345,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
     # ✅ Certifying officer name centered + lower
-    c.setFont(FONT_NAME, 10)
+    c.setFont(FONT_NAME, 11)
     certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(
         c,
@@ -456,7 +456,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
         # ✅ Certifying officer name centered + lower
-        c.setFont(FONT_NAME, 10)
+        c.setFont(FONT_NAME, 11)
         certifying_officer_name = get_certifying_officer_name_pg13()
         _draw_centered_certifying_officer(
             c,
