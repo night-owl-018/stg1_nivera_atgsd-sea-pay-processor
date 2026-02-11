@@ -98,10 +98,10 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
         return
 
     # ✅ START HERE (template-aligned): tweak +/- 1–3 pts if needed
-    date_center_x = 277.0  # center of the DATE entry box
-    date_y = 533.5         # baseline inside the DATE box
+    date_center_x = 275.0  # DATE box next to SEA PAY CERTIFIER (tweak +/- 1–5)
+    date_y = 83.0          # baseline aligned with SEA PAY CERTIFIER line (tweak +/- 1–3)
 
-    c.setFont(FONT_NAME, 8)
+    c.setFont(FONT_NAME, 11)
     c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
 
 # ------------------------------------------------
@@ -247,7 +247,7 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, 8)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
-    c.setFont(FONT_NAME, 8)
+    c.setFont(FONT_NAME, 11)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -361,7 +361,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.setFont(FONT_NAME, 8)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
-    c.setFont(FONT_NAME, 8)
+    c.setFont(FONT_NAME, 11)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -471,9 +471,8 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # FI MI Last Name centered
         c.setFont(FONT_NAME, 8)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
-
-        c.setFont(FONT_NAME, 8)
-        c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+    c.setFont(FONT_NAME, 11)
+    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
 
         # ✅ PG-13 DATE box (YYYYMMDD)
