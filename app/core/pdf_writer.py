@@ -66,7 +66,7 @@ def flatten_pdf(path):
 
 
 # ------------------------------------------------
-# INTERNAL HELPER: Draw centered certifying officer name
+# INTERNAL HELPER: Draw centered ing officer name
 # ------------------------------------------------
 def _draw_centered_certifying_officer(
     c,
@@ -226,7 +226,7 @@ def make_consolidated_all_missions_pdf(
 
     sig_left_x = 356.26
     sig_line_text = "_________________________"
-    sig_line_font_size = 8
+    sig_line_font_size = 10
 
     # Calculate center from underline width (same font size used to draw it)
     sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
@@ -254,7 +254,7 @@ def make_consolidated_all_missions_pdf(
     )
 
     # FI MI Last Name centered under underline
-    c.setFont(FONT_NAME, 8)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
     c.setFont(FONT_NAME, 10)
@@ -348,7 +348,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     bottom_line_y = 427.5
 
     sig_line_text = "_________________________"
-    sig_line_font_size = 8
+    sig_line_font_size = 10
     sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
     sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
@@ -371,7 +371,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     )
 
     # FI MI Last Name centered
-    c.setFont(FONT_NAME, 8)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
     c.setFont(FONT_NAME, 10)
@@ -462,7 +462,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         bottom_line_y = 427.5
 
         sig_line_text = "_________________________"
-        sig_line_font_size = 8
+        sig_line_font_size = 10
         sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
         sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
@@ -485,7 +485,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         )
 
         # FI MI Last Name centered
-        c.setFont(FONT_NAME, 8)
+        c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
         c.setFont(FONT_NAME, 10)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
