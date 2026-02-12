@@ -225,7 +225,7 @@ def make_consolidated_all_missions_pdf(
     sig_y = min(base_sig_y, 595 - content_height - 40)
 
     sig_left_x = 356.26
-    sig_line_text = "_________________________"
+    sig_line_text = "____________________________________"
     sig_line_font_size = 8
 
     # Calculate center from underline width (same font size used to draw it)
@@ -351,7 +351,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     top_sig_y = 499.5
     bottom_line_y = 427.5
 
-    sig_line_text = "_________________________"
+    sig_line_text = "____________________________________"
     sig_line_font_size = 8
     sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
     sig_mid_x = sig_left_x + (sig_line_w / 2.0)
@@ -469,7 +469,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         top_sig_y = 499.5
         bottom_line_y = 427.5
 
-        sig_line_text = "_________________________"
+        sig_line_text = "____________________________________"
         sig_line_font_size = 8
         sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
         sig_mid_x = sig_left_x + (sig_line_w / 2.0)
