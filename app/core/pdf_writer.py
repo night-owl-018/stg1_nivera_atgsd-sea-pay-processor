@@ -6,6 +6,13 @@ from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# Register Times New Roman TTF
+pdfmetrics.registerFont(
+    TTFont("TimesNewRoman", "/app/Times_New_Roman.ttf")
+)
 
 from app.core.logger import log
 from app.core.config import (
@@ -244,7 +251,7 @@ def make_consolidated_all_missions_pdf(
     )
 
     # FI MI Last Name centered under underline
-    c.setFont(FONT_NAME, 10)
+    c.setFont(FONT_NAME, 8)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
 
     c.setFont(FONT_NAME, 10)
