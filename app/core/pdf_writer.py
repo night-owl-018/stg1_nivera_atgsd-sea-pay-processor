@@ -187,6 +187,9 @@ def make_consolidated_all_missions_pdf(
     c.drawString(39, 41, identity)
 
     # MAIN TEXT BLOCK - ALL SHIPS AND PERIODS
+    # Mission event lines must match NAVPERS template (10pt)
+    c.setFont(FONT_NAME, 10)
+
     y = 595
     line_spacing = 12
     current_line = 0
@@ -320,6 +323,9 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
     c.drawString(39, 41, identity)
 
+    # Mission event lines must match NAVPERS template (10pt)
+    c.setFont(FONT_NAME, 10)
+
     y = 595
     line_spacing = 12
 
@@ -437,6 +443,9 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.setFont(FONT_NAME, 11)
         identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
         c.drawString(39, 41, identity)
+
+        # Mission event lines must match NAVPERS template (10pt)
+        c.setFont(FONT_NAME, 10)
 
         y = 595
         c.drawString(38.8, y, f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
