@@ -389,12 +389,14 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                             if best is None:
                                 log("TORIS SIG DATE → underline not found; date not drawn")
                             else:
-                                underline_y_from_bottom = page_height - best["y"]
+                                # Use the actual line Y (top edge) for stable positioning
+                                line_y = max(best.get("y0", best["y"]), best.get("y1", best["y"]))
+                                underline_y_from_bottom = page_height - line_y
                                 underline_right_x = best["x1"]
 
                                 # Compute right-aligned date position
                                 # (uses a temporary canvas later, but we can compute width once c exists)
-                                date_y = underline_y_from_bottom + 12
+                                date_y = underline_y_from_bottom + 1
                                 # date_x computed after canvas creation (needs c.stringWidth)
                                 date_right_x = underline_right_x
                                 log(
