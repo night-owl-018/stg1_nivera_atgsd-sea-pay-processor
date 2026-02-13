@@ -301,8 +301,11 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
 
                 
                 # ------------------------------------------------
+                
+                # ------------------------------------------------
                 # NEW: Date above 'SIGNATURE OF CERTIFYING OFFICER & DATE'
-                # Uses the underline text (underscores) just above the label as the anchor.
+                # Robust: finds the label by SAME-LINE word grouping (PDF often splits it into many words),
+                # then finds the closest underline (underscore word OR horizontal line) above that label.
                 # ------------------------------------------------
                 date_mmddyyyy = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
                 date_x = None
@@ -310,58 +313,112 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
 
                 try:
                     if date_mmddyyyy:
-                        # Find the label word exactly
-                        sig_label = None
-                        for w in words:
-                            if (w.get("text") or "").strip().upper() == "SIGNATURE OF CERTIFYING OFFICER & DATE":
-                                sig_label = w
+                        # ---- 1) Find the signature label line (word-group match)
+                        sig_label_top = None
+                        sig_label_x0 = None
+                        sig_label_x1 = None
+
+                        for i, w in enumerate(words):
+                            if (w.get("text") or "").strip().upper() != "SIGNATURE":
+                                continue
+
+                            top_i = float(w.get("top", 0.0))
+                            x0_i = float(w.get("x0", 0.0))
+                            x1_i = float(w.get("x1", 0.0))
+
+                            # collect words on the same line (+/- 3 pts)
+                            line_words = [(w.get("text") or "").strip().upper()]
+                            line_x0 = x0_i
+                            line_x1 = x1_i
+
+                            # scan a reasonable window forward
+                            for j in range(1, 40):
+                                if i + j >= len(words):
+                                    break
+                                ww = words[i + j]
+                                if abs(float(ww.get("top", 0.0)) - top_i) > 3.0:
+                                    if j > 5:
+                                        break
+                                    continue
+                                t = (ww.get("text") or "").strip().upper()
+                                if not t:
+                                    continue
+                                line_words.append(t)
+                                line_x0 = min(line_x0, float(ww.get("x0", line_x0)))
+                                line_x1 = max(line_x1, float(ww.get("x1", line_x1)))
+
+                            if ("CERTIFYING" in line_words) and ("OFFICER" in line_words) and ("DATE" in line_words):
+                                sig_label_top = top_i
+                                sig_label_x0 = line_x0
+                                sig_label_x1 = line_x1
                                 break
 
-                        if sig_label:
-                            sig_top = float(sig_label.get("top", 0.0))
+                        if sig_label_top is None:
+                            log("TORIS DATE DEBUG → signature label line not found (SIGNATURE/CERTIFYING/OFFICER/DATE).")
+                        else:
+                            # ---- 2) Find underline above label
+                            underline_x1 = None
+                            underline_bottom = None
 
-                            # Find the nearest underline (a long underscore word) above the label
-                            underline = None
+                            band_top = max(0.0, sig_label_top - 80.0)
+                            band_bottom = sig_label_top - 2.0
+
+                            # 2a) underscore-word candidate
                             best_dist = 1e9
                             for w in words:
-                                t = (w.get("text") or "")
+                                t = (w.get("text") or "").strip()
                                 if "_" not in t:
                                     continue
-                                # must be mostly underscores and long enough
-                                if len(t.strip()) < 20:
+                                if len(t) < 20:
                                     continue
-                                if t.strip().replace("_", "") != "":
+                                if t.replace("_", "") != "":
                                     continue
 
+                                w_top = float(w.get("top", 0.0))
                                 w_bottom = float(w.get("bottom", 0.0))
-                                # underline should be ABOVE the label (smaller bottom/top), within ~5-30 pts
-                                if w_bottom >= sig_top:
+                                if not (band_top <= w_top <= band_bottom):
                                     continue
-                                dist = sig_top - w_bottom
-                                if 2.0 <= dist <= 40.0 and dist < best_dist:
+
+                                x1 = float(w.get("x1", 0.0))
+
+                                dist = sig_label_top - w_bottom
+                                if 2.0 <= dist <= 60.0 and dist < best_dist:
                                     best_dist = dist
-                                    underline = w
+                                    underline_x1 = x1
+                                    underline_bottom = w_bottom
 
-                            if underline:
-                                ul_x1 = float(underline.get("x1", 0.0))
-                                ul_bottom = float(underline.get("bottom", 0.0))
+                            # 2b) fallback to page.lines
+                            if underline_x1 is None:
+                                for ln in (getattr(page, "lines", None) or []):
+                                    x0 = float(ln.get("x0", 0.0))
+                                    x1 = float(ln.get("x1", 0.0))
+                                    y0 = float(ln.get("y0", ln.get("top", 0.0)))
+                                    y1 = float(ln.get("y1", ln.get("bottom", 0.0)))
+                                    if abs(y1 - y0) > 1.0:
+                                        continue
+                                    y = y0
+                                    if not (band_top <= y <= band_bottom):
+                                        continue
+                                    if (x1 - x0) < 150.0:
+                                        continue
+                                    underline_x1 = x1
+                                    underline_bottom = y
+                                    break
 
-                                # Convert to reportlab coords (origin bottom-left)
-                                ul_y_rl = page_height - ul_bottom
-
-                                # Right align date to underline edge
-                                c_tmp_font = font_name  # keep same registered font
-                                date_w = c.stringWidth(date_mmddyyyy, c_tmp_font, 10)
-
-                                date_x = ul_x1 - date_w
-                                date_y = ul_y_rl + 14  # above underline
-
-                                log(f"TORIS DATE DEBUG → underline_x1={ul_x1:.1f} underline_bottom={ul_bottom:.1f} "
-                                    f"date_x={date_x:.1f} date_y={date_y:.1f} date={date_mmddyyyy}")
+                            if underline_x1 is None:
+                                log("TORIS DATE DEBUG → underline not found above signature label.")
                             else:
-                                log("TORIS DATE DEBUG → underline text not found above signature label.")
-                        else:
-                            log("TORIS DATE DEBUG → signature label not found.")
+                                ul_y_rl = page_height - underline_bottom
+                                c.setFont(font_name, 10)
+                                date_w = c.stringWidth(date_mmddyyyy, font_name, 10)
+                                date_x = underline_x1 - date_w
+                                date_y = ul_y_rl + 14
+
+                                log(
+                                    f"TORIS DATE DEBUG → label_top={sig_label_top:.1f} "
+                                    f"underline_x1={underline_x1:.1f} underline_bottom={underline_bottom:.1f} "
+                                    f"date_x={date_x:.1f} date_y={date_y:.1f} date={date_mmddyyyy}"
+                                )
                 except Exception as _e_date:
                     log(f"TORIS DATE DEBUG → exception placing date: {_e_date}")
 
