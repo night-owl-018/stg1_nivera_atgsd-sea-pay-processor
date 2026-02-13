@@ -394,7 +394,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
 
                                 # Compute right-aligned date position
                                 # (uses a temporary canvas later, but we can compute width once c exists)
-                                date_y = underline_y_from_bottom + 6
+                                date_y = underline_y_from_bottom + 2
                                 # date_x computed after canvas creation (needs c.stringWidth)
                                 date_right_x = underline_right_x
                                 log(
