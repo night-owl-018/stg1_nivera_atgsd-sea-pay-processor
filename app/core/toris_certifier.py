@@ -17,17 +17,15 @@ from app.core.config import get_certifying_officer_name, get_certifying_date_yyy
 log(f"TORIS CERT MODULE PATH → {__file__}")
 
 
-
-# ------------------------------------------------
-# INTERNAL HELPER: Format YYYYMMDD -> MM/DD/YYYY
-# ------------------------------------------------
 def _fmt_mmddyyyy(date_yyyymmdd: str) -> str:
+    """Convert YYYYMMDD -> MM/DD/YYYY (passes through if already formatted)."""
     if not date_yyyymmdd:
         return ""
     s = str(date_yyyymmdd).strip()
     if len(s) == 8 and s.isdigit():
         return f"{s[4:6]}/{s[6:8]}/{s[0:4]}"
     return s
+
 
 
 def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
@@ -57,7 +55,6 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
         log("TORIS CERT PATCH CHECK → compute_baseline_between_rules DEBUG v2026-02-08-02")
 
         certifying_officer_name = get_certifying_officer_name()
-        certifying_date_mmddyyyy = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
 
         if not certifying_officer_name:
             log(f"NO CERTIFYING OFFICER SET → Copying TORIS as-is: {os.path.basename(input_pdf_path)}")
@@ -297,24 +294,27 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                         log("No vector/underscore lines found reliably; using label-based fallback")
                         log(f"Placing '{certifying_officer_name}' at (X={name_x}, Y={name_y:.1f})")
 
+                # 🔎 PATCH: prove what we are about to draw
+                log(f"TORIS DRAW DEBUG → name_x={name_x:.2f} name_y={name_y:.2f} font={font_name} size={font_size}")
 
-                # -----------------------------------------
-                # NEW: Place certifying DATE above the signature line
-                #   [date above, right aligned]
-                #   ___________________________
-                #   SIGNATURE OF CERTIFYING OFFICER & DATE
-                # -----------------------------------------
+                # ------------------------------------------------
+                # NEW: Add date above the SIGNATURE OF CERTIFYING OFFICER & DATE line
+                # (right-aligned to the underline edge, MM/DD/YYYY)
+                # ------------------------------------------------
+                date_mmddyyyy = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
+
                 date_x = None
                 date_y = None
-                date_text = certifying_date_mmddyyyy
 
-                if date_text:
+                try:
+                    # Find label line "SIGNATURE OF CERTIFYING OFFICER & DATE" (same-line heuristic)
                     sig_candidates = []
                     for i, w in enumerate(words):
                         if (w.get("text") or "").upper() != "SIGNATURE":
                             continue
 
                         sig_top = float(w.get("top", 0.0))
+
                         same_line = []
                         for j in range(1, 30):
                             if i + j >= len(words):
@@ -323,72 +323,83 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                             if abs(float(ww.get("top", 0.0)) - sig_top) <= 3.0:
                                 same_line.append((ww.get("text") or "").upper())
 
-                        # Accept '&' or 'AND' depending on the form
-                        has_and = ("&" in same_line) or ("AND" in same_line)
-                        if ("OF" in same_line) and ("CERTIFYING" in same_line) and ("OFFICER" in same_line) and ("DATE" in same_line) and has_and:
+                        # Look for OFFICER and DATE on the same label line
+                        if ("OFFICER" in same_line) and ("DATE" in same_line):
                             sig_candidates.append(w)
 
-                    if sig_candidates:
-                        sig_label_word = max(sig_candidates, key=lambda x: float(x.get("top", 0.0)))
-                        sig_label_top = float(sig_label_word.get("top", 0.0))
-                        sig_label_x0 = float(sig_label_word.get("x0", 0.0))
-                        sig_label_x1 = float(sig_label_word.get("x1", sig_label_x0))
+                    if sig_candidates and date_mmddyyyy:
+                        # Choose the lowest "SIGNATURE ..." label on the page (closest to signature block)
+                        sig_label = max(sig_candidates, key=lambda x: float(x.get("top", 0.0)))
+                        sig_label_top = float(sig_label.get("top", 0.0))
+                        sig_label_x0 = float(sig_label.get("x0", 0.0))
+                        sig_label_x1 = float(sig_label.get("x1", sig_label_x0))
 
-                        # Look for the horizontal rule just ABOVE the signature label
-                        sig_band_top = max(0.0, sig_label_top - 80.0)
-                        sig_band_bottom = sig_label_top - 2.0
+                        # Search for the horizontal underline directly ABOVE this label
+                        # pdfplumber uses y from top; smaller y is higher on page.
+                        band_top = max(0.0, sig_label_top - 60.0)
+                        band_bottom = sig_label_top - 2.0
 
-                        sig_line_candidates = []
+                        sig_line = None
+                        best_dist = 1e9
+
                         for ln in (getattr(page, "lines", None) or []):
                             if not is_horizontal_line(ln):
                                 continue
+
                             x0 = float(ln.get("x0", 0.0))
                             x1 = float(ln.get("x1", 0.0))
                             y = float(ln.get("y0", ln.get("top", 0.0)))  # y from top
 
-                            if not (sig_band_top <= y <= sig_band_bottom):
+                            if not (band_top <= y <= band_bottom):
                                 continue
 
-                            # Ensure it overlaps the signature label area (generous to the right)
-                            if x1 < (sig_label_x0 - 50.0):
+                            # Must overlap the signature label area
+                            if x1 < (sig_label_x0 - 30.0):
                                 continue
-                            if x0 > (sig_label_x1 + 500.0):
+                            if x0 > (sig_label_x1 + 350.0):
                                 continue
 
+                            # Prefer long lines
                             if (x1 - x0) < 150.0:
                                 continue
 
-                            sig_line_candidates.append({"x0": x0, "x1": x1, "y": y})
+                            dist = sig_label_top - y  # closer line just above label -> smaller dist
+                            if dist < best_dist:
+                                best_dist = dist
+                                sig_line = {"x0": x0, "x1": x1, "y": y}
 
-                        sig_line_candidates.sort(key=lambda d: (sig_label_top - d["y"]))
-                        if sig_line_candidates:
-                            ln = sig_line_candidates[0]
-                            line_y_from_bottom = page_height - ln["y"]
+                        if sig_line:
+                            # Place date above underline, right-aligned to underline edge
+                            underline_y_from_bottom = page_height - sig_line["y"]
+                            underline_right_x = sig_line["x1"]
 
-                            # Date ABOVE the underline, aligned to the RIGHT EDGE
-                            date_font_size = 10
-                            date_w = pdfmetrics.stringWidth(date_text, font_name, date_font_size)
-                            date_x = ln["x1"] - date_w
-                            date_y = line_y_from_bottom + 14  # vertical offset above the line
+                            # Use TimesNewRoman 10pt for the date
+                            date_w = c.stringWidth(date_mmddyyyy, font_name, 10)
+
+                            date_x = underline_right_x - date_w
+                            date_y = underline_y_from_bottom + 14  # above the underline
 
                             log(
-                                f"SIGNATURE DATE DEBUG → line(top)={ln['y']:.1f} "
-                                f"line_x1={ln['x1']:.1f} date_x={date_x:.1f} date_y={date_y:.1f} text={date_text}"
+                                f"TORIS DATE DEBUG → underline(top)={sig_line['y']:.1f} "
+                                f"right_x={underline_right_x:.1f} date_x={date_x:.1f} date_y={date_y:.1f} "
+                                f"date={date_mmddyyyy}"
                             )
+                        else:
+                            log("TORIS DATE DEBUG → signature underline line not found; date not drawn.")
+                    else:
+                        log("TORIS DATE DEBUG → signature label not found or date missing; date not drawn.")
+                except Exception as _e_date:
+                    log(f"TORIS DATE DEBUG → exception while placing date: {_e_date}")
 
-                # 🔎 PATCH: prove what we are about to draw
-                log(f"TORIS DRAW DEBUG → name_x={name_x:.2f} name_y={name_y:.2f} font={font_name} size={font_size}")
 
                 # Build overlay on the ACTUAL TORIS page size, not letter
                 buf = io.BytesIO()
                 c = canvas.Canvas(buf, pagesize=(page_width, page_height))
                 c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
-
-                # Draw signature date if detected
-                if date_text and (date_x is not None) and (date_y is not None):
+                if date_x is not None and date_y is not None and date_mmddyyyy:
                     c.setFont(font_name, 10)
-                    c.drawString(date_x, date_y, date_text)
+                    c.drawString(date_x, date_y, date_mmddyyyy)
                 c.save()
                 buf.seek(0)
 
