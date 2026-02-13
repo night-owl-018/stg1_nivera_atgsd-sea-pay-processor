@@ -11,10 +11,22 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from app.core.logger import log
-from app.core.config import get_certifying_officer_name
-
+from app.core.config import get_certifying_officer_name, get_certifying_date_yyyymmdd
 # 🔎 PATCH: prove what file is actually executing
 log(f"TORIS CERT MODULE PATH → {__file__}")
+
+
+# ------------------------------------------------
+# INTERNAL HELPER: Format YYYYMMDD -> MM/DD/YYYY
+# ------------------------------------------------
+def _fmt_mmddyyyy(date_yyyymmdd: str) -> str:
+    if not date_yyyymmdd:
+        return ""
+    s = str(date_yyyymmdd).strip()
+    if len(s) == 8 and s.isdigit():
+        return f"{s[4:6]}/{s[6:8]}/{s[0:4]}"
+    return s
+
 
 
 def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
@@ -286,11 +298,124 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 # 🔎 PATCH: prove what we are about to draw
                 log(f"TORIS DRAW DEBUG → name_x={name_x:.2f} name_y={name_y:.2f} font={font_name} size={font_size}")
 
+                
+                # ------------------------------------------------
+                # NEW: Draw date above SIGNATURE OF CERTIFYING OFFICER & DATE underline (right-aligned)
+                # ------------------------------------------------
+                sig_date = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
+                date_x = None
+                date_y = None
+
+                def _find_signature_label_line(words_list):
+                    candidates = []
+                    for i, w in enumerate(words_list):
+                        if (w.get("text") or "").strip().upper() != "SIGNATURE":
+                            continue
+                        top_i = float(w.get("top", 0.0))
+                        x0 = float(w.get("x0", 0.0))
+                        x1 = float(w.get("x1", x0))
+                        same = []
+                        for j in range(1, 35):
+                            if i + j >= len(words_list):
+                                break
+                            ww = words_list[i + j]
+                            if abs(float(ww.get("top", 0.0)) - top_i) <= 3.0:
+                                same.append((ww.get("text") or "").strip().upper())
+                                x0 = min(x0, float(ww.get("x0", x0)))
+                                x1 = max(x1, float(ww.get("x1", x1)))
+                        if ("CERTIFYING" in same) and ("OFFICER" in same) and ("DATE" in same):
+                            candidates.append({"top": top_i, "x0": x0, "x1": x1})
+                    if not candidates:
+                        return None
+                    # lowest on page (largest top in pdfplumber coords)
+                    return max(candidates, key=lambda d: d["top"])
+
+                try:
+                    if sig_date:
+                        sig_label = _find_signature_label_line(words)
+                        if not sig_label:
+                            log("TORIS SIG DATE → signature label line not found; date not drawn")
+                        else:
+                            sig_top = float(sig_label["top"])
+                            sig_x0 = float(sig_label["x0"])
+                            sig_x1 = float(sig_label["x1"])
+
+                            # Find the underline directly ABOVE this label line
+                            band_top = max(0.0, sig_top - 70.0)
+                            band_bottom = sig_top - 2.0
+
+                            best = None
+                            best_dist = 1e9
+
+                            for ln in (getattr(page, "lines", None) or []):
+                                if not is_horizontal_line(ln):
+                                    continue
+                                x0 = float(ln.get("x0", 0.0))
+                                x1 = float(ln.get("x1", 0.0))
+                                y = float(ln.get("y0", ln.get("top", 0.0)))  # y from top
+                                if not (band_top <= y <= band_bottom):
+                                    continue
+                                if (x1 - x0) < 150.0:
+                                    continue
+                                # must overlap near the label region
+                                if x1 < (sig_x0 - 40.0):
+                                    continue
+                                if x0 > (sig_x1 + 500.0):
+                                    continue
+                                dist = sig_top - y
+                                if dist < best_dist:
+                                    best_dist = dist
+                                    best = {"x0": x0, "x1": x1, "y": y}
+
+                            # Fallback: underscore-word underline (some templates)
+                            if best is None:
+                                for w in words:
+                                    t = (w.get("text") or "")
+                                    if not re.fullmatch(r"_+", t):
+                                        continue
+                                    if len(t) < 20:
+                                        continue
+                                    top_u = float(w.get("top", 0.0))
+                                    if not (band_top <= top_u <= band_bottom):
+                                        continue
+                                    x0 = float(w.get("x0", 0.0))
+                                    x1 = float(w.get("x1", 0.0))
+                                    y = top_u
+                                    dist = sig_top - y
+                                    if dist < best_dist:
+                                        best_dist = dist
+                                        best = {"x0": x0, "x1": x1, "y": y}
+
+                            if best is None:
+                                log("TORIS SIG DATE → underline not found; date not drawn")
+                            else:
+                                underline_y_from_bottom = page_height - best["y"]
+                                underline_right_x = best["x1"]
+
+                                # Compute right-aligned date position
+                                # (uses a temporary canvas later, but we can compute width once c exists)
+                                date_y = underline_y_from_bottom + 14
+                                # date_x computed after canvas creation (needs c.stringWidth)
+                                date_right_x = underline_right_x
+                                log(
+                                    f"TORIS SIG DATE → underline_y(top)={best['y']:.1f} "
+                                    f"right_x={underline_right_x:.1f} date_y={date_y:.1f} date={sig_date}"
+                                )
+                except Exception as e_sigdate:
+                    log(f"TORIS SIG DATE → exception: {e_sigdate}")
+
+
                 # Build overlay on the ACTUAL TORIS page size, not letter
                 buf = io.BytesIO()
                 c = canvas.Canvas(buf, pagesize=(page_width, page_height))
                 c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
+                # Draw signature date (right-aligned) if we found underline
+                if date_y is not None and sig_date:
+                    c.setFont(font_name, 10)
+                    date_w = c.stringWidth(sig_date, font_name, 10)
+                    # right edge captured from underline detection
+                    c.drawString(date_right_x - date_w, date_y, sig_date)
                 c.save()
                 buf.seek(0)
 
