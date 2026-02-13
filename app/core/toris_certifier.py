@@ -137,7 +137,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
 
                     # 🔑 Key control:
                     # smaller = lower placement, larger = higher placement
-                    frac = 0.18
+                    frac = 0.25
 
                     baseline = lo + pad + descent + (free * frac)
 
