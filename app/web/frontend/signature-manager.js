@@ -261,10 +261,13 @@ if (lp && lpp) {
     }
 }
 
-// Base step ~0.65px, down to ~0.18px when fast/turning.
-const baseStep = 0.65;
-const minStep = 0.18;
-const step = Math.max(minStep, (baseStep - Math.min(0.47, speed * 0.55)) / turnBoost);
+// Base step tightened to eliminate visible corners on circles/curves.
+// We keep sampling dense even at slow speed; tighter turns get even denser.
+const baseStep = 0.40;   // px
+const minStep = 0.08;    // px (very dense)
+// Speed reduces step; turnBoost reduces it further.
+const step = Math.max(minStep, (baseStep - Math.min(0.30, speed * 0.50)) / turnBoost);
+// Never under-sample long jumps.
 const n = Math.max(1, Math.ceil(dist / step));
 
 
@@ -302,8 +305,9 @@ _addPoint(p) {
     // Light position smoothing (reduces tiny kinks on curves without drifting)
     const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
     if (prev) {
-        pt.x = prev.x * 0.15 + pt.x * 0.85;
-        pt.y = prev.y * 0.15 + pt.y * 0.85;
+        // Slightly stronger smoothing to remove micro-kinks (helps iPhone curves).
+        pt.x = prev.x * 0.25 + pt.x * 0.75;
+        pt.y = prev.y * 0.25 + pt.y * 0.75;
     }
 
     this._stroke.pts.push(pt);
@@ -324,7 +328,7 @@ _addPoint(p) {
 // Classic /6 can still show corners when the pointer moves fast and points are sparse.
 // We increase the divisor at higher velocity to damp sharp bends.
 const vForTension = v; // px/ms from above
-const denom = 6 + Math.min(10, vForTension * 40); // 6..16
+const denom = 12 + Math.min(20, vForTension * 60); // 12..32 (smoother control points)
 const cp1 = {
     x: p1.x + (p2.x - p0.x) / denom,
     y: p1.y + (p2.y - p0.y) / denom
@@ -336,7 +340,8 @@ const cp2 = {
 
 
     // Line width based on destination point (smooth enough with resampling)
-    this.ctx.lineWidth = p2.w;
+    // Use averaged width for smoother segment joins.
+    this.ctx.lineWidth = (p1.w + p2.w) / 2;
     this.ctx.beginPath();
     this.ctx.moveTo(p1.x, p1.y);
     this.ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p2.x, p2.y);
