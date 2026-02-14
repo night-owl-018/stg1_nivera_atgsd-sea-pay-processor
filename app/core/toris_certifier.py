@@ -459,17 +459,20 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
                 
-                # NEW: Draw TORIS CERTIFYING OFFICER signature above the printed name
+                # NEW: Draw TORIS CERTIFYING OFFICER signature ON THE SIGNATURE LINE
                 sig_image = get_signature_for_location('toris_certifying_officer')
-                if sig_image is not None:
-                    # Position signature ABOVE the printed name, centered
-                    sig_bottom_y = name_y + 12  # 12pt gap above printed name
+                if sig_image is not None and underline_y_from_bottom is not None:
+                    # Position signature ON the signature line (same as where date goes)
+                    # Place it 5pt above the underline for proper positioning
+                    sig_bottom_y = underline_y_from_bottom + 5
                     
-                    # Calculate signature horizontal position (centered over name)
+                    # Calculate signature horizontal position (centered on the line)
                     sig_width = 150
                     sig_height = 35
-                    name_width = c.stringWidth(certifying_officer_name, font_name, font_size)
-                    sig_left_x = name_x - (sig_width / 2.0) + (name_width / 2.0)
+                    # Center the signature on the underline
+                    underline_left_x = best["x0"] if best else name_x
+                    underline_width = (best["x1"] - best["x0"]) if best else 200
+                    sig_left_x = underline_left_x + (underline_width - sig_width) / 2.0
                     
                     _draw_signature_image_toris(
                         c,
