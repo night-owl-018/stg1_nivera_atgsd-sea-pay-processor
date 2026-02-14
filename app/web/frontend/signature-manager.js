@@ -43,116 +43,242 @@ class SignatureManager {
         if (/Mac/.test(ua)) return 'Mac';
         return 'Unknown Device';
     }
-
-    setupCanvas() {
-        if (!this.canvas) {
-            console.error('Canvas element not found in setupCanvas');
-            return;
-        }        const parent = this.canvas.parentElement;
-        const rect = parent.getBoundingClientRect();
-
-        // CSS size (what the user sees)
-        const cssWidth = Math.max(300, Math.min(700, rect.width));
-        const cssHeight = 200;
-
-        // HiDPI backing store (what we actually draw into)
-        const dpr = window.devicePixelRatio || 1;
-
-        this.canvas.style.width = cssWidth + 'px';
-        this.canvas.style.height = cssHeight + 'px';
-        this.canvas.width = Math.round(cssWidth * dpr);
-        this.canvas.height = Math.round(cssHeight * dpr);
-
-        this._sigCssWidth = cssWidth;
-        this._sigCssHeight = cssHeight;
-
-        console.log(`Canvas initialized (CSS ${cssWidth}x${cssHeight}, DPR ${dpr}, backing ${this.canvas.width}x${this.canvas.height})`);
-
-        this.ctx = this.canvas.getContext('2d', { alpha: true });
-
-        // Drawing style (in device pixels)
-        this._baseWidthCss = 3.0;
-        this._minWidthCss = 2.0;
-        this._maxWidthCss = 4.5;
-        this._lastTs = 0;
-
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
-        this.ctx.miterLimit = 2;
-
-        // Prevent iOS scrolling/zooming inside canvas
-        this.canvas.style.touchAction = 'none';
-        this.canvas.style.webkitUserSelect = 'none';
-        this.canvas.style.userSelect = 'none';
-
-        // Bind drawing events (pointer/touch/mouse)
-        this.bindCanvasEvents();
-    }
-
     
 
-bindCanvasEvents() {
-    if (!this.canvas) return;
-
-    // Remove previous bindings if they exist
-    if (this._canvasEventsBound && this._onPointerDown) {
-        try { this.canvas.removeEventListener('pointerdown', this._onPointerDown); } catch {}
-        try { this.canvas.removeEventListener('pointermove', this._onPointerMove); } catch {}
-        try { this.canvas.removeEventListener('pointerup', this._onPointerUp); } catch {}
-        try { this.canvas.removeEventListener('pointercancel', this._onPointerUp); } catch {}
-        try { this.canvas.removeEventListener('pointerleave', this._onPointerUp); } catch {}
+setupCanvas() {
+    if (!this.canvas) {
+        console.error('Canvas element not found in setupCanvas');
+        return;
     }
 
-    // Use Pointer Events (works on iOS Safari + Brave + desktop)
+    // IMPORTANT: do NOT clone/replace the canvas node.
+    // Replacing the node breaks coordinate mapping in iOS modals and can drop listeners.
+    const parent = this.canvas.parentElement;
+    const rect = parent.getBoundingClientRect();
+
+    // CSS size (display)
+    this._cssW = Math.max(300, Math.min(720, Math.round(rect.width)));
+    this._cssH = 220;
+
+    // Backing store size (for sharpness)
+    this._dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+    this.canvas.style.width = this._cssW + 'px';
+    this.canvas.style.height = this._cssH + 'px';
+    this.canvas.width = Math.round(this._cssW * this._dpr);
+    this.canvas.height = Math.round(this._cssH * this._dpr);
+
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: false });
+    // Draw in CSS units by scaling the context to DPR
+    this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+
+    // Ink style
+    this.ctx.strokeStyle = '#000';
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.miterLimit = 2;
+
+    // Prevent scroll/zoom while signing
+    this.canvas.style.touchAction = 'none';
+
+    // Remove prior listeners (if any) then bind fresh ones
+    this._unbindCanvasEvents();
+    this._bindCanvasEvents();
+
+    console.log(`Canvas initialized: CSS ${this._cssW}x${this._cssH}, DPR ${this._dpr}, backing ${this.canvas.width}x${this.canvas.height}`);
+}
+
+_bindCanvasEvents() {
+    // Prefer Pointer Events (Safari + Brave on iOS support this via WebKit)
     this._onPointerDown = (e) => {
-        if (!this.ctx) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.preventDefault();
-        this.isDrawing = true;
-        this.points = [];
-
-        const p = this._clientToCanvasPoint(e.clientX, e.clientY);
-        this.points.push({ x: p.x, y: p.y, t: performance.now() });
-
-        // Start a fresh stroke
-        this.ctx.beginPath();
-        this.ctx.moveTo(p.x, p.y);
-
-        // Draw a tiny dot so taps show up
-        const dpr = this.canvasDpr || 1;
-        this.ctx.lineWidth = 2.0 * dpr;
-        this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
-        this.ctx.stroke();
-
-        try { this.canvas.setPointerCapture(e.pointerId); } catch {}
+        try { this.canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        this._strokeStart(this._eventToPoint(e));
     };
 
     this._onPointerMove = (e) => {
         if (!this.isDrawing) return;
-        if (!this.ctx) return;
         e.preventDefault();
-        const p = this._clientToCanvasPoint(e.clientX, e.clientY);
-        this._strokeTo(p.x, p.y);
+        this._strokeMove(this._eventToPoint(e));
     };
 
     this._onPointerUp = (e) => {
         if (!this.isDrawing) return;
         e.preventDefault();
-        this.isDrawing = false;
-        try { this.canvas.releasePointerCapture(e.pointerId); } catch {}
+        this._strokeEnd();
     };
 
-    this.canvas.addEventListener('pointerdown', this._onPointerDown, { passive: false });
-    this.canvas.addEventListener('pointermove', this._onPointerMove, { passive: false });
-    this.canvas.addEventListener('pointerup', this._onPointerUp, { passive: false });
-    this.canvas.addEventListener('pointercancel', this._onPointerUp, { passive: false });
-    this.canvas.addEventListener('pointerleave', this._onPointerUp, { passive: false });
+    this._onPointerCancel = (e) => {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        this._strokeEnd();
+    };
 
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (window.PointerEvent) {
+        this.canvas.addEventListener('pointerdown', this._onPointerDown, { passive: false });
+        this.canvas.addEventListener('pointermove', this._onPointerMove, { passive: false });
+        this.canvas.addEventListener('pointerup', this._onPointerUp, { passive: false });
+        this.canvas.addEventListener('pointercancel', this._onPointerCancel, { passive: false });
+    } else {
+        // Fallback (older browsers): touch + mouse
+        this._onTouchStart = (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            this._strokeStart(this._clientToPoint(t.clientX, t.clientY));
+        };
+        this._onTouchMove = (e) => {
+            if (!this.isDrawing) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            this._strokeMove(this._clientToPoint(t.clientX, t.clientY));
+        };
+        this._onTouchEnd = (e) => {
+            e.preventDefault();
+            this._strokeEnd();
+        };
 
-    this._canvasEventsBound = true;
+        this.canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove', this._onTouchMove, { passive: false });
+        this.canvas.addEventListener('touchend', this._onTouchEnd, { passive: false });
+        this.canvas.addEventListener('touchcancel', this._onTouchEnd, { passive: false });
+
+        this._onMouseDown = (e) => { e.preventDefault(); this._strokeStart(this._clientToPoint(e.clientX, e.clientY)); };
+        this._onMouseMove = (e) => { if (!this.isDrawing) return; e.preventDefault(); this._strokeMove(this._clientToPoint(e.clientX, e.clientY)); };
+        this._onMouseUp = (e) => { e.preventDefault(); this._strokeEnd(); };
+
+        this.canvas.addEventListener('mousedown', this._onMouseDown);
+        window.addEventListener('mousemove', this._onMouseMove);
+        window.addEventListener('mouseup', this._onMouseUp);
+    }
+
+    // Reflow/rotation can change modal geometry on iOS; rebuild mapping on resize.
+    this._onResize = () => {
+        if (!this.canvas || !this.ctx) return;
+        this.setupCanvas();
+        this.clearCanvas();
+    };
+    window.addEventListener('resize', this._onResize);
 }
 
+_unbindCanvasEvents() {
+    if (!this.canvas) return;
+
+    if (this._onPointerDown) {
+        this.canvas.removeEventListener('pointerdown', this._onPointerDown);
+        this.canvas.removeEventListener('pointermove', this._onPointerMove);
+        this.canvas.removeEventListener('pointerup', this._onPointerUp);
+        this.canvas.removeEventListener('pointercancel', this._onPointerCancel);
+    }
+    if (this._onTouchStart) {
+        this.canvas.removeEventListener('touchstart', this._onTouchStart);
+        this.canvas.removeEventListener('touchmove', this._onTouchMove);
+        this.canvas.removeEventListener('touchend', this._onTouchEnd);
+        this.canvas.removeEventListener('touchcancel', this._onTouchEnd);
+    }
+    if (this._onMouseDown) {
+        this.canvas.removeEventListener('mousedown', this._onMouseDown);
+        window.removeEventListener('mousemove', this._onMouseMove);
+        window.removeEventListener('mouseup', this._onMouseUp);
+    }
+    if (this._onResize) {
+        window.removeEventListener('resize', this._onResize);
+    }
+
+    this._onPointerDown = this._onPointerMove = this._onPointerUp = this._onPointerCancel = null;
+    this._onTouchStart = this._onTouchMove = this._onTouchEnd = null;
+    this._onMouseDown = this._onMouseMove = this._onMouseUp = null;
+    this._onResize = null;
+}
+
+_eventToPoint(e) {
+    return this._clientToPoint(e.clientX, e.clientY);
+}
+
+_clientToPoint(clientX, clientY) {
+    // Always compute from current bounding rect (iOS modal can shift while open)
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top, t: performance.now() };
+}
+
+_strokeStart(p) {
+    if (!this.ctx) return;
+    this.isDrawing = true;
+    this.points = [];
+
+    this._lastPoint = { x: p.x, y: p.y };
+    this._lastMid = { x: p.x, y: p.y };
+    this._lastTs = p.t;
+
+    this.points.push({ x: p.x, y: p.y });
+
+    // tiny dot so taps register
+    this.ctx.beginPath();
+    this.ctx.lineWidth = 2.8;
+    this.ctx.moveTo(p.x, p.y);
+    this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
+    this.ctx.stroke();
+}
+
+_strokeMove(p) {
+    if (!this.isDrawing || !this.ctx || !this._lastPoint) return;
+
+    const now = p.t;
+    const dx = p.x - this._lastPoint.x;
+    const dy = p.y - this._lastPoint.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 0.4) return;
+
+    // interpolate to avoid sharp corners on fast moves
+    const step = 2.0;
+    const segments = Math.min(24, Math.max(1, Math.floor(dist / step)));
+
+    for (let i = 1; i <= segments; i++) {
+        const t = i / segments;
+        const x = this._lastPoint.x + dx * t;
+        const y = this._lastPoint.y + dy * t;
+        const ts = this._lastTs + (now - this._lastTs) * t;
+        this._drawSmoothPoint({ x, y, t: ts });
+        this.points.push({ x, y });
+    }
+
+    this._lastPoint = { x: p.x, y: p.y };
+    this._lastTs = now;
+}
+
+_drawSmoothPoint(p) {
+    const mid = { x: (this._lastPoint.x + p.x) / 2, y: (this._lastPoint.y + p.y) / 2 };
+
+    // speed-based width for pen feel
+    const dt = Math.max(8, p.t - this._lastTs);
+    const vx = p.x - this._lastPoint.x;
+    const vy = p.y - this._lastPoint.y;
+    const v = Math.hypot(vx, vy) / dt; // px/ms
+
+    const maxW = 4.0;
+    const minW = 2.0;
+    const k = 3.5;
+    const w = Math.max(minW, Math.min(maxW, maxW - v * k));
+
+    this.ctx.lineWidth = w;
+    this.ctx.beginPath();
+    this.ctx.moveTo(this._lastMid.x, this._lastMid.y);
+    this.ctx.quadraticCurveTo(this._lastPoint.x, this._lastPoint.y, mid.x, mid.y);
+    this.ctx.stroke();
+
+    this._lastMid = mid;
+}
+
+_strokeEnd() {
+    this.isDrawing = false;
+    this._lastPoint = null;
+    this._lastMid = null;
+    this._lastTs = 0;
+    console.log('Drawing stopped, total points:', this.points.length);
+}
+
+    
     attachEventListeners() {
         const createBtn = document.getElementById('createSignatureBtn');
         if (createBtn) {
@@ -185,170 +311,27 @@ bindCanvasEvents() {
         }
     }
     
-    handleTouchStart(e) {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-        
-        this.isDrawing = true;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, y);
-        this.points.push({x, y});
-        
-        console.log('Touch start at:', x, y);
-    }
     
-    handleTouchMove(e) {
-        if (!this.isDrawing) return;
-        e.preventDefault();
-        
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-        
-        this.ctx.lineTo(x, y);
-        this.ctx.stroke();
-        this.points.push({x, y});
-    }
-
-    startDrawing(e) {
-        this.isDrawing = true;
-
-        const p = this.getPosition(e);
-        this.points = [p];
-        this._lastTs = p.t || 0;
-
-        // Start a new stroke
-        this.ctx.beginPath();
-        this.ctx.moveTo(p.x, p.y);
-
-        // Draw a tiny dot for taps
-        const dpr = window.devicePixelRatio || 1;
-        this.ctx.lineWidth = this._baseWidthCss * dpr;
-        this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
-        this.ctx.stroke();
-        this.ctx.beginPath();
-        this.ctx.moveTo(p.x, p.y);
-    }
-
-    draw(e) {
-        if (!this.isDrawing) return;
-
-        const p = this.getPosition(e);
-        const last = this.points[this.points.length - 1];
-
-        // If the browser is coalescing too hard, interpolate points so curves stay smooth
-        const dx = p.x - last.x;
-        const dy = p.y - last.y;
-        const dist = Math.hypot(dx, dy);
-
-        const step = 2.0 * (window.devicePixelRatio || 1); // 2px in device space
-        const n = dist > step ? Math.ceil(dist / step) : 1;
-
-        for (let i = 1; i <= n; i++) {
-            const ip = {
-                x: last.x + (dx * i / n),
-                y: last.y + (dy * i / n),
-                t: (last.t || p.t) + ((p.t - (last.t || p.t)) * i / n)
-            };
-            this._addPointAndRender(ip);
-        }
-    }
-
-    stopDrawing() {
-        if (!this.isDrawing) return;
-        this.isDrawing = false;
-
-        // Finish the stroke cleanly
-        if (this.points.length > 2) {
-            const p1 = this.points[this.points.length - 2];
-            const p2 = this.points[this.points.length - 1];
-            this.ctx.beginPath();
-            this.ctx.moveTo(p1.x, p1.y);
-            this.ctx.lineTo(p2.x, p2.y);
-            this.ctx.stroke();
-        }
-
-        console.log('Drawing stopped. Points captured:', this.points.length);
-    }
-
-    _addPointAndRender(p) {
-        this.points.push(p);
-
-        const dpr = window.devicePixelRatio || 1;
-
-        // Variable width: slower = thicker, faster = thinner (more pen-like)
-        const prev = this.points.length >= 2 ? this.points[this.points.length - 2] : p;
-        const dt = Math.max(1, (p.t || 0) - (prev.t || 0));
-        const d = Math.hypot(p.x - prev.x, p.y - prev.y);
-        const v = d / dt; // px per ms
-
-        const minW = this._minWidthCss * dpr;
-        const maxW = this._maxWidthCss * dpr;
-
-        // Map velocity to width (tuned for touch + stylus)
-        // v ~ 0.2 slow, ~2.0 fast
-        const clampedV = Math.min(2.5, Math.max(0.05, v));
-        const w = maxW - (clampedV / 2.5) * (maxW - minW);
-
-        // Spline smoothing using midpoint-quadratic method (very smooth, low "corners")
-        const pts = this.points;
-        const len = pts.length;
-
-        // Need at least 3 points to smooth
-        if (len < 3) {
-            this.ctx.lineWidth = w;
-            this.ctx.beginPath();
-            this.ctx.moveTo(prev.x, prev.y);
-            this.ctx.lineTo(p.x, p.y);
-            this.ctx.stroke();
-            return;
-        }
-
-        const p0 = pts[len - 3];
-        const p1 = pts[len - 2];
-        const p2 = pts[len - 1];
-
-        const m1 = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
-        const m2 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-
-        this.ctx.lineWidth = w;
-        this.ctx.beginPath();
-        this.ctx.moveTo(m1.x, m1.y);
-        this.ctx.quadraticCurveTo(p1.x, p1.y, m2.x, m2.y);
-        this.ctx.stroke();
-    }
-
-
-    getPosition(e) {
-        // Map client coords -> canvas backing store coords (device pixels)
-        const rect = this.canvas.getBoundingClientRect();
-        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-        const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
-
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-
-        return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY,
-            t: (typeof e.timeStamp === 'number' ? e.timeStamp : performance.now())
-        };
-    }
-
     
-    clearCanvas() {
-        if (!this.ctx || !this.canvas) {
-            console.warn('Canvas not initialized, skipping clear');
-            return;
-        }
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.points = [];
-        console.log('Canvas cleared');
+    
+    
+    
+    
+clearCanvas() {
+    if (!this.ctx || !this.canvas) {
+        console.warn('Canvas not initialized, skipping clear');
+        return;
     }
+    // Clear in CSS units (ctx is scaled to DPR)
+    this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this.ctx.clearRect(0, 0, this._cssW || this.canvas.width, this._cssH || this.canvas.height);
+    this.points = [];
+    this.isDrawing = false;
+    this._lastPoint = null;
+    this._lastMid = null;
+    this._lastTs = 0;
+    console.log('Canvas cleared');
+}
     
     openCreateModal() {
         const modal = document.getElementById('createModal');
@@ -380,17 +363,24 @@ bindCanvasEvents() {
         if (roleInput) roleInput.value = '';
     }
     
-    closeCreateModal() {
-        const modal = document.getElementById('createModal');
-        if (modal) {
-            modal.classList.remove('show');
-        }
-        
-        // Clean up canvas reference
-        this.canvas = null;
-        this.ctx = null;
-        this.points = [];
+closeCreateModal() {
+    const modal = document.getElementById('createModal');
+    if (modal) {
+        modal.classList.remove('show');
     }
+
+    // Detach canvas listeners to avoid duplicate bindings
+    this._unbindCanvasEvents();
+
+    // Clean up canvas reference
+    this.canvas = null;
+    this.ctx = null;
+    this.points = [];
+    this.isDrawing = false;
+    this._lastPoint = null;
+    this._lastMid = null;
+    this._lastTs = 0;
+}
     
     async saveSignature(e) {
         e.preventDefault();
