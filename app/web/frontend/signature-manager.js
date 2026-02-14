@@ -241,12 +241,32 @@ _strokeMove(p) {
     if (dist < 0.35) return;
 
     // Resample points so fast motion doesn't create corners.
-// Adaptive step: when moving fast, use denser sampling to eliminate angular corners.
-const dt = Math.max(1, (p.t - a.t) || 1);          // ms
-const speed = dist / dt;                          // px per ms
-// Base step ~0.8px, down to ~0.30px when speed is high.
-const step = Math.max(0.30, 0.85 - Math.min(0.55, speed * 0.45));
+// Key idea: when the pointer moves quickly (or curvature is high), sample much more densely.
+const dt = Math.max(1, (p.t - a.t) || 1);                 // ms
+const speed = dist / dt;                                  // px/ms
+
+// Curvature hint: if direction changed sharply, we densify even more.
+let turnBoost = 1.0;
+const lp = this.points.length >= 2 ? this.points[this.points.length - 1] : null;
+const lpp = this.points.length >= 3 ? this.points[this.points.length - 2] : null;
+if (lp && lpp) {
+    const v1x = lp.x - lpp.x, v1y = lp.y - lpp.y;
+    const v2x = p.x - lp.x,  v2y = p.y - lp.y;
+    const d1 = Math.hypot(v1x, v1y), d2 = Math.hypot(v2x, v2y);
+    if (d1 > 0.001 && d2 > 0.001) {
+        const cos = (v1x * v2x + v1y * v2y) / (d1 * d2);
+        const angle = Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
+        if (angle > 35) turnBoost = 1.35;
+        if (angle > 70) turnBoost = 1.65;
+    }
+}
+
+// Base step ~0.65px, down to ~0.18px when fast/turning.
+const baseStep = 0.65;
+const minStep = 0.18;
+const step = Math.max(minStep, (baseStep - Math.min(0.47, speed * 0.55)) / turnBoost);
 const n = Math.max(1, Math.ceil(dist / step));
+
 
     for (let i = 1; i <= n; i++) {
         const t = i / n;
@@ -279,7 +299,15 @@ _addPoint(p) {
 
     const pt = { x: p.x, y: p.y, t: p.t, w };
 
+    // Light position smoothing (reduces tiny kinks on curves without drifting)
+    const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
+    if (prev) {
+        pt.x = prev.x * 0.15 + pt.x * 0.85;
+        pt.y = prev.y * 0.15 + pt.y * 0.85;
+    }
+
     this._stroke.pts.push(pt);
+
 
     // Keep only what we need
     if (this._stroke.pts.length < 4) return;
@@ -292,15 +320,20 @@ _addPoint(p) {
     const p2 = pts[pts.length - 2];
     const p3 = pts[pts.length - 1];
 
-    // Catmull-Rom to Bezier control points (tension = 0.5)
-    const cp1 = {
-        x: p1.x + (p2.x - p0.x) / 6,
-        y: p1.y + (p2.y - p0.y) / 6
-    };
-    const cp2 = {
-        x: p2.x - (p3.x - p1.x) / 6,
-        y: p2.y - (p3.y - p1.y) / 6
-    };
+    // Catmull-Rom -> Bezier control points (adaptive tension).
+// Classic /6 can still show corners when the pointer moves fast and points are sparse.
+// We increase the divisor at higher velocity to damp sharp bends.
+const vForTension = v; // px/ms from above
+const denom = 6 + Math.min(10, vForTension * 40); // 6..16
+const cp1 = {
+    x: p1.x + (p2.x - p0.x) / denom,
+    y: p1.y + (p2.y - p0.y) / denom
+};
+const cp2 = {
+    x: p2.x - (p3.x - p1.x) / denom,
+    y: p2.y - (p3.y - p1.y) / denom
+};
+
 
     // Line width based on destination point (smooth enough with resampling)
     this.ctx.lineWidth = p2.w;
