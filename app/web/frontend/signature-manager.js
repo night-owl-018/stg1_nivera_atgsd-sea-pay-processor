@@ -175,7 +175,7 @@ class SignatureManager {
         const pos = this._clientToCanvasPoint(touch.clientX, touch.clientY);
 
         this.isDrawing = true;
-        this.points = [{x: pos.x, y: pos.y}];
+        this.points = [{x: pos.x, y: pos.y, t: performance.now()}];
         this.ctx.beginPath();
         this.ctx.moveTo(pos.x, pos.y);
     }
@@ -192,7 +192,7 @@ class SignatureManager {
     startDrawing(e) {
         this.isDrawing = true;
         const pos = this.getPosition(e);
-        this.points = [{x: pos.x, y: pos.y}];
+        this.points = [{x: pos.x, y: pos.y, t: performance.now()}];
         this.ctx.beginPath();
         this.ctx.moveTo(pos.x, pos.y);
         
@@ -226,6 +226,70 @@ class SignatureManager {
             y: (clientY - rect.top) * scaleY
         };
     }
+
+    _strokeTo(x, y) {
+        if (!this.ctx || !this.canvas) return;
+
+        const now = performance.now();
+        const last = this.points.length ? this.points[this.points.length - 1] : null;
+
+        // Drop ultra-tiny moves to avoid jittery corners.
+        if (last) {
+            const dx = x - last.x;
+            const dy = y - last.y;
+            const dist2 = dx * dx + dy * dy;
+            const min = 0.5 * (this.canvasDpr || 1);
+            if (dist2 < (min * min)) return;
+        }
+
+        this.points.push({ x, y, t: now });
+
+        // Variable width based on speed: slower = thicker, faster = thinner (more natural "ink")
+        if (this.points.length >= 2) {
+            const pA = this.points[this.points.length - 2];
+            const pB = this.points[this.points.length - 1];
+            const dt = Math.max(1, pB.t - pA.t);
+            const dx = pB.x - pA.x;
+            const dy = pB.y - pA.y;
+            const dist = Math.hypot(dx, dy);
+            const speed = dist / dt; // px per ms
+
+            const dpr = this.canvasDpr || 1;
+            const maxW = 2.8 * dpr;
+            const minW = 1.4 * dpr;
+
+            // Tune: slower strokes get thicker
+            const target = maxW - (speed * 35 * dpr);
+            this.ctx.lineWidth = Math.max(minW, Math.min(maxW, target));
+        }
+
+        // For the first couple points, just draw a short line.
+        if (this.points.length < 4) {
+            const p = this.points[this.points.length - 1];
+            this.ctx.beginPath();
+            this.ctx.moveTo(last ? last.x : p.x, last ? last.y : p.y);
+            this.ctx.lineTo(p.x, p.y);
+            this.ctx.stroke();
+            return;
+        }
+
+        // Catmull-Rom spline converted to cubic Bezier for smooth curves.
+        const p0 = this.points[this.points.length - 4];
+        const p1 = this.points[this.points.length - 3];
+        const p2 = this.points[this.points.length - 2];
+        const p3 = this.points[this.points.length - 1];
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(p1.x, p1.y);
+        this.ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        this.ctx.stroke();
+    }
+
 
     clearCanvas() {
         if (!this.ctx || !this.canvas) {
