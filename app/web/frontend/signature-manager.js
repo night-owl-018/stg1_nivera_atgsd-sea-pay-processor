@@ -48,9 +48,7 @@ class SignatureManager {
         if (!this.canvas) {
             console.error('Canvas element not found in setupCanvas');
             return;
-        }
-
-        const parent = this.canvas.parentElement;
+        }        const parent = this.canvas.parentElement;
         const rect = parent.getBoundingClientRect();
 
         // CSS size (what the user sees)
@@ -87,9 +85,74 @@ class SignatureManager {
         this.canvas.style.touchAction = 'none';
         this.canvas.style.webkitUserSelect = 'none';
         this.canvas.style.userSelect = 'none';
+
+        // Bind drawing events (pointer/touch/mouse)
+        this.bindCanvasEvents();
     }
 
     
+
+bindCanvasEvents() {
+    if (!this.canvas) return;
+
+    // Remove previous bindings if they exist
+    if (this._canvasEventsBound && this._onPointerDown) {
+        try { this.canvas.removeEventListener('pointerdown', this._onPointerDown); } catch {}
+        try { this.canvas.removeEventListener('pointermove', this._onPointerMove); } catch {}
+        try { this.canvas.removeEventListener('pointerup', this._onPointerUp); } catch {}
+        try { this.canvas.removeEventListener('pointercancel', this._onPointerUp); } catch {}
+        try { this.canvas.removeEventListener('pointerleave', this._onPointerUp); } catch {}
+    }
+
+    // Use Pointer Events (works on iOS Safari + Brave + desktop)
+    this._onPointerDown = (e) => {
+        if (!this.ctx) return;
+        e.preventDefault();
+        this.isDrawing = true;
+        this.points = [];
+
+        const p = this._clientToCanvasPoint(e.clientX, e.clientY);
+        this.points.push({ x: p.x, y: p.y, t: performance.now() });
+
+        // Start a fresh stroke
+        this.ctx.beginPath();
+        this.ctx.moveTo(p.x, p.y);
+
+        // Draw a tiny dot so taps show up
+        const dpr = this.canvasDpr || 1;
+        this.ctx.lineWidth = 2.0 * dpr;
+        this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
+        this.ctx.stroke();
+
+        try { this.canvas.setPointerCapture(e.pointerId); } catch {}
+    };
+
+    this._onPointerMove = (e) => {
+        if (!this.isDrawing) return;
+        if (!this.ctx) return;
+        e.preventDefault();
+        const p = this._clientToCanvasPoint(e.clientX, e.clientY);
+        this._strokeTo(p.x, p.y);
+    };
+
+    this._onPointerUp = (e) => {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        this.isDrawing = false;
+        try { this.canvas.releasePointerCapture(e.pointerId); } catch {}
+    };
+
+    this.canvas.addEventListener('pointerdown', this._onPointerDown, { passive: false });
+    this.canvas.addEventListener('pointermove', this._onPointerMove, { passive: false });
+    this.canvas.addEventListener('pointerup', this._onPointerUp, { passive: false });
+    this.canvas.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+    this.canvas.addEventListener('pointerleave', this._onPointerUp, { passive: false });
+
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._canvasEventsBound = true;
+}
+
     attachEventListeners() {
         const createBtn = document.getElementById('createSignatureBtn');
         if (createBtn) {
