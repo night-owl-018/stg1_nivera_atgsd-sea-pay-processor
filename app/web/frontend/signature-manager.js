@@ -209,6 +209,7 @@ _strokeStart(p) {
     this._lastPoint = { x: p.x, y: p.y };
     this._lastMid = { x: p.x, y: p.y };
     this._lastTs = p.t;
+    this._lastWidth = 2.8;  // Initialize width smoothing for professional transitions
 
     this.points.push({ x: p.x, y: p.y });
 
@@ -250,20 +251,31 @@ _strokeMove(p) {
 _drawSmoothPoint(p) {
     const mid = { x: (this._lastPoint.x + p.x) / 2, y: (this._lastPoint.y + p.y) / 2 };
 
-    // speed-based width for pen feel
+    // Enhanced speed-based width for professional pen feel
     const dt = Math.max(8, p.t - this._lastTs);
     const vx = p.x - this._lastPoint.x;
     const vy = p.y - this._lastPoint.y;
     const v = Math.hypot(vx, vy) / dt; // px/ms
 
-    const maxW = 4.0;
-    const minW = 2.0;
-    const k = 3.5;
-    const w = Math.max(minW, Math.min(maxW, maxW - v * k));
+    // Professional signature line width (smoother transitions)
+    const maxW = 3.8;  // Slightly reduced max for cleaner look
+    const minW = 1.8;  // Slightly increased min for consistency
+    const k = 4.0;     // Increased sensitivity for better variation
+    
+    // Smooth velocity-based width with exponential decay for natural feel
+    const velocityFactor = Math.min(1.0, v * k / maxW);
+    const w = maxW - (velocityFactor * (maxW - minW));
+    
+    // Apply smoothed width (prevents sudden jumps) - KEY IMPROVEMENT
+    if (!this._lastWidth) this._lastWidth = w;
+    const smoothW = this._lastWidth * 0.7 + w * 0.3;  // 70% old + 30% new = smooth transitions
+    this._lastWidth = smoothW;
 
-    this.ctx.lineWidth = w;
+    this.ctx.lineWidth = smoothW;
     this.ctx.beginPath();
     this.ctx.moveTo(this._lastMid.x, this._lastMid.y);
+    
+    // Use quadratic curve for smooth professional appearance
     this.ctx.quadraticCurveTo(this._lastPoint.x, this._lastPoint.y, mid.x, mid.y);
     this.ctx.stroke();
 
@@ -275,6 +287,7 @@ _strokeEnd() {
     this._lastPoint = null;
     this._lastMid = null;
     this._lastTs = 0;
+    this._lastWidth = null;  // Reset width smoothing for next stroke
     console.log('Drawing stopped, total points:', this.points.length);
 }
 
@@ -330,6 +343,7 @@ clearCanvas() {
     this._lastPoint = null;
     this._lastMid = null;
     this._lastTs = 0;
+    this._lastWidth = null;  // Reset width smoothing
     console.log('Canvas cleared');
 }
     
