@@ -51,16 +51,14 @@ setupCanvas() {
         return;
     }
 
-    // IMPORTANT: do NOT clone/replace the canvas node.
-    // Replacing the node breaks coordinate mapping in iOS modals and can drop listeners.
     const parent = this.canvas.parentElement;
-    const rect = parent.getBoundingClientRect();
+    const rect = parent ? parent.getBoundingClientRect() : this.canvas.getBoundingClientRect();
 
-    // CSS size (display)
-    this._cssW = Math.max(300, Math.min(720, Math.round(rect.width)));
+    // CSS display size
+    this._cssW = Math.max(300, Math.min(720, Math.round(rect.width || 600)));
     this._cssH = 220;
 
-    // Backing store size (for sharpness)
+    // Backing store for sharpness (cap DPR to avoid huge PNGs)
     this._dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 
     this.canvas.style.width = this._cssW + 'px';
@@ -68,20 +66,28 @@ setupCanvas() {
     this.canvas.width = Math.round(this._cssW * this._dpr);
     this.canvas.height = Math.round(this._cssH * this._dpr);
 
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: false });
-    // Draw in CSS units by scaling the context to DPR
+    this.ctx = this.canvas.getContext('2d', { alpha: true });
+
+    // Draw in CSS units, but render at device resolution
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
     // Ink style
     this.ctx.strokeStyle = '#000';
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
-    this.ctx.miterLimit = 2;
+    this.ctx.miterLimit = 1;
 
-    // Prevent scroll/zoom while signing
+    // iOS: prevent scroll/zoom while signing
     this.canvas.style.touchAction = 'none';
 
-    // Remove prior listeners (if any) then bind fresh ones
+    // Reset stroke state
+    this._stroke = {
+        raw: null,          // last raw point (for resampling)
+        pts: [],            // smoothed points (for curves)
+        lastT: 0,
+        lastW: 2.8
+    };
+
     this._unbindCanvasEvents();
     this._bindCanvasEvents();
 
@@ -89,7 +95,7 @@ setupCanvas() {
 }
 
 _bindCanvasEvents() {
-    // Prefer Pointer Events (Safari + Brave on iOS support this via WebKit)
+    // Pointer Events are the most reliable across Safari/Brave on iOS and desktop
     this._onPointerDown = (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.preventDefault();
@@ -121,7 +127,7 @@ _bindCanvasEvents() {
         this.canvas.addEventListener('pointerup', this._onPointerUp, { passive: false });
         this.canvas.addEventListener('pointercancel', this._onPointerCancel, { passive: false });
     } else {
-        // Fallback (older browsers): touch + mouse
+        // Fallback (very old browsers)
         this._onTouchStart = (e) => {
             e.preventDefault();
             const t = e.touches[0];
@@ -133,10 +139,7 @@ _bindCanvasEvents() {
             const t = e.touches[0];
             this._strokeMove(this._clientToPoint(t.clientX, t.clientY));
         };
-        this._onTouchEnd = (e) => {
-            e.preventDefault();
-            this._strokeEnd();
-        };
+        this._onTouchEnd = (e) => { e.preventDefault(); this._strokeEnd(); };
 
         this.canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
         this.canvas.addEventListener('touchmove', this._onTouchMove, { passive: false });
@@ -154,9 +157,11 @@ _bindCanvasEvents() {
 
     // Reflow/rotation can change modal geometry on iOS; rebuild mapping on resize.
     this._onResize = () => {
-        if (!this.canvas || !this.ctx) return;
+        if (!this.canvas) return;
+        const existing = this.canvas.toDataURL('image/png'); // keep current stroke preview
         this.setupCanvas();
         this.clearCanvas();
+        // (We don't redraw the existing image to avoid smoothing artifacts mid-stroke)
     };
     window.addEventListener('resize', this._onResize);
 }
@@ -206,14 +211,17 @@ _strokeStart(p) {
     this.isDrawing = true;
     this.points = [];
 
-    this._lastPoint = { x: p.x, y: p.y };
-    this._lastMid = { x: p.x, y: p.y };
-    this._lastTs = p.t;
-    this._lastWidth = 2.8;  // Initialize width smoothing for professional transitions
+    this._stroke.raw = { x: p.x, y: p.y, t: p.t };
+    this._stroke.pts = [];
+    this._stroke.lastT = p.t;
+    this._stroke.lastW = 2.8;
 
+    // Seed points for curve engine
+    const sp = { x: p.x, y: p.y, t: p.t, w: 2.8 };
+    this._stroke.pts.push(sp, sp, sp, sp);
     this.points.push({ x: p.x, y: p.y });
 
-    // tiny dot so taps register
+    // dot for taps
     this.ctx.beginPath();
     this.ctx.lineWidth = 2.8;
     this.ctx.moveTo(p.x, p.y);
@@ -222,92 +230,92 @@ _strokeStart(p) {
 }
 
 _strokeMove(p) {
-    if (!this.isDrawing || !this.ctx || !this._lastPoint) return;
+    if (!this.isDrawing || !this.ctx || !this._stroke.raw) return;
 
-    const now = p.t;
-    const dx = p.x - this._lastPoint.x;
-    const dy = p.y - this._lastPoint.y;
+    const a = this._stroke.raw;
+    const dx = p.x - a.x;
+    const dy = p.y - a.y;
     const dist = Math.hypot(dx, dy);
 
-    // Increased minimum distance for smoother corners
-    if (dist < 0.8) return;  // Was 0.4, now 0.8 = smoother curves
+    // Ignore micro jitter
+    if (dist < 0.35) return;
 
-    // Enhanced interpolation for perfect curves - MORE segments = smoother
-    const step = 1.5;  // Was 2.0, now 1.5 = finer interpolation
-    const segments = Math.min(32, Math.max(2, Math.floor(dist / step)));  // More segments
+    // Resample points so fast motion doesn't create corners
+    const step = 0.75; // smaller = smoother curves
+    const n = Math.max(1, Math.floor(dist / step));
 
-    for (let i = 1; i <= segments; i++) {
-        const t = i / segments;
-        
-        // Use ease-in-out for smoother acceleration around corners
-        const smoothT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-        
-        const x = this._lastPoint.x + dx * smoothT;
-        const y = this._lastPoint.y + dy * smoothT;
-        const ts = this._lastTs + (now - this._lastTs) * t;
-        
-        this._drawSmoothPoint({ x, y, t: ts });
+    for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        const x = a.x + dx * t;
+        const y = a.y + dy * t;
+        const ts = a.t + (p.t - a.t) * t;
+        this._addPoint({ x, y, t: ts });
         this.points.push({ x, y });
     }
 
-    this._lastPoint = { x: p.x, y: p.y };
-    this._lastTs = now;
+    this._stroke.raw = { x: p.x, y: p.y, t: p.t };
 }
 
-_drawSmoothPoint(p) {
-    // Enhanced midpoint calculation for smoother curves
-    // Use weighted average for better corner smoothing
-    const weight = 0.5;  // 0.5 = perfect balance
-    const mid = { 
-        x: this._lastPoint.x * weight + p.x * (1 - weight), 
-        y: this._lastPoint.y * weight + p.y * (1 - weight) 
+_addPoint(p) {
+    // Speed-based width for pen-like feel
+    const dt = Math.max(8, p.t - this._stroke.lastT);
+    const lp = this._stroke.pts[this._stroke.pts.length - 1];
+    const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt; // px/ms
+
+    const maxW = 3.6;
+    const minW = 1.7;
+    const k = 5.0;
+    const vf = Math.min(1, v * k);
+    const wRaw = maxW - vf * (maxW - minW);
+
+    // Smooth width transitions
+    const w = this._stroke.lastW * 0.75 + wRaw * 0.25;
+    this._stroke.lastW = w;
+    this._stroke.lastT = p.t;
+
+    const pt = { x: p.x, y: p.y, t: p.t, w };
+
+    this._stroke.pts.push(pt);
+
+    // Keep only what we need
+    if (this._stroke.pts.length < 4) return;
+
+    // Draw latest Catmull-Rom segment converted to Bezier:
+    // Segment from P1 to P2 using P0,P1,P2,P3
+    const pts = this._stroke.pts;
+    const p0 = pts[pts.length - 4];
+    const p1 = pts[pts.length - 3];
+    const p2 = pts[pts.length - 2];
+    const p3 = pts[pts.length - 1];
+
+    // Catmull-Rom to Bezier control points (tension = 0.5)
+    const cp1 = {
+        x: p1.x + (p2.x - p0.x) / 6,
+        y: p1.y + (p2.y - p0.y) / 6
+    };
+    const cp2 = {
+        x: p2.x - (p3.x - p1.x) / 6,
+        y: p2.y - (p3.y - p1.y) / 6
     };
 
-    // Enhanced speed-based width for professional pen feel
-    const dt = Math.max(8, p.t - this._lastTs);
-    const vx = p.x - this._lastPoint.x;
-    const vy = p.y - this._lastPoint.y;
-    const v = Math.hypot(vx, vy) / dt; // px/ms
-
-    // Professional signature line width (smoother transitions)
-    const maxW = 3.8;  // Slightly reduced max for cleaner look
-    const minW = 1.8;  // Slightly increased min for consistency
-    const k = 4.0;     // Increased sensitivity for better variation
-    
-    // Smooth velocity-based width with exponential decay for natural feel
-    const velocityFactor = Math.min(1.0, v * k / maxW);
-    const w = maxW - (velocityFactor * (maxW - minW));
-    
-    // Apply smoothed width (prevents sudden jumps) - KEY IMPROVEMENT
-    if (!this._lastWidth) this._lastWidth = w;
-    const smoothW = this._lastWidth * 0.7 + w * 0.3;  // 70% old + 30% new = smooth transitions
-    this._lastWidth = smoothW;
-
-    this.ctx.lineWidth = smoothW;
-    
-    // ENHANCED: Better corner handling with rounded line caps
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-    
+    // Line width based on destination point (smooth enough with resampling)
+    this.ctx.lineWidth = p2.w;
     this.ctx.beginPath();
-    this.ctx.moveTo(this._lastMid.x, this._lastMid.y);
-    
-    // Use quadratic curve for smooth professional appearance
-    // Control point is the previous point for natural curve flow
-    this.ctx.quadraticCurveTo(this._lastPoint.x, this._lastPoint.y, mid.x, mid.y);
+    this.ctx.moveTo(p1.x, p1.y);
+    this.ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p2.x, p2.y);
     this.ctx.stroke();
-
-    this._lastMid = mid;
 }
 
 _strokeEnd() {
     this.isDrawing = false;
-    this._lastPoint = null;
-    this._lastMid = null;
-    this._lastTs = 0;
-    this._lastWidth = null;  // Reset width smoothing for next stroke
+    this._stroke.raw = null;
+    this._stroke.pts = [];
+    this._stroke.lastT = 0;
+    this._stroke.lastW = 2.8;
     console.log('Drawing stopped, total points:', this.points.length);
 }
+
+
 
     
     attachEventListeners() {
@@ -353,17 +361,25 @@ clearCanvas() {
         console.warn('Canvas not initialized, skipping clear');
         return;
     }
+
     // Clear in CSS units (ctx is scaled to DPR)
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    this.ctx.clearRect(0, 0, this._cssW || this.canvas.width, this._cssH || this.canvas.height);
+    this.ctx.clearRect(0, 0, this._cssW || (this.canvas.width / this._dpr), this._cssH || (this.canvas.height / this._dpr));
+
     this.points = [];
     this.isDrawing = false;
-    this._lastPoint = null;
-    this._lastMid = null;
-    this._lastTs = 0;
-    this._lastWidth = null;  // Reset width smoothing
+
+    if (this._stroke) {
+        this._stroke.raw = null;
+        this._stroke.pts = [];
+        this._stroke.lastT = 0;
+        this._stroke.lastW = 2.8;
+    }
+
     console.log('Canvas cleared');
 }
+
+
     
     openCreateModal() {
         const modal = document.getElementById('createModal');
