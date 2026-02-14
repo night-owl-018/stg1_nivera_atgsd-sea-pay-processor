@@ -746,6 +746,26 @@
 
           <div style="height:6px;"></div>
 
+          <!-- SIGNATURE MANAGEMENT BUTTON -->
+          <button type="button"
+                  class="btn-secondary"
+                  style="width: 100%;"
+                  onclick="window.location.href='/signatures.html'">
+            ✍️ Manage Signatures
+          </button>
+          
+          <!-- Signature Status Display -->
+          <div id="signatureStatusBox" style="margin-top: 8px; padding: 10px; background: rgba(111,183,255,0.08); border-radius: 10px; border: 1px solid rgba(111,183,255,0.2); font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+              <span style="font-weight: 650; color: rgba(111,183,255,0.95);">Signature Status:</span>
+            </div>
+            <div id="signatureStatusDisplay" style="color: rgba(245,248,255,0.82); line-height: 1.5;">
+              <div style="text-align: center; padding: 4px 0;">Loading...</div>
+            </div>
+          </div>
+
+          <div style="height:6px;"></div>
+
           <label>Strikeout</label>
           <select id="strikeColor">
             <option value="Black" selected>⚫ Black</option>
@@ -2027,6 +2047,88 @@ function updateCertDatePreview() {
     $('yearNow').textContent = new Date().getFullYear();
     loadMembers();
     loadCertifyingOfficer();
+
+    // ============================================================
+    // SIGNATURE STATUS DISPLAY
+    // ============================================================
+
+    async function updateSignatureStatus() {
+      try {
+        const response = await fetch('/api/signatures/list');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          const total = data.signatures.length;
+          const assignments = data.assignments;
+          const assigned = Object.values(assignments).filter(v => v !== null).length;
+          
+          const statusDisplay = document.getElementById('signatureStatusDisplay');
+          
+          if (total === 0) {
+            // No signatures created
+            statusDisplay.innerHTML = `
+              <div style="text-align: center; color: rgba(255,183,77,0.95);">
+                ⚠️ No signatures created
+              </div>
+              <div style="text-align: center; font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
+                Click "Manage Signatures" to create
+              </div>
+            `;
+          } else if (assigned === 0) {
+            // Signatures created but not assigned
+            statusDisplay.innerHTML = `
+              <div style="color: rgba(255,183,77,0.95);">
+                ⚠️ ${total} signature${total > 1 ? 's' : ''} created
+              </div>
+              <div style="color: rgba(255,183,77,0.95);">
+                ⚠️ Not assigned to documents
+              </div>
+              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
+                Click "Manage Signatures" to assign
+              </div>
+            `;
+          } else if (assigned < 3) {
+            // Partially assigned
+            statusDisplay.innerHTML = `
+              <div style="color: rgba(22,199,132,0.95);">
+                ✓ ${total} signature${total > 1 ? 's' : ''} created
+              </div>
+              <div style="color: rgba(255,183,77,0.95);">
+                ⚠️ ${assigned}/3 locations assigned
+              </div>
+              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
+                TORIS, PG-13 Top, PG-13 Bottom
+              </div>
+            `;
+          } else {
+            // All assigned - ready!
+            statusDisplay.innerHTML = `
+              <div style="color: rgba(22,199,132,0.95);">
+                ✅ ${total} signature${total > 1 ? 's' : ''} created
+              </div>
+              <div style="color: rgba(22,199,132,0.95);">
+                ✅ All 3 locations assigned
+              </div>
+              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
+                Ready for processing
+              </div>
+            `;
+          }
+        }
+      } catch (error) {
+        // API not available yet or error
+        document.getElementById('signatureStatusDisplay').innerHTML = `
+          <div style="text-align: center; color: rgba(245,248,255,0.45); font-size: 10px;">
+            Status unavailable
+          </div>
+        `;
+      }
+    }
+
+    // Update signature status on page load and periodically
+    updateSignatureStatus();
+    setInterval(updateSignatureStatus, 30000); // Refresh every 30 seconds
+
   </script>
 </body>
 </html>
