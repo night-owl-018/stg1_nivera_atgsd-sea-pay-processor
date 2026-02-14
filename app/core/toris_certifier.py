@@ -27,9 +27,19 @@ def _draw_signature_image_toris(c, sig_image_pil, x, y, max_width=150, max_heigh
     """
     if sig_image_pil is None:
         return
-    
+
     from io import BytesIO
-    
+
+    # Trim transparent padding so the signature sits like real ink
+    try:
+        if sig_image_pil.mode in ("RGBA", "LA") or ("transparency" in sig_image_pil.info):
+            alpha = sig_image_pil.split()[-1]
+            bbox = alpha.getbbox()
+            if bbox:
+                sig_image_pil = sig_image_pil.crop(bbox)
+    except Exception:
+        pass
+
     # Get original dimensions
     orig_w, orig_h = sig_image_pil.size
     
@@ -464,11 +474,11 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 if sig_image is not None and underline_y_from_bottom is not None:
                     # Position signature at SAME HEIGHT as date (not above the line)
                     # The date is drawn at date_y, so signature should be at approximately the same level
-                    sig_bottom_y = underline_y_from_bottom - 5  # Slightly below to sit on the line
+                    sig_bottom_y = underline_y_from_bottom - 12  # Lower so it sits on the line (not floating high)
                     
                     # Calculate signature horizontal position (centered on left portion of line, before date)
-                    sig_width = 150
-                    sig_height = 30
+                    sig_width = 220
+                    sig_height = 40
                     # Center the signature on the left side of the underline (leave room for date on right)
                     underline_left_x = best["x0"] if best else name_x
                     underline_width = (best["x1"] - best["x0"]) if best else 200
