@@ -112,6 +112,12 @@ def signatures_page():
     return send_from_directory(FRONTEND_DIR, "signatures.html")
 
 
+@bp.route("/signature-manager.js")
+def signature_manager_js():
+    """Serve the signature manager JavaScript file"""
+    return send_from_directory(FRONTEND_DIR, "signature-manager.js")
+
+
 @bp.route("/process", methods=["POST"])
 def process_route():
     global processing_cancelled, processing_thread
