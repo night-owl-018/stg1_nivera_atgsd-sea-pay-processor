@@ -11,9 +11,55 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from app.core.logger import log
-from app.core.config import get_certifying_officer_name, get_certifying_date_yyyymmdd
+from app.core.config import get_certifying_officer_name, get_certifying_date_yyyymmdd, get_signature_for_location
+from reportlab.lib.utils import ImageReader
 # 🔎 PATCH: prove what file is actually executing
 log(f"TORIS CERT MODULE PATH → {__file__}")
+
+
+# ------------------------------------------------
+# HELPER: Draw signature image on canvas
+# ------------------------------------------------
+def _draw_signature_image_toris(c, sig_image_pil, x, y, max_width=150, max_height=35):
+    """
+    Draw a PIL Image signature on the canvas at the specified position.
+    Optimized for TORIS certification sheets.
+    """
+    if sig_image_pil is None:
+        return
+    
+    from io import BytesIO
+    
+    # Get original dimensions
+    orig_w, orig_h = sig_image_pil.size
+    
+    # Calculate scaling to fit within max dimensions
+    scale_w = max_width / orig_w
+    scale_h = max_height / orig_h
+    scale = min(scale_w, scale_h)
+    
+    # Calculate final dimensions
+    final_w = orig_w * scale
+    final_h = orig_h * scale
+    
+    # Center horizontally within max_width
+    x_offset = (max_width - final_w) / 2.0
+    final_x = x + x_offset
+    
+    # Save to temporary buffer as PNG
+    buf = BytesIO()
+    sig_image_pil.save(buf, format='PNG')
+    buf.seek(0)
+    
+    # Draw on canvas
+    c.drawImage(
+        ImageReader(buf),
+        final_x,
+        y,
+        width=final_w,
+        height=final_h,
+        mask='auto'  # Handle transparency
+    )
 
 
 # ------------------------------------------------
@@ -412,6 +458,28 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 c = canvas.Canvas(buf, pagesize=(page_width, page_height))
                 c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
+                
+                # NEW: Draw TORIS CERTIFYING OFFICER signature above the printed name
+                sig_image = get_signature_for_location('toris_certifying_officer')
+                if sig_image is not None:
+                    # Position signature ABOVE the printed name, centered
+                    sig_bottom_y = name_y + 12  # 12pt gap above printed name
+                    
+                    # Calculate signature horizontal position (centered over name)
+                    sig_width = 150
+                    sig_height = 35
+                    name_width = c.stringWidth(certifying_officer_name, font_name, font_size)
+                    sig_left_x = name_x - (sig_width / 2.0) + (name_width / 2.0)
+                    
+                    _draw_signature_image_toris(
+                        c,
+                        sig_image,
+                        sig_left_x,
+                        sig_bottom_y,
+                        max_width=sig_width,
+                        max_height=sig_height
+                    )
+                
                 # Draw signature date (right-aligned) if we found underline
                 if date_y is not None and sig_date:
                     c.setFont(font_name, 10)
