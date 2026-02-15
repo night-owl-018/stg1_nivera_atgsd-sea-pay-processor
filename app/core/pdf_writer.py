@@ -23,7 +23,7 @@ from app.core.config import (
     get_certifying_officer_name,
     get_certifying_officer_name_pg13,
     get_certifying_date_yyyymmdd,
-    get_signature_for_location
+    get_signature_for_member_location
 )
 from app.core.rates import resolve_identity
 from reportlab.lib.utils import ImageReader
@@ -181,13 +181,13 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
 
-def _draw_pg13_verifying_official_signature(c):
+def _draw_pg13_verifying_official_signature(c, member_key):
     """
     Draws the verifying official signature inside the bottom-right
     'SIGNATURE OF VERIFYING OFFICIAL' box on the PG-13 template.
     ADJUSTED: Raised higher for better positioning in box.
     """
-    sig_image = get_signature_for_location('pg13_verifying_official')
+    sig_image = get_signature_for_member_location(member_key, 'pg13_verifying_official')
     if sig_image is None:
         return
 
@@ -356,7 +356,7 @@ def make_consolidated_all_missions_pdf(
     c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
     # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
-    sig_image = get_signature_for_location('pg13_certifying_official')
+    sig_image = get_signature_for_member_location(member_key, 'pg13_certifying_official')
     if sig_image is not None:
         # ADJUSTED: Lower signature DOWN for better positioning
         sig_bottom_y = sig_y - 2  # Lowered DOWN 4pts (was +2, now -2)
@@ -401,7 +401,7 @@ def make_consolidated_all_missions_pdf(
     _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
     # ✅ PG-13 verifying official signature (bottom-right box)
-    _draw_pg13_verifying_official_signature(c)
+    _draw_pg13_verifying_official_signature(c, name)
 
     c.save()
     buf.seek(0)
@@ -506,7 +506,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
     
     # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
-    sig_image = get_signature_for_location('pg13_certifying_official')
+    sig_image = get_signature_for_member_location(member_key, 'pg13_certifying_official')
     if sig_image is not None:
         sig_bottom_y = top_sig_y - 2  # ADJUSTED: Lowered DOWN
         _draw_signature_image(c, sig_image, sig_left_x - 10, sig_bottom_y, max_width=170, max_height=35)
@@ -541,7 +541,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
     # ✅ PG-13 verifying official signature (bottom-right box)
-    _draw_pg13_verifying_official_signature(c)
+    _draw_pg13_verifying_official_signature(c, name)
 
     c.save()
     buf.seek(0)
@@ -643,7 +643,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
         
         # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
-        sig_image = get_signature_for_location('pg13_certifying_official')
+        sig_image = get_signature_for_member_location(member_key, 'pg13_certifying_official')
         if sig_image is not None:
             sig_bottom_y = top_sig_y - 2  # ADJUSTED: Lowered DOWN
             _draw_signature_image(c, sig_image, sig_left_x - 10, sig_bottom_y, max_width=170, max_height=35)
@@ -678,7 +678,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
         # ✅ PG-13 verifying official signature (bottom-right box)
-        _draw_pg13_verifying_official_signature(c)
+        _draw_pg13_verifying_official_signature(c, name)
 
         c.save()
         buf.seek(0)
