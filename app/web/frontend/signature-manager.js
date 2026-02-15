@@ -58,37 +58,50 @@ setupCanvas() {
     this._cssW = Math.max(300, Math.min(720, Math.round(rect.width || 600)));
     this._cssH = 220;
 
-    // ENHANCED: Higher resolution for SMOOTH, NON-PIXELATED signatures
-    // Increase DPR cap from 3 to 4 for better quality
-    this._dpr = Math.max(2, Math.min(4, window.devicePixelRatio || 2));
+    // PERFECT SETTINGS: Maximum resolution for ultra-smooth signatures
+    // Force minimum 3x, allow up to 5x for extreme quality
+    const deviceDPR = window.devicePixelRatio || 2;
+    this._dpr = Math.max(3, Math.min(5, deviceDPR));  // 3x-5x = PERFECT quality
 
     this.canvas.style.width = this._cssW + 'px';
     this.canvas.style.height = this._cssH + 'px';
     this.canvas.width = Math.round(this._cssW * this._dpr);
     this.canvas.height = Math.round(this._cssH * this._dpr);
 
-    // ENHANCED: Enable anti-aliasing for smooth lines
+    // PERFECT: Advanced context options for maximum quality
     this.ctx = this.canvas.getContext('2d', { 
         alpha: true,
-        desynchronized: false,
-        willReadFrequently: false
+        desynchronized: false,        // Sync for quality over speed
+        willReadFrequently: false,    // Optimize for drawing, not reading
+        colorSpace: 'srgb'            // Standard color space
     });
 
-    // Draw in CSS units, but render at device resolution
+    // Draw in CSS units, but render at ultra-high device resolution
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
-    // ENHANCED: High-quality ink rendering
-    this.ctx.strokeStyle = '#000';
-    this.ctx.lineCap = 'round';      // Round caps for smooth ends
-    this.ctx.lineJoin = 'round';     // Round joins for smooth corners
-    this.ctx.miterLimit = 1;
+    // PERFECT: Professional ink rendering settings
+    this.ctx.strokeStyle = '#000000';    // Pure black
+    this.ctx.lineCap = 'round';          // Perfectly round line ends
+    this.ctx.lineJoin = 'round';         // Perfectly round corners
+    this.ctx.miterLimit = 10;            // High quality miters
     
-    // CRITICAL: Enable canvas smoothing/anti-aliasing
+    // PERFECT: Force maximum anti-aliasing
     this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = 'high';
-
+    this.ctx.imageSmoothingQuality = 'high';  // Maximum browser smoothing
+    
+    // PERFECT: Additional quality settings
+    this.ctx.globalCompositeOperation = 'source-over';  // Standard blending
+    this.ctx.globalAlpha = 1.0;                         // Full opacity
+    
+    // PERFECT: Subpixel rendering (critical for smoothness)
+    this.ctx.translate(0.5, 0.5);  // Half-pixel offset for subpixel rendering
+    
     // iOS: prevent scroll/zoom while signing
     this.canvas.style.touchAction = 'none';
+    
+    // PERFECT: Additional canvas styling for quality
+    this.canvas.style.imageRendering = 'auto';  // Let browser use best rendering
+    this.canvas.style.WebkitFontSmoothing = 'antialiased';
 
     // Reset stroke state
     this._stroke = {
@@ -101,7 +114,7 @@ setupCanvas() {
     this._unbindCanvasEvents();
     this._bindCanvasEvents();
 
-    console.log(`Canvas initialized: CSS ${this._cssW}x${this._cssH}, DPR ${this._dpr}, backing ${this.canvas.width}x${this.canvas.height}`);
+    console.log(`✨ PERFECT MODE: CSS ${this._cssW}x${this._cssH}, DPR ${this._dpr}x (${this.canvas.width}x${this.canvas.height}px)`);
 }
 
 _bindCanvasEvents() {
@@ -294,15 +307,15 @@ const n = Math.max(1, Math.ceil(dist / step));
 }
 
 _addPoint(p) {
-    // ENHANCED speed-based width for PRESSURE-SENSITIVE pen feel
+    // PERFECT: Ultra-responsive pressure-sensitive pen simulation
     const dt = Math.max(8, p.t - this._stroke.lastT);
     const lp = this._stroke.pts[this._stroke.pts.length - 1];
     const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt; // px/ms
 
-    // ENHANCED: Wider range for better heavy/light simulation
-    const maxW = 4.5;  // Heavy pressure = much thicker (was 3.6)
-    const minW = 1.5;  // Light/fast = much thinner (was 1.7)
-    const k = 5.5;     // More responsive (was 5.0)
+    // PERFECT: Maximum range for dramatic heavy/light variation
+    const maxW = 5.0;  // Heavy pressure = very thick (was 4.5)
+    const minW = 1.2;  // Light/fast = very thin (was 1.5)
+    const k = 6.0;     // Maximum responsiveness (was 5.5)
     
     // ENHANCED: Power curve for natural pen feel (0.8 exponent)
     const vf = Math.min(1, Math.pow(v * k / maxW, 0.8));
@@ -356,9 +369,17 @@ const cp2 = {
     // Use averaged width for smoother segment joins.
     this.ctx.lineWidth = (p1.w + p2.w) / 2;
     
-    // CRITICAL: Ensure anti-aliasing is enabled for smooth, non-pixelated lines
+    // PERFECT: Maximum quality rendering for every stroke
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = 'high';
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    
+    // PERFECT: Shadow for depth (very subtle, adds smoothness perception)
+    this.ctx.shadowBlur = 0.3;
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    this.ctx.shadowOffsetX = 0;
+    this.ctx.shadowOffsetY = 0;
     
     this.ctx.beginPath();
     this.ctx.moveTo(p1.x, p1.y);
