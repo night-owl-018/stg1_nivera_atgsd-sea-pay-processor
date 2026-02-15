@@ -739,7 +739,27 @@
       margin: 0 auto;
       touch-action: none;
     }
-  </style>
+  
+    /* Signature modal input readability (override global dark inputs) */
+    .signature-modal-content .signature-canvas-container input[type="text"]{
+      background: #ffffff;
+      color: #111827;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    .signature-modal-content .signature-canvas-container input[type="text"]::placeholder{
+      color: #6b7280;
+      opacity: 1;
+    }
+    .signature-modal-content .signature-canvas-container input[type="text"]:focus{
+      outline: none;
+      border-color: rgba(111, 183, 255, 0.9);
+      box-shadow: 0 0 0 3px rgba(111, 183, 255, 0.25);
+    }
+</style>
 </head>
 
 <body>
