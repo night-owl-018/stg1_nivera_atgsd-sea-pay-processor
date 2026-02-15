@@ -591,6 +591,7 @@ closeCreateModal() {
     
     async saveSignature(e) {
         e.preventDefault();
+        console.log('💾 Saving signature...');
         
         const name = document.getElementById('signatureName').value.trim();
         const role = document.getElementById('signatureRole').value.trim();
@@ -617,22 +618,31 @@ closeCreateModal() {
             created: new Date().toISOString()
         };
         
+        console.log('💾 Saving to localStorage first...');
         this.saveToLocalStorage(signatureData);
         
         if (navigator.onLine) {
+            console.log('🌐 Online - uploading to server...');
             const saved = await this.uploadSignature(signatureData);
+            
             if (saved) {
+                console.log('✅ Upload successful, closing modal and refreshing...');
                 this.closeCreateModal();
                 await this.loadAllData();
                 this.showAlert('✅ Signature saved successfully!', 'success');
             } else {
+                console.log('⚠️ Upload failed, saved locally only');
                 this.showAlert('⚠️ Signature saved locally. Will sync when online.', 'warning');
                 this.closeCreateModal();
+                // Still try to refresh UI with local data
+                await this.loadAllData();
             }
         } else {
+            console.log('📴 Offline - saved locally');
             this.showAlert('📱 Signature saved to your phone. Will sync when online.', 'info');
             this.closeCreateModal();
         }
+        console.log('💾 Save complete');
     }
     
     saveToLocalStorage(signatureData) {
@@ -657,16 +667,26 @@ closeCreateModal() {
                 body: JSON.stringify(signatureData)
             });
             
-            const result = await response.json();
-            
-            if (result.status === 'success') {
-                this.removeFromLocalStorage(signatureData.local_id);
-                return true;
+            // Check HTTP status first
+            if (!response.ok) {
+                console.error('Upload HTTP error:', response.status, response.statusText);
+                return false;
             }
             
-            return false;
+            const result = await response.json();
+            console.log('Upload result:', result);
+            
+            if (result.status === 'success') {
+                console.log('✅ Signature uploaded successfully, ID:', result.signature_id);
+                this.removeFromLocalStorage(signatureData.local_id);
+                return true;
+            } else {
+                console.error('❌ Upload failed:', result.message);
+                return false;
+            }
+            
         } catch (error) {
-            console.error('Upload error:', error);
+            console.error('❌ Upload exception:', error);
             return false;
         }
     }
@@ -717,17 +737,19 @@ closeCreateModal() {
     }
     
     async loadAllData() {
+        console.log('🔄 Loading all data...');
         try {
             // Load full library + all per-member assignments (no signature reuse is enforced server-side)
             const response = await fetch('/api/signatures/list?include_thumbnails=true');
             
-            // Check HTTP status first
+            // Check HTTP status
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Server error (${response.status}): ${errorText || response.statusText}`);
             }
             
             const result = await response.json();
+            console.log('📦 Received data:', result);
 
             if (result.status !== 'success') {
                 throw new Error(result.message || 'Failed to load signatures');
@@ -735,6 +757,8 @@ closeCreateModal() {
 
             this.signatures = result.signatures || [];
             this.assignmentsByMember = result.assignments_by_member || {};
+            
+            console.log(`✅ Loaded ${this.signatures.length} signatures`);
 
             // Ensure we have a selected member
             if (!this.currentMemberKey) {
@@ -750,12 +774,14 @@ closeCreateModal() {
                 pg13_verifying_official: null
             };
 
-            
+            console.log('🎨 Rendering UI...');
             this.renderSignatureLibrary();
             this.renderAssignments();
             this.updateAssignmentAlert();
+            console.log('✅ UI updated successfully');
+            
         } catch (error) {
-            console.error('Load error:', error);
+            console.error('❌ Load error:', error);
             this.showAlert(`❌ Failed to load signatures: ${error.message}`, 'warning');
             
             // Initialize empty state so UI still works
