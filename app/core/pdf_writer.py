@@ -244,6 +244,9 @@ def make_consolidated_all_missions_pdf(
     if not (rate and last and first):
         rate, last, first = resolve_identity(name)
 
+    # Per-member signatures use the member_key (RATE LAST,FIRST) as the lookup key.
+    member_key = name
+
     # Sort ships alphabetically for consistency
     sorted_ships = sorted(ship_groups.items())
 
