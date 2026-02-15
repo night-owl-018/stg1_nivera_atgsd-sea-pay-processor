@@ -1033,6 +1033,21 @@ def list_signatures():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+
+@bp.route("/api/signatures/status", methods=["GET"])
+def signatures_status():
+    """Return signature assignment status summary.
+    If member_key is provided, returns status for that member only.
+    """
+    try:
+        from app.core.config import get_assignment_status
+        member_key = (request.args.get("member_key") or "").strip() or None
+        status = get_assignment_status(member_key=member_key) if member_key else get_assignment_status()
+        return jsonify({"status": "success", "assignment_status": status, "member_key": member_key})
+    except Exception as e:
+        log(f"❌ SIGNATURE STATUS ERROR → {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @bp.route("/api/signatures/create", methods=["POST"])
 def create_signature():
     """
