@@ -210,6 +210,9 @@ def load_signatures():
 
     Legacy (v1) files with "assignments" will be migrated on load.
     """
+    print(f"🔄 load_signatures() called")
+    print(f"📁 SIGNATURES_FILE path: {SIGNATURES_FILE}")
+    
     default_data = {
         "version": 2,
         "signatures": [],
@@ -221,29 +224,52 @@ def load_signatures():
     }
 
     # Ensure output directory exists
+    output_dir = os.path.dirname(SIGNATURES_FILE)
+    print(f"📁 Output directory: {output_dir}")
+    print(f"📁 Directory exists: {os.path.exists(output_dir)}")
+    
     try:
-        os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"✅ Ensured output directory exists")
     except Exception as e:
-        print(f"ERROR: Could not create output directory: {e}")
+        print(f"❌ ERROR: Could not create output directory: {e}")
+        import traceback
+        traceback.print_exc()
 
-    if not os.path.exists(SIGNATURES_FILE):
+    # Check if file exists
+    file_exists = os.path.exists(SIGNATURES_FILE)
+    print(f"📄 signatures.json exists: {file_exists}")
+    
+    if not file_exists:
         # Create default file on first run
+        print(f"📝 Creating default signatures.json file...")
         try:
             _save_signatures_data(default_data)
             print(f"✅ Created new signatures file at {SIGNATURES_FILE}")
         except Exception as e:
-            print(f"WARNING: Could not create signatures file: {e}")
+            print(f"❌ WARNING: Could not create signatures file: {e}")
+            import traceback
+            traceback.print_exc()
         return default_data
 
+    # File exists, try to load it
+    print(f"📖 Loading existing signatures.json...")
     try:
         with open(SIGNATURES_FILE, "r", encoding="utf-8") as f:
             data = json.load(f) or {}
+        print(f"✅ Loaded signatures.json successfully")
+        print(f"📊 Data keys: {list(data.keys())}")
+        print(f"📊 Signatures count: {len(data.get('signatures', []))}")
+        print(f"📊 Members count: {len(data.get('assignments_by_member', {}))}")
     except Exception as e:
-        print(f"ERROR: Could not load signatures: {e}")
+        print(f"❌ ERROR: Could not load signatures: {e}")
+        import traceback
+        traceback.print_exc()
         return default_data
 
     # Migrate legacy structure (v1)
     if "assignments_by_member" not in data and "assignments" in data:
+        print(f"🔄 Migrating legacy v1 format to v2...")
         # v1 had global assignments; keep them under a pseudo-member key
         legacy_assignments = data.get("assignments") or {}
         data["assignments_by_member"] = {
@@ -254,6 +280,7 @@ def load_signatures():
             }
         }
         data["version"] = 2
+        print(f"✅ Migration complete")
 
     # Ensure keys exist
     for k, v in default_data.items():
@@ -268,22 +295,44 @@ def load_signatures():
         for loc in ("toris_certifying_officer", "pg13_certifying_official", "pg13_verifying_official"):
             a.setdefault(loc, None)
 
+    print(f"✅ load_signatures() completed successfully")
     return data
 
 
 def _save_signatures_data(data):
+    print(f"💾 _save_signatures_data() called")
+    print(f"📁 Saving to: {SIGNATURES_FILE}")
+    print(f"📊 Data to save - signatures: {len(data.get('signatures', []))}, members: {len(data.get('assignments_by_member', {}))}")
+    
     try:
-        os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
+        output_dir = os.path.dirname(SIGNATURES_FILE)
+        print(f"📁 Ensuring directory exists: {output_dir}")
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"✅ Directory ensured")
+        
+        print(f"📝 Writing JSON file...")
         with open(SIGNATURES_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         print(f"✅ Signatures saved to {SIGNATURES_FILE}")
+        
+        # Verify file was written
+        if os.path.exists(SIGNATURES_FILE):
+            file_size = os.path.getsize(SIGNATURES_FILE)
+            print(f"✅ File verified, size: {file_size} bytes")
+        else:
+            print(f"❌ WARNING: File was not created!")
+            
     except PermissionError as e:
         print(f"❌ PERMISSION ERROR: Cannot write to {SIGNATURES_FILE}")
         print(f"   Details: {e}")
         print(f"   Check Docker volume mounts and directory permissions")
+        import traceback
+        traceback.print_exc()
         raise
     except Exception as e:
         print(f"❌ ERROR saving signatures: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
