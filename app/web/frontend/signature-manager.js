@@ -58,24 +58,34 @@ setupCanvas() {
     this._cssW = Math.max(300, Math.min(720, Math.round(rect.width || 600)));
     this._cssH = 220;
 
-    // Backing store for sharpness (cap DPR to avoid huge PNGs)
-    this._dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    // ENHANCED: Higher resolution for SMOOTH, NON-PIXELATED signatures
+    // Increase DPR cap from 3 to 4 for better quality
+    this._dpr = Math.max(2, Math.min(4, window.devicePixelRatio || 2));
 
     this.canvas.style.width = this._cssW + 'px';
     this.canvas.style.height = this._cssH + 'px';
     this.canvas.width = Math.round(this._cssW * this._dpr);
     this.canvas.height = Math.round(this._cssH * this._dpr);
 
-    this.ctx = this.canvas.getContext('2d', { alpha: true });
+    // ENHANCED: Enable anti-aliasing for smooth lines
+    this.ctx = this.canvas.getContext('2d', { 
+        alpha: true,
+        desynchronized: false,
+        willReadFrequently: false
+    });
 
     // Draw in CSS units, but render at device resolution
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
-    // Ink style
+    // ENHANCED: High-quality ink rendering
     this.ctx.strokeStyle = '#000';
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    this.ctx.lineCap = 'round';      // Round caps for smooth ends
+    this.ctx.lineJoin = 'round';     // Round joins for smooth corners
     this.ctx.miterLimit = 1;
+    
+    // CRITICAL: Enable canvas smoothing/anti-aliasing
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
 
     // iOS: prevent scroll/zoom while signing
     this.canvas.style.touchAction = 'none';
@@ -345,6 +355,11 @@ const cp2 = {
     // Line width based on destination point (smooth enough with resampling)
     // Use averaged width for smoother segment joins.
     this.ctx.lineWidth = (p1.w + p2.w) / 2;
+    
+    // CRITICAL: Ensure anti-aliasing is enabled for smooth, non-pixelated lines
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
+    
     this.ctx.beginPath();
     this.ctx.moveTo(p1.x, p1.y);
     this.ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p2.x, p2.y);
