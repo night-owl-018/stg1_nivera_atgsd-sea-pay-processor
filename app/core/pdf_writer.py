@@ -185,18 +185,17 @@ def _draw_pg13_verifying_official_signature(c):
     """
     Draws the verifying official signature inside the bottom-right
     'SIGNATURE OF VERIFYING OFFICIAL' box on the PG-13 template.
-    Tuned to be centered in that box and aligned in the same horizontal band
-    as the DATE entry (YYYYMMDD), but below the label.
+    FIXED: Positioned HIGHER and made BIGGER for better visibility.
     """
     sig_image = get_signature_for_location('pg13_verifying_official')
     if sig_image is None:
         return
 
-    # Bottom-right signature box bounds (template-tuned)
+    # Bottom-right signature box bounds
     box_left_x = 322.0
     box_right_x = 570.0
-    # Vertical band inside the box (below the label line)
-    sig_bottom_y = 56.0
+    # FIXED: Moved UP 8pts (was 56.0, now 64.0)
+    sig_bottom_y = 64.0
 
     _draw_signature_image(
         c,
@@ -204,7 +203,7 @@ def _draw_pg13_verifying_official_signature(c):
         x=box_left_x,
         y=sig_bottom_y,
         max_width=(box_right_x - box_left_x),
-        max_height=22
+        max_height=30  # FIXED: BIGGER 36% (was 22, now 30)
     )
 
 
@@ -359,16 +358,15 @@ def make_consolidated_all_missions_pdf(
     # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
     sig_image = get_signature_for_location('pg13_certifying_official')
     if sig_image is not None:
-        # Position signature on the line, at approximately same height as date
-        sig_bottom_y = sig_y - 3  # Slightly below the line to sit on it
-        # Position on left side of line (date is on right)
+        # FIXED: Better positioning - LEFT and BIGGER
+        sig_bottom_y = sig_y + 2  # Slightly above for better alignment
         _draw_signature_image(
             c,
             sig_image,
-            sig_left_x + 10,  # Small margin from left
+            sig_left_x - 10,  # MOVED LEFT 20pts (was +10)
             sig_bottom_y,
-            max_width=150,  # Leave room for date on right
-            max_height=25
+            max_width=170,  # Wider (was 150)
+            max_height=35   # BIGGER 40% (was 25)
         )
 
     # Tighten vertical spacing (was sig_y - 72, too large)
@@ -510,8 +508,8 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
     sig_image = get_signature_for_location('pg13_certifying_official')
     if sig_image is not None:
-        sig_bottom_y = top_sig_y - 3
-        _draw_signature_image(c, sig_image, sig_left_x + 10, sig_bottom_y, max_width=150, max_height=25)
+        sig_bottom_y = top_sig_y + 2
+        _draw_signature_image(c, sig_image, sig_left_x - 10, sig_bottom_y, max_width=170, max_height=35)
     
     c.setFont(FONT_NAME, sig_line_font_size)
 
@@ -647,8 +645,8 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # NEW: Draw CERTIFYING OFFICIAL signature at same height as date
         sig_image = get_signature_for_location('pg13_certifying_official')
         if sig_image is not None:
-            sig_bottom_y = top_sig_y - 3
-            _draw_signature_image(c, sig_image, sig_left_x + 10, sig_bottom_y, max_width=150, max_height=25)
+            sig_bottom_y = top_sig_y + 2
+            _draw_signature_image(c, sig_image, sig_left_x - 10, sig_bottom_y, max_width=170, max_height=35)
         
         c.setFont(FONT_NAME, sig_line_font_size)
 
