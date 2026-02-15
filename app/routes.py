@@ -989,31 +989,48 @@ def get_certifying_officer_choices():
 @bp.route("/api/signatures/list", methods=["GET"])
 def list_signatures():
     """
-    Get list of all saved signatures with thumbnails.
-    Optimized for mobile - includes thumbnails for fast loading.
+    Get signature library + per-member assignments.
+
+    Query params:
+      - include_thumbnails=true|false
+      - member_key=<member_key> (optional; returns assignments for that member)
     """
     try:
         from app.core.config import load_signatures, get_all_signatures, get_assignment_status
-        
-        include_thumbnails = request.args.get('include_thumbnails', 'false').lower() == 'true'
-        
+
+        include_thumbnails = request.args.get("include_thumbnails", "false").lower() == "true"
+        member_key = (request.args.get("member_key") or "").strip() or None
+
         data = load_signatures()
         signatures = get_all_signatures(include_thumbnails=include_thumbnails)
-        status = get_assignment_status()
-        
+
+        assignments_by_member = data.get("assignments_by_member", {}) or {}
+        if member_key and member_key not in assignments_by_member:
+            # Return an empty assignment set for new members (UI can still assign)
+            assignments_for_member = {
+                "toris_certifying_officer": None,
+                "pg13_certifying_official": None,
+                "pg13_verifying_official": None,
+            }
+        elif member_key:
+            assignments_for_member = assignments_by_member.get(member_key)
+        else:
+            assignments_for_member = None
+
+        status = get_assignment_status(member_key=member_key) if member_key else get_assignment_status()
+
         return jsonify({
-            'status': 'success',
-            'signatures': signatures,
-            'assignments': data['assignments'],
-            'assignment_status': status,
-            'assignment_rules': data.get('assignment_rules', {})
+            "status": "success",
+            "signatures": signatures,
+            "member_key": member_key,
+            "assignments": assignments_for_member,
+            "assignments_by_member": assignments_by_member if not member_key else None,
+            "assignment_status": status,
+            "assignment_rules": data.get("assignment_rules", {})
         })
     except Exception as e:
         log(f"❌ LIST SIGNATURES ERROR → {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @bp.route("/api/signatures/create", methods=["POST"])
@@ -1080,74 +1097,62 @@ def create_signature():
 @bp.route("/api/signatures/assign", methods=["POST"])
 def assign_signature_to_location():
     """
-    Assign a signature to a specific document location.
-    Includes validation to prevent duplicate assignments.
+    Assign a signature to a member + document location.
+
+    Body:
+      { "member_key": "...", "location": "...", "signature_id": "sig_xxx" | null }
     """
     try:
         from app.core.config import assign_signature
-        
-        data = request.get_json()
-        location = data.get('location', '').strip()
-        signature_id = data.get('signature_id')
-        
+
+        data = request.get_json() or {}
+        member_key = (data.get("member_key") or "").strip()
+        location = (data.get("location") or "").strip()
+        signature_id = data.get("signature_id")
+
+        if not member_key:
+            return jsonify({"status": "error", "message": "member_key is required"}), 400
         if not location:
-            return jsonify({
-                'status': 'error',
-                'message': 'Location is required'
-            }), 400
-        
-        success, message = assign_signature(location, signature_id)
-        
+            return jsonify({"status": "error", "message": "Location is required"}), 400
+
+        success, message = assign_signature(member_key, location, signature_id)
+
         if success:
-            log(f"✅ SIGNATURE ASSIGNED → {location} = {signature_id}")
-            return jsonify({
-                'status': 'success',
-                'message': message
-            })
+            log(f"✅ SIGNATURE ASSIGNED → {member_key} / {location} = {signature_id}")
+            return jsonify({"status": "success", "message": message})
         else:
-            return jsonify({
-                'status': 'error',
-                'message': message
-            }), 400
-            
+            return jsonify({"status": "error", "message": message}), 400
+
     except Exception as e:
         log(f"❌ ASSIGN SIGNATURE ERROR → {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @bp.route("/api/signatures/auto-assign", methods=["POST"])
 def auto_assign_signatures_endpoint():
     """
-    Automatically assign available signatures to unassigned locations.
-    Smart algorithm prevents duplicate assignments.
+    Auto-assign signatures for ONE member (no signature reuse allowed).
+    Body: { "member_key": "..." }
     """
     try:
         from app.core.config import auto_assign_signatures
-        
-        success, message, assignments_made = auto_assign_signatures()
-        
+
+        data = request.get_json() or {}
+        member_key = (data.get("member_key") or "").strip()
+        if not member_key:
+            return jsonify({"status": "error", "message": "member_key is required"}), 400
+
+        success, message, assignments_made = auto_assign_signatures(member_key)
+
         if success:
             log(f"✅ AUTO-ASSIGN → {message}")
-            return jsonify({
-                'status': 'success',
-                'message': message,
-                'assignments_made': assignments_made
-            })
+            return jsonify({"status": "success", "message": message, "assignments_made": assignments_made})
         else:
-            return jsonify({
-                'status': 'error',
-                'message': message
-            }), 400
-            
+            return jsonify({"status": "error", "message": message}), 400
+
     except Exception as e:
         log(f"❌ AUTO-ASSIGN ERROR → {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @bp.route("/api/signatures/get/<signature_id>", methods=["GET"])
@@ -1196,6 +1201,77 @@ def get_signature(signature_id):
             'message': str(e)
         }), 500
 
+
+
+@bp.route("/api/signatures/download/<signature_id>", methods=["GET"])
+def download_signature(signature_id):
+    """
+    Download a single signature as a PNG file (for saving to phone/PC).
+    """
+    try:
+        from app.core.config import load_signatures
+        import base64
+        from io import BytesIO
+        from flask import send_file
+
+        data = load_signatures()
+        sig = next((s for s in data.get("signatures", []) if s.get("id") == signature_id), None)
+        if not sig:
+            return jsonify({"status": "error", "message": "Signature not found"}), 404
+
+        png_bytes = base64.b64decode(sig["image_base64"])
+        buf = BytesIO(png_bytes)
+        buf.seek(0)
+        filename = f"{sig.get('name','signature').strip().replace(' ', '_')}_{signature_id}.png"
+        return send_file(buf, mimetype="image/png", as_attachment=True, download_name=filename)
+    except Exception as e:
+        log(f"❌ DOWNLOAD SIGNATURE ERROR → {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@bp.route("/api/signatures/import", methods=["POST"])
+def import_signature_png():
+    """
+    Import a signature PNG (from phone/PC) into the signature library.
+
+    multipart/form-data:
+      - file: PNG
+      - name: string (required)
+      - role: string (optional)
+      - device_id: string (optional)
+      - device_name: string (optional)
+    """
+    try:
+        from app.core.config import save_signature
+        import base64
+
+        if "file" not in request.files:
+            return jsonify({"status": "error", "message": "file is required"}), 400
+
+        f = request.files["file"]
+        name = (request.form.get("name") or "").strip()
+        role = (request.form.get("role") or "").strip()
+        device_id = request.form.get("device_id") or "import"
+        device_name = request.form.get("device_name") or "Imported"
+
+        if not name:
+            return jsonify({"status": "error", "message": "name is required"}), 400
+
+        content = f.read()
+        if not content:
+            return jsonify({"status": "error", "message": "empty file"}), 400
+
+        sig_b64 = base64.b64encode(content).decode("utf-8")
+        sig_id = save_signature(name, role, sig_b64, device_id=device_id, device_name=device_name)
+
+        if sig_id:
+            log(f"✅ SIGNATURE IMPORTED → {name} (ID: {sig_id})")
+            return jsonify({"status": "success", "signature_id": sig_id, "message": "Signature imported successfully"})
+        return jsonify({"status": "error", "message": "Failed to import signature"}), 500
+
+    except Exception as e:
+        log(f"❌ IMPORT SIGNATURE ERROR → {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @bp.route("/api/signatures/delete/<signature_id>", methods=["DELETE"])
 def delete_signature_endpoint(signature_id):
