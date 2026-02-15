@@ -284,19 +284,22 @@ const n = Math.max(1, Math.ceil(dist / step));
 }
 
 _addPoint(p) {
-    // Speed-based width for pen-like feel
+    // ENHANCED speed-based width for PRESSURE-SENSITIVE pen feel
     const dt = Math.max(8, p.t - this._stroke.lastT);
     const lp = this._stroke.pts[this._stroke.pts.length - 1];
     const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt; // px/ms
 
-    const maxW = 3.6;
-    const minW = 1.7;
-    const k = 5.0;
-    const vf = Math.min(1, v * k);
+    // ENHANCED: Wider range for better heavy/light simulation
+    const maxW = 4.5;  // Heavy pressure = much thicker (was 3.6)
+    const minW = 1.5;  // Light/fast = much thinner (was 1.7)
+    const k = 5.5;     // More responsive (was 5.0)
+    
+    // ENHANCED: Power curve for natural pen feel (0.8 exponent)
+    const vf = Math.min(1, Math.pow(v * k / maxW, 0.8));
     const wRaw = maxW - vf * (maxW - minW);
 
-    // Smooth width transitions
-    const w = this._stroke.lastW * 0.75 + wRaw * 0.25;
+    // ENHANCED: More responsive width transitions (was 0.75/0.25, now 0.65/0.35)
+    const w = this._stroke.lastW * 0.65 + wRaw * 0.35;
     this._stroke.lastW = w;
     this._stroke.lastT = p.t;
 
