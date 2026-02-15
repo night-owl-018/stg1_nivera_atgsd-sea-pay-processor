@@ -7,6 +7,9 @@ class SignatureManager {
         this.points = [];
         this.signatures = [];
         this.assignments = {};
+        this.assignmentsByMember = {};
+        this.currentMemberKey = null;
+        this.members = [];
         this.deviceId = this.getOrCreateDeviceId();
         this.deviceName = this.getDeviceName();
         
@@ -21,6 +24,7 @@ class SignatureManager {
         window.addEventListener('online', () => this.handleOnline());
         window.addEventListener('offline', () => this.handleOffline());
         
+        this.loadMembers();
         this.loadAllData();
         this.loadLocalSignatures();
     }
@@ -44,6 +48,41 @@ class SignatureManager {
         return 'Unknown Device';
     }
     
+
+
+    async loadMembers() {
+        try {
+            const resp = await fetch('/api/members');
+            const result = await resp.json();
+            if (result.status !== 'success') return;
+
+            this.members = (result.members || []).slice().sort();
+
+            const sel = document.getElementById('memberSelect');
+            if (!sel) return;
+
+            // Preserve current selection if possible
+            const prev = sel.value || this.currentMemberKey || '';
+
+            sel.innerHTML = '<option value="">-- Select member --</option>' +
+                this.members.map(m => `<option value="${this.escapeHtml(m)}">${this.escapeHtml(m)}</option>`).join('');
+
+            if (prev && this.members.includes(prev)) {
+                sel.value = prev;
+                this.currentMemberKey = prev;
+            } else if (!this.currentMemberKey && this.members.length > 0) {
+                sel.value = this.members[0];
+                this.currentMemberKey = this.members[0];
+            }
+
+            sel.onchange = () => {
+                this.currentMemberKey = sel.value || null;
+                this.loadAllData();
+            };
+        } catch (e) {
+            console.warn('Failed to load members', e);
+        }
+    }
 
 setupCanvas() {
     if (!this.canvas) {
@@ -426,6 +465,43 @@ _strokeEnd() {
         if (syncBtn) {
             syncBtn.addEventListener('click', () => this.syncSignatures());
         }
+    
+
+        const importFile = document.getElementById('importSignatureFile');
+        if (importFile) {
+            importFile.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                try {
+                    const name = prompt('Name for this signature (required):');
+                    if (!name) { importFile.value = ''; return; }
+                    const role = prompt('Role (optional):') || '';
+
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('name', name);
+                    form.append('role', role);
+                    form.append('device_id', this.deviceId);
+                    form.append('device_name', this.deviceName);
+
+                    const resp = await fetch('/api/signatures/import', { method: 'POST', body: form });
+                    const result = await resp.json();
+
+                    if (result.status === 'success') {
+                        this.showAlert('✅ Signature imported', 'success');
+                        await this.loadAllData();
+                    } else {
+                        this.showAlert('⚠️ Import failed: ' + (result.message || 'unknown error'), 'warning');
+                    }
+                } catch (err) {
+                    console.error('Import error', err);
+                    this.showAlert('⚠️ Import failed', 'warning');
+                } finally {
+                    importFile.value = '';
+                }
+            });
+        }
+
     }
     
     
@@ -637,16 +713,32 @@ closeCreateModal() {
     
     async loadAllData() {
         try {
+            // Load full library + all per-member assignments (no signature reuse is enforced server-side)
             const response = await fetch('/api/signatures/list?include_thumbnails=true');
             const result = await response.json();
-            
+
             if (result.status === 'success') {
-                this.signatures = result.signatures;
-                this.assignments = result.assignments;
+                this.signatures = result.signatures || [];
+                this.assignmentsByMember = result.assignments_by_member || {};
+
+                // Ensure we have a selected member
+                if (!this.currentMemberKey) {
+                    const sel = document.getElementById('memberSelect');
+                    const fromSelect = sel && sel.value ? sel.value : null;
+                    this.currentMemberKey = fromSelect || Object.keys(this.assignmentsByMember)[0] || null;
+                }
+
+                // Default empty assignment set for new members
+                this.assignments = this.assignmentsByMember[this.currentMemberKey] || {
+                    toris_certifying_officer: null,
+                    pg13_certifying_official: null,
+                    pg13_verifying_official: null
+                };
+
                 
                 this.renderSignatureLibrary();
                 this.renderAssignments();
-                this.updateAssignmentAlert(result.assignment_status);
+                this.updateAssignmentAlert();
             }
         } catch (error) {
             console.error('Load error:', error);
@@ -708,8 +800,19 @@ closeCreateModal() {
             }
         ];
         
+        
         const assignedIds = Object.values(this.assignments).filter(v => v !== null);
         const hasDuplicates = assignedIds.length !== new Set(assignedIds).size;
+
+        // Signatures already used by OTHER members (global no-reuse rule)
+        const usedElsewhere = new Set();
+        Object.entries(this.assignmentsByMember || {}).forEach(([m, a]) => {
+            if (!a || m === (this.currentMemberKey || '')) return;
+            ['toris_certifying_officer','pg13_certifying_official','pg13_verifying_official'].forEach(loc => {
+                const sid = a[loc];
+                if (sid) usedElsewhere.add(sid);
+            });
+        });
         
         container.innerHTML = locations.map(loc => {
             const assignedId = this.assignments[loc.key];
@@ -761,7 +864,7 @@ closeCreateModal() {
         
         this.signatures.forEach(sig => {
             const isSelected = currentAssignment === sig.id;
-            const isDisabled = otherAssignments.includes(sig.id);
+            const isDisabled = (otherAssignments.includes(sig.id) || usedElsewhere.has(sig.id)) && !isSelected;
             const optionClass = `signature-option ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`;
             
             options.push(`
@@ -795,6 +898,7 @@ closeCreateModal() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    member_key: this.currentMemberKey,
                     location: location,
                     signature_id: signatureId || null
                 })
@@ -818,7 +922,9 @@ closeCreateModal() {
     async autoAssign() {
         try {
             const response = await fetch('/api/signatures/auto-assign', {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ member_key: this.currentMemberKey })
             });
             
             const result = await response.json();
@@ -859,25 +965,44 @@ closeCreateModal() {
         }
     }
     
-    updateAssignmentAlert(status) {
+    updateAssignmentAlert() {
         const alert = document.getElementById('assignmentAlert');
         if (!alert) return;
-        
-        if (status.issues.length > 0) {
-            alert.className = 'alert alert-warning';
-            alert.style.display = 'block';
-            alert.innerHTML = `
-                <strong>⚠️ Attention Needed:</strong><br>
-                ${status.issues.map(issue => `• ${issue}`).join('<br>')}
-            `;
-        } else if (Object.values(this.assignments).every(v => v !== null)) {
-            alert.className = 'alert alert-success';
-            alert.style.display = 'block';
-            alert.innerHTML = '<strong>✅ All locations have signatures assigned</strong>';
-        } else {
-            alert.style.display = 'none';
+
+        const member = this.currentMemberKey || '(no member selected)';
+        const vals = Object.values(this.assignments || {}).filter(v => v !== null);
+        const hasDuplicates = vals.length !== new Set(vals).size;
+
+        const missing = [];
+        const labels = {
+            toris_certifying_officer: 'TORIS Certifying Officer',
+            pg13_certifying_official: 'PG-13 Certifying Official',
+            pg13_verifying_official: 'PG-13 Verifying Official'
+        };
+        for (const k of Object.keys(labels)) {
+            if (!this.assignments || !this.assignments[k]) missing.push(labels[k]);
         }
+
+        alert.style.display = 'block';
+
+        if (hasDuplicates) {
+            alert.className = 'alert alert-warning';
+            alert.innerHTML = `<strong>⚠️ Duplicate assignments for ${this.escapeHtml(member)}</strong><br>
+                Each member needs 3 different signatures.`;
+            return;
+        }
+
+        if (missing.length) {
+            alert.className = 'alert alert-warning';
+            alert.innerHTML = `<strong>⚠️ Missing signatures for ${this.escapeHtml(member)}</strong><br>
+                ${missing.map(m => `• ${this.escapeHtml(m)}`).join('<br>')}`;
+            return;
+        }
+
+        alert.className = 'alert alert-success';
+        alert.innerHTML = `<strong>✅ All 3 signature blocks assigned for ${this.escapeHtml(member)}</strong>`;
     }
+
     
     showAlert(message, type) {
         const alert = document.getElementById('assignmentAlert');
