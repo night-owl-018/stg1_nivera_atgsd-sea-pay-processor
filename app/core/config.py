@@ -183,200 +183,262 @@ def get_certifying_date_yyyymmdd():
     return ""
 
 # -----------------------------------
-# SIGNATURE MANAGEMENT FUNCTIONS
+# SIGNATURE MANAGEMENT FUNCTIONS (PER-MEMBER, NO REUSE)
 # -----------------------------------
 
 def load_signatures():
-    """Load all signatures and assignments with validation."""
-    import uuid
-    from datetime import datetime
-    
-    default_data = {
-        'signatures': [],
-        'assignments': {
-            'toris_certifying_officer': None,
-            'pg13_certifying_official': None,
-            'pg13_verifying_official': None,
-            'pg13_member': None  # legacy (no longer drawn on PG-13)
+    """
+    Load signature library + per-member assignments.
+
+    signatures.json format (v2):
+      {
+        "version": 2,
+        "signatures": [ {id, name, role, created, device_id, device_name, image_base64, thumbnail_base64, metadata}, ... ],
+        "assignments_by_member": {
+           "<member_key>": {
+              "toris_certifying_officer": "<sig_id>|null",
+              "pg13_certifying_official": "<sig_id>|null",
+              "pg13_verifying_official": "<sig_id>|null"
+           },
+           ...
         },
-        'assignment_rules': {
-            'prevent_duplicate_per_document': True,
-            'auto_rotate_signatures': False
+        "assignment_rules": {
+           "prevent_duplicate_per_member": true,
+           "prevent_reuse_across_members": true
         }
+      }
+
+    Legacy (v1) files with "assignments" will be migrated on load.
+    """
+    default_data = {
+        "version": 2,
+        "signatures": [],
+        "assignments_by_member": {},
+        "assignment_rules": {
+            "prevent_duplicate_per_member": True,
+            "prevent_reuse_across_members": True,
+        },
     }
-    
+
     if not os.path.exists(SIGNATURES_FILE):
         return default_data
-    
+
     try:
-        with open(SIGNATURES_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-        # Merge with defaults to ensure all keys exist
-        for key in default_data:
-            if key not in data:
-                data[key] = default_data[key]
-        
-        return data
+        with open(SIGNATURES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
     except Exception as e:
         print(f"Warning: Could not load signatures: {e}")
         return default_data
+
+    # Migrate legacy structure (v1)
+    if "assignments_by_member" not in data and "assignments" in data:
+        # v1 had global assignments; keep them under a pseudo-member key
+        legacy_assignments = data.get("assignments") or {}
+        data["assignments_by_member"] = {
+            "__GLOBAL__": {
+                "toris_certifying_officer": legacy_assignments.get("toris_certifying_officer"),
+                "pg13_certifying_official": legacy_assignments.get("pg13_certifying_official"),
+                "pg13_verifying_official": legacy_assignments.get("pg13_verifying_official"),
+            }
+        }
+        data["version"] = 2
+
+    # Ensure keys exist
+    for k, v in default_data.items():
+        if k not in data:
+            data[k] = v
+
+    # Clean per-member assignment dicts
+    for member_key, a in (data.get("assignments_by_member") or {}).items():
+        if not isinstance(a, dict):
+            data["assignments_by_member"][member_key] = {}
+            a = data["assignments_by_member"][member_key]
+        for loc in ("toris_certifying_officer", "pg13_certifying_official", "pg13_verifying_official"):
+            a.setdefault(loc, None)
+
+    return data
+
+
+def _save_signatures_data(data):
+    os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
+    with open(SIGNATURES_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def save_signature(name, role, image_base64, device_id=None, device_name=None):
     """
     Save a new signature to the library.
-    Automatically generates thumbnail for fast loading.
-    
-    Returns: signature_id or None on error
+    Returns: signature_id or None on error.
     """
     import uuid
     from datetime import datetime
     from PIL import Image
     from io import BytesIO
     import base64
-    
+
     data = load_signatures()
-    
     sig_id = f"sig_{uuid.uuid4().hex[:8]}"
-    
+
     # Generate thumbnail (150x50 preview)
     try:
         img_data = base64.b64decode(image_base64)
         img = Image.open(BytesIO(img_data))
-        
-        # Get original dimensions
+
         orig_w, orig_h = img.size
-        
-        # Create thumbnail
+
         thumb = img.copy()
         thumb.thumbnail((150, 50), Image.Resampling.LANCZOS)
-        
+
         thumb_buffer = BytesIO()
-        thumb.save(thumb_buffer, format='PNG')
-        thumb_base64 = base64.b64encode(thumb_buffer.getvalue()).decode('utf-8')
-        
-        metadata = {
-            'width': orig_w,
-            'height': orig_h,
-            'format': 'PNG'
-        }
+        thumb.save(thumb_buffer, format="PNG")
+        thumb_base64 = base64.b64encode(thumb_buffer.getvalue()).decode("utf-8")
+
+        metadata = {"width": orig_w, "height": orig_h, "format": "PNG"}
     except Exception as e:
         print(f"Warning: Could not generate thumbnail: {e}")
         thumb_base64 = image_base64
         metadata = {}
-    
+
     new_signature = {
-        'id': sig_id,
-        'name': name.strip(),
-        'role': role.strip(),
-        'created': datetime.now().isoformat(),
-        'device_id': device_id or 'unknown',
-        'device_name': device_name or 'Unknown Device',
-        'image_base64': image_base64.strip(),
-        'thumbnail_base64': thumb_base64,
-        'metadata': metadata
+        "id": sig_id,
+        "name": name.strip(),
+        "role": role.strip(),
+        "created": datetime.now().isoformat(),
+        "device_id": device_id or "unknown",
+        "device_name": device_name or "Unknown Device",
+        "image_base64": image_base64.strip(),
+        "thumbnail_base64": thumb_base64,
+        "metadata": metadata,
     }
-    
-    data['signatures'].append(new_signature)
-    
+
+    data["signatures"].append(new_signature)
+
     try:
-        with open(SIGNATURES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
+        _save_signatures_data(data)
         return sig_id
     except Exception as e:
         print(f"Error: Could not save signature: {e}")
         return None
 
 
-def validate_assignments(assignments):
-    """
-    Validate signature assignments to prevent duplicates.
-    
-    Returns: (is_valid, error_message)
-    """
-    prevent_duplicate = load_signatures().get('assignment_rules', {}).get('prevent_duplicate_per_document', True)
-    
-    if not prevent_duplicate:
+def _active_locations():
+    return ("toris_certifying_officer", "pg13_certifying_official", "pg13_verifying_official")
+
+
+def _ensure_member(data, member_key):
+    if not member_key:
+        member_key = "__UNKNOWN__"
+    if member_key not in data["assignments_by_member"]:
+        data["assignments_by_member"][member_key] = {loc: None for loc in _active_locations()}
+    else:
+        for loc in _active_locations():
+            data["assignments_by_member"][member_key].setdefault(loc, None)
+    return member_key
+
+
+def _all_assigned_signature_ids(data, exclude_member=None, exclude_location=None):
+    used = set()
+    for mkey, a in (data.get("assignments_by_member") or {}).items():
+        for loc in _active_locations():
+            sid = a.get(loc)
+            if not sid:
+                continue
+            if exclude_member is not None and mkey == exclude_member and (exclude_location is None or loc == exclude_location):
+                continue
+            used.add(sid)
+    return used
+
+
+def validate_member_assignments(data, member_key):
+    """Validate that a member does not reuse the same signature across their 3 locations."""
+    rules = data.get("assignment_rules") or {}
+    if not rules.get("prevent_duplicate_per_member", True):
         return True, None
-    
-    # Only consider active locations when checking duplicates
-    active_locations = {'toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official'}
-    assigned_sigs = [v for k, v in assignments.items() if k in active_locations and v is not None]
-    
-    # Check for duplicates
-    if len(assigned_sigs) != len(set(assigned_sigs)):
-        return False, "Cannot use the same signature for multiple locations on one document"
-    
+
+    a = (data.get("assignments_by_member") or {}).get(member_key) or {}
+    assigned = [a.get(loc) for loc in _active_locations() if a.get(loc)]
+    if len(assigned) != len(set(assigned)):
+        return False, "Cannot reuse the same signature for multiple locations for the same member"
     return True, None
 
 
-def assign_signature(location, signature_id):
+def validate_global_reuse(data, member_key, location, signature_id):
+    """Validate that a signature is not reused across members/locations."""
+    rules = data.get("assignment_rules") or {}
+    if not rules.get("prevent_reuse_across_members", True):
+        return True, None
+
+    if not signature_id:
+        return True, None
+
+    used_elsewhere = _all_assigned_signature_ids(data, exclude_member=member_key, exclude_location=location)
+    if signature_id in used_elsewhere:
+        return False, "This signature is already assigned to another member. Each signature can only be used once."
+    return True, None
+
+
+def assign_signature(member_key, location, signature_id):
     """
-    Assign a signature to a specific document location with validation.
-    
-    Args:
-        location: One of 'toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official' (pg13_member is legacy)
-        signature_id: The ID of the signature to assign, or None to clear
-    
-    Returns: (success, message)
+    Assign a signature to a specific member + location.
+
+    Enforces:
+      - within the member: all 3 locations must be different (if enabled)
+      - across members: a signature ID cannot be reused anywhere (if enabled)
     """
-    valid_locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
-    
+    valid_locations = list(_active_locations())
     if location not in valid_locations:
         return False, f"Invalid location. Must be one of: {valid_locations}"
-    
+
     data = load_signatures()
-    
+    member_key = _ensure_member(data, member_key)
+
     # Verify signature exists if not None
     if signature_id is not None:
-        sig_exists = any(s['id'] == signature_id for s in data['signatures'])
+        sig_exists = any(s.get("id") == signature_id for s in data.get("signatures", []))
         if not sig_exists:
             return False, f"Signature ID {signature_id} not found"
-    
-    # Create temporary assignments for validation
-    temp_assignments = data['assignments'].copy()
-    temp_assignments[location] = signature_id
-    
-    # Validate assignments
-    is_valid, error_msg = validate_assignments(temp_assignments)
-    if not is_valid:
-        return False, error_msg
-    
-    # Apply assignment
-    data['assignments'][location] = signature_id
-    
+
+    # Set and validate
+    data["assignments_by_member"][member_key][location] = signature_id
+
+    ok, msg = validate_member_assignments(data, member_key)
+    if not ok:
+        # rollback
+        data["assignments_by_member"][member_key][location] = None
+        return False, msg
+
+    ok, msg = validate_global_reuse(data, member_key, location, signature_id)
+    if not ok:
+        data["assignments_by_member"][member_key][location] = None
+        return False, msg
+
     try:
-        with open(SIGNATURES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
+        _save_signatures_data(data)
         return True, "Assignment successful"
     except Exception as e:
         return False, f"Error saving assignment: {e}"
 
 
-def get_signature_for_location(location):
-    """
-    Get the PIL Image for a specific document location.
-    Returns None if no signature assigned or signature not found.
-    """
+def get_signature_for_member_location(member_key, location):
+    """Return PIL Image for a member + location, or None."""
     import base64
     from io import BytesIO
     from PIL import Image
-    
+
     data = load_signatures()
-    sig_id = data['assignments'].get(location)
-    
+    member_key = member_key or "__UNKNOWN__"
+    a = (data.get("assignments_by_member") or {}).get(member_key) or {}
+    sig_id = a.get(location)
+
     if not sig_id:
         return None
-    
-    # Find signature by ID
-    signature = next((s for s in data['signatures'] if s['id'] == sig_id), None)
-    
+
+    signature = next((s for s in data.get("signatures", []) if s.get("id") == sig_id), None)
     if not signature:
         return None
-    
+
     try:
-        img_data = base64.b64decode(signature['image_base64'])
+        img_data = base64.b64decode(signature["image_base64"])
         return Image.open(BytesIO(img_data))
     except Exception as e:
         print(f"Error loading signature image: {e}")
@@ -384,192 +446,118 @@ def get_signature_for_location(location):
 
 
 def get_all_signatures(include_thumbnails=False):
-    """
-    Get list of all saved signatures with metadata.
-    
-    Args:
-        include_thumbnails: If True, include thumbnail_base64 in response
-    
-    Returns: List of signature dictionaries
-    """
     data = load_signatures()
-    
     result = []
-    for s in data['signatures']:
+    for s in data.get("signatures", []):
         sig_info = {
-            'id': s['id'],
-            'name': s['name'],
-            'role': s['role'],
-            'created': s['created'],
-            'device_name': s.get('device_name', 'Unknown'),
-            'metadata': s.get('metadata', {})
+            "id": s.get("id"),
+            "name": s.get("name", ""),
+            "role": s.get("role", ""),
+            "created": s.get("created", ""),
+            "device_name": s.get("device_name", "Unknown"),
+            "metadata": s.get("metadata", {}),
         }
-        
         if include_thumbnails:
-            sig_info['thumbnail_base64'] = s.get('thumbnail_base64', '')
-        
+            sig_info["thumbnail_base64"] = s.get("thumbnail_base64", "")
         result.append(sig_info)
-    
     return result
 
 
 def delete_signature(signature_id):
-    """
-    Delete a signature from the library.
-    Also clears any assignments using this signature.
-    """
+    """Delete a signature and clear any member assignments using it."""
     data = load_signatures()
-    
-    # Remove from signatures list
-    data['signatures'] = [s for s in data['signatures'] if s['id'] != signature_id]
-    
-    # Clear any assignments using this signature
-    for location, assigned_id in data['assignments'].items():
-        if assigned_id == signature_id:
-            data['assignments'][location] = None
-    
+    data["signatures"] = [s for s in data.get("signatures", []) if s.get("id") != signature_id]
+
+    for mkey, a in (data.get("assignments_by_member") or {}).items():
+        for loc in _active_locations():
+            if a.get(loc) == signature_id:
+                a[loc] = None
+
     try:
-        with open(SIGNATURES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
+        _save_signatures_data(data)
         return True
     except Exception as e:
         print(f"Error: Could not delete signature: {e}")
         return False
 
 
-def auto_assign_signatures():
+def auto_assign_signatures(member_key):
     """
-    Automatically assign available signatures to document locations.
-    Smart algorithm prevents duplicate assignments.
-    
-    Returns: (success, message, assignments_made)
+    Auto-assign the first available unused signatures to this member's unassigned locations.
+    Respects global no-reuse rule.
     """
     data = load_signatures()
-    signatures = data['signatures']
-    assignments = data['assignments']
-    
-    if len(signatures) == 0:
+    member_key = _ensure_member(data, member_key)
+
+    sigs = [s.get("id") for s in data.get("signatures", []) if s.get("id")]
+    if not sigs:
         return False, "No signatures available to assign", {}
-    
-    # Locations to fill
-    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
-    
-    # Get currently unassigned locations
-    unassigned = [loc for loc in locations if assignments.get(loc) is None]
-    
-    if len(unassigned) == 0:
+
+    assignments = data["assignments_by_member"][member_key]
+    unassigned = [loc for loc in _active_locations() if assignments.get(loc) is None]
+    if not unassigned:
         return True, "All locations already have signatures assigned", {}
-    
-    # Get currently assigned signature IDs
-    already_assigned = set(v for v in assignments.values() if v is not None)
-    
-    # Get available signatures (not yet assigned)
-    available_sigs = [s['id'] for s in signatures if s['id'] not in already_assigned]
-    
-    if len(available_sigs) == 0:
-        return False, "No additional signatures available (all are already assigned)", {}
-    
-    # Assign signatures to unassigned locations
-    assignments_made = {}
-    for i, location in enumerate(unassigned):
-        if i < len(available_sigs):
-            sig_id = available_sigs[i]
-            success, msg = assign_signature(location, sig_id)
-            if success:
-                assignments_made[location] = sig_id
-    
-    if len(assignments_made) > 0:
-        return True, f"Auto-assigned {len(assignments_made)} signature(s)", assignments_made
-    else:
-        return False, "Could not auto-assign signatures", {}
+
+    used_elsewhere = _all_assigned_signature_ids(data, exclude_member=member_key)
+    # also exclude signatures already used by this member
+    used_by_member = set(v for v in assignments.values() if v)
+    used = used_elsewhere | used_by_member
+
+    available = [sid for sid in sigs if sid not in used]
+    if not available:
+        return False, "No unused signatures available (all are already assigned)", {}
+
+    made = {}
+    for i, loc in enumerate(unassigned):
+        if i >= len(available):
+            break
+        sid = available[i]
+        assignments[loc] = sid
+        made[loc] = sid
+
+    # validate per-member again
+    ok, msg = validate_member_assignments(data, member_key)
+    if not ok:
+        # rollback those we set
+        for loc in made:
+            assignments[loc] = None
+        return False, msg, {}
+
+    try:
+        _save_signatures_data(data)
+        return True, f"Auto-assigned {len(made)} signature(s) for {member_key}", made
+    except Exception as e:
+        return False, f"Error saving assignments: {e}", {}
 
 
-def get_assignment_status():
+def get_assignment_status(member_key=None):
     """
-    Get detailed status of signature assignments.
-    
-    Returns: Dictionary with assignment status and recommendations
+    If member_key provided: status for that member.
+    Else: global summary.
     """
     data = load_signatures()
-    signatures = data['signatures']
-    assignments = data['assignments']
-    
-    status = {
-        'total_signatures': len(signatures),
-        'assignments': {},
-        'issues': [],
-        'recommendations': []
+    members = data.get("assignments_by_member") or {}
+
+    def status_for(mkey):
+        a = members.get(mkey) or {loc: None for loc in _active_locations()}
+        issues = []
+        for loc in _active_locations():
+            if not a.get(loc):
+                issues.append(f"{loc} has no signature assigned")
+        return {
+            "member_key": mkey,
+            "assigned": {loc: a.get(loc) for loc in _active_locations()},
+            "issues": issues,
+        }
+
+    if member_key:
+        return status_for(member_key)
+
+    # global
+    used = _all_assigned_signature_ids(data)
+    return {
+        "total_signatures": len(data.get("signatures", [])),
+        "total_members_with_assignments": len(members),
+        "total_assigned": len(used),
+        "members": [status_for(m) for m in sorted(members.keys())],
     }
-    
-    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
-    location_labels = {
-        'toris_certifying_officer': 'TORIS Certifying Officer',
-        'pg13_certifying_official': 'PG-13 Certifying Official (Top)',
-        'pg13_verifying_official': 'PG-13 Verifying Official (Bottom Right)'
-    }
-    
-    for location in locations:
-        sig_id = assignments.get(location)
-        
-        if sig_id is None:
-            status['assignments'][location] = {
-                'label': location_labels[location],
-                'status': 'unassigned',
-                'signature': None
-            }
-            status['issues'].append(f"{location_labels[location]} has no signature assigned")
-        else:
-            sig = next((s for s in signatures if s['id'] == sig_id), None)
-            if sig:
-                status['assignments'][location] = {
-                    'label': location_labels[location],
-                    'status': 'assigned',
-                    'signature': {
-                        'id': sig['id'],
-                        'name': sig['name'],
-                        'role': sig.get('role', '')
-                    }
-                }
-            else:
-                status['assignments'][location] = {
-                    'label': location_labels[location],
-                    'status': 'error',
-                    'signature': None
-                }
-                status['issues'].append(f"{location_labels[location]} references non-existent signature {sig_id}")
-    
-    # Check for duplicate assignments
-    assigned_ids = [assignments.get(loc) for loc in locations if assignments.get(loc)]
-    if len(assigned_ids) != len(set(assigned_ids)):
-        status['issues'].append("Warning: Same signature used multiple times")
-    
-    # Recommendations
-    if len(signatures) == 0:
-        status['recommendations'].append("Create at least one signature to get started")
-    elif len(assigned_ids) == 0:
-        status['recommendations'].append("Assign signatures to document locations")
-    elif len(assigned_ids) < 3:
-        status['recommendations'].append(f"Create {3 - len(assigned_ids)} more signature(s) to assign to all locations")
-    
-    return status
-
-
-# -----------------------------------
-# ENSURE DIRECTORIES EXIST
-# -----------------------------------
-
-for p in [
-    OUTPUT_DIR,
-    PACKAGE_FOLDER,
-    SUMMARY_TXT_FOLDER,
-    SUMMARY_PDF_FOLDER,
-    TORIS_CERT_FOLDER,
-    SEA_PAY_PG13_FOLDER,
-    TRACKER_FOLDER,
-    DATA_DIR,
-    PARSED_DIR,
-    OVERRIDES_DIR,
-    REPORTS_DIR,
-    PREVIEWS_DIR,
-]:
-    os.makedirs(p, exist_ok=True)
