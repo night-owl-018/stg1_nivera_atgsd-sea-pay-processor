@@ -220,14 +220,26 @@ def load_signatures():
         },
     }
 
+    # Ensure output directory exists
+    try:
+        os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
+    except Exception as e:
+        print(f"ERROR: Could not create output directory: {e}")
+
     if not os.path.exists(SIGNATURES_FILE):
+        # Create default file on first run
+        try:
+            _save_signatures_data(default_data)
+            print(f"✅ Created new signatures file at {SIGNATURES_FILE}")
+        except Exception as e:
+            print(f"WARNING: Could not create signatures file: {e}")
         return default_data
 
     try:
         with open(SIGNATURES_FILE, "r", encoding="utf-8") as f:
             data = json.load(f) or {}
     except Exception as e:
-        print(f"Warning: Could not load signatures: {e}")
+        print(f"ERROR: Could not load signatures: {e}")
         return default_data
 
     # Migrate legacy structure (v1)
@@ -260,9 +272,19 @@ def load_signatures():
 
 
 def _save_signatures_data(data):
-    os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
-    with open(SIGNATURES_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
+        with open(SIGNATURES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        print(f"✅ Signatures saved to {SIGNATURES_FILE}")
+    except PermissionError as e:
+        print(f"❌ PERMISSION ERROR: Cannot write to {SIGNATURES_FILE}")
+        print(f"   Details: {e}")
+        print(f"   Check Docker volume mounts and directory permissions")
+        raise
+    except Exception as e:
+        print(f"❌ ERROR saving signatures: {e}")
+        raise
 
 
 def save_signature(name, role, image_base64, device_id=None, device_name=None):
