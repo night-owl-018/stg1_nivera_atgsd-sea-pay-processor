@@ -17,6 +17,13 @@ class SignatureManager {
     }
     
     init() {
+        // ============================================
+        // ULTRA-VISIBLE FIX VERSION - v2.0
+        // ============================================
+        console.log('%c🚀 SIGNATURE MANAGER FIXED VERSION LOADED! 🚀', 'background: #00ff00; color: #000; font-size: 20px; padding: 10px;');
+        console.log('%cIf you see this message, the fix IS deployed!', 'background: #ffff00; color: #000; font-size: 16px; padding: 5px;');
+        console.log('%c============================================', 'color: #00ff00; font-size: 14px;');
+        
         // Always attach event listeners first - critical for button functionality
         this.attachEventListeners();
         this.checkOnlineStatus();
@@ -781,8 +788,14 @@ closeCreateModal() {
             console.log('✅ UI updated successfully');
             
         } catch (error) {
-            console.error('❌ Load error:', error);
-            this.showAlert(`❌ Failed to load signatures: ${error.message}`, 'warning');
+            console.error('%c❌❌❌ LOAD ERROR CAUGHT ❌❌❌', 'background: #ff0000; color: #fff; font-size: 18px; padding: 10px;');
+            console.error('❌ Error:', error);
+            console.error('❌ Error message:', error.message);
+            console.error('❌ Error stack:', error.stack);
+            
+            // Show VERY visible alert
+            this.showAlert(`❌ LOAD ERROR: ${error.message}`, 'warning');
+            alert(`🚨 DEBUG INFO 🚨\n\nError loading signatures:\n${error.message}\n\nCheck browser console (F12) for details!`);
             
             // Initialize empty state so UI still works
             this.signatures = [];
