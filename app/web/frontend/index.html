@@ -739,24 +739,6 @@
       margin: 0 auto;
       touch-action: none;
     }
-
-    /* Signature modal inputs must be readable (override global dark input styling) */
-    #signatureModal .signature-canvas-container input[type="text"] {
-      background: #ffffff !important;
-      color: #111827 !important;
-      border: 1px solid #cbd5e1 !important;
-      border-radius: 8px !important;
-    }
-    #signatureModal .signature-canvas-container input[type="text"]::placeholder {
-      color: #6b7280 !important;
-      opacity: 1;
-    }
-    #signatureModal .signature-canvas-container input[type="text"]:focus {
-      outline: none;
-      border-color: rgba(111, 183, 255, 0.9) !important;
-      box-shadow: 0 0 0 3px rgba(111, 183, 255, 0.25) !important;
-    }
-
   
 /* Signature modal input readability (override global dark inputs) */
 #signatureCanvasModal input[type="text"]{
@@ -769,6 +751,20 @@
   opacity: 1 !important;
 }
 
+
+    /* Signature modal input readability */
+    .signature-modal-content input[type="text"], 
+    .signature-modal-content input[type="search"],
+    .signature-modal-content select {
+      background: #ffffff !important;
+      color: #111827 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .signature-modal-content input[type="text"]::placeholder {
+      color: #6b7280 !important;
+      opacity: 1;
+    }
+    
 </style>
 </head>
 
