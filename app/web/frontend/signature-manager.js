@@ -461,6 +461,11 @@ _strokeEnd() {
             autoAssignBtn.addEventListener('click', () => this.autoAssign());
         }
         
+        const bulkAutoAssignBtn = document.getElementById('bulkAutoAssignBtn');
+        if (bulkAutoAssignBtn) {
+            bulkAutoAssignBtn.addEventListener('click', () => this.bulkAutoAssign());
+        }
+
         const syncBtn = document.getElementById('syncSignaturesBtn');
         if (syncBtn) {
             syncBtn.addEventListener('click', () => this.syncSignatures());
@@ -941,7 +946,61 @@ closeCreateModal() {
         }
     }
     
-    async deleteSignature(signatureId) {
+    
+    async bulkAutoAssign() {
+        try {
+            if (!this.members || this.members.length === 0) {
+                await this.loadMembers();
+            }
+            if (!this.members || this.members.length === 0) {
+                this.showAlert('⚠️ No members found to auto-assign.', 'warning');
+                return;
+            }
+
+            const proceed = confirm(`Auto-assign 3 unique signatures for ALL members?
+
+Members: ${this.members.length}
+Required signatures: ${this.members.length * 3}
+
+This will fail if you don\'t have enough unused signatures saved.`);
+            if (!proceed) return;
+
+            let successCount = 0;
+            const failures = [];
+
+            // Work one member at a time so the server can enforce global no-reuse safely.
+            for (const memberKey of this.members) {
+                const resp = await fetch('/api/signatures/auto-assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ member_key: memberKey })
+                });
+                const result = await resp.json();
+
+                if (result.status === 'success') {
+                    successCount += 1;
+                } else {
+                    failures.push({ memberKey, message: result.message || 'Unknown error' });
+                }
+            }
+
+            await this.loadAllData();
+
+            if (failures.length === 0) {
+                this.showAlert(`✅ Auto-assigned signatures for ${successCount}/${this.members.length} members.`, 'success');
+            } else {
+                // Show a short summary (don’t spam the UI)
+                const first = failures[0];
+                this.showAlert(`⚠️ Auto-assigned ${successCount}/${this.members.length}. First failure: ${first.memberKey} → ${first.message}`, 'warning');
+                console.warn('Bulk auto-assign failures:', failures);
+            }
+        } catch (error) {
+            console.error('Bulk auto-assign error:', error);
+            this.showAlert('⚠️ Bulk auto-assign failed', 'warning');
+        }
+    }
+
+async deleteSignature(signatureId) {
         if (!confirm('Delete this signature? This will also clear any document assignments using it.')) {
             return;
         }
