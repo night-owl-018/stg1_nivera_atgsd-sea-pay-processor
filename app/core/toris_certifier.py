@@ -11,7 +11,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from app.core.logger import log
-from app.core.config import get_certifying_officer_name, get_certifying_date_yyyymmdd, get_signature_for_location
+from app.core.config import get_certifying_officer_name, get_certifying_date_yyyymmdd, get_signature_for_member_location
 from reportlab.lib.utils import ImageReader
 # 🔎 PATCH: prove what file is actually executing
 log(f"TORIS CERT MODULE PATH → {__file__}")
@@ -85,7 +85,7 @@ def _fmt_mmddyyyy(date_yyyymmdd: str) -> str:
 
 
 
-def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
+def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path, member_key=None):
     """
     Add the certifying officer's name to a TORIS Sea Duty Certification Sheet PDF.
 
@@ -470,7 +470,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 c.drawString(name_x, name_y, certifying_officer_name)
                 
                 # ADJUSTED: TORIS signature position lowered
-                sig_image = get_signature_for_location('toris_certifying_officer')
+                sig_image = get_signature_for_member_location(member_key, 'toris_certifying_officer')
                 if sig_image is not None and underline_y_from_bottom is not None:
                     # ADJUSTED: Lowered DOWN 4 more pts (was -4, now -8)
                     sig_bottom_y = underline_y_from_bottom - 8  # 8pts below line
