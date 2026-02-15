@@ -1,4 +1,7 @@
 // Signature Manager - Mobile-First
+// ===================================
+// VERSION: FIXED-2026-02-15
+// ===================================
 class SignatureManager {
     constructor() {
         this.canvas = null;
@@ -17,15 +20,8 @@ class SignatureManager {
     }
     
     init() {
-        // ============================================
-        // NUCLEAR VERSION - v3.0 - IMPOSSIBLE TO MISS!
-        // ============================================
-        console.log('%c🚀 NUCLEAR FIX VERSION LOADED! 🚀', 'background: #00ff00; color: #000; font-size: 30px; padding: 20px; border: 5px solid red;');
-        console.log('%cTHIS IS THE NEW VERSION!', 'background: #ffff00; color: #ff0000; font-size: 24px; padding: 10px;');
-        console.log('%c============================================', 'color: #00ff00; font-size: 14px;');
-        
-        // SHOW ALERT SO USER CAN'T MISS IT
-        alert('🚀 NUCLEAR FIX VERSION LOADED!\n\nIf you see this popup, the new code IS running!\n\nClick OK to continue.');
+        // VERSION CHECK
+        console.log('%c✅ FIXED VERSION LOADED - 2026-02-15', 'background: #00ff00; color: #000; font-size: 16px; padding: 5px;');
         
         // Always attach event listeners first - critical for button functionality
         this.attachEventListeners();
@@ -601,7 +597,6 @@ closeCreateModal() {
     
     async saveSignature(e) {
         e.preventDefault();
-        console.log('💾 Saving signature...');
         
         const name = document.getElementById('signatureName').value.trim();
         const role = document.getElementById('signatureRole').value.trim();
@@ -628,31 +623,22 @@ closeCreateModal() {
             created: new Date().toISOString()
         };
         
-        console.log('💾 Saving to localStorage first...');
         this.saveToLocalStorage(signatureData);
         
         if (navigator.onLine) {
-            console.log('🌐 Online - uploading to server...');
             const saved = await this.uploadSignature(signatureData);
-            
             if (saved) {
-                console.log('✅ Upload successful, closing modal and refreshing...');
                 this.closeCreateModal();
                 await this.loadAllData();
                 this.showAlert('✅ Signature saved successfully!', 'success');
             } else {
-                console.log('⚠️ Upload failed, saved locally only');
                 this.showAlert('⚠️ Signature saved locally. Will sync when online.', 'warning');
                 this.closeCreateModal();
-                // Still try to refresh UI with local data
-                await this.loadAllData();
             }
         } else {
-            console.log('📴 Offline - saved locally');
             this.showAlert('📱 Signature saved to your phone. Will sync when online.', 'info');
             this.closeCreateModal();
         }
-        console.log('💾 Save complete');
     }
     
     saveToLocalStorage(signatureData) {
@@ -677,26 +663,16 @@ closeCreateModal() {
                 body: JSON.stringify(signatureData)
             });
             
-            // Check HTTP status first
-            if (!response.ok) {
-                console.error('Upload HTTP error:', response.status, response.statusText);
-                return false;
-            }
-            
             const result = await response.json();
-            console.log('Upload result:', result);
             
             if (result.status === 'success') {
-                console.log('✅ Signature uploaded successfully, ID:', result.signature_id);
                 this.removeFromLocalStorage(signatureData.local_id);
                 return true;
-            } else {
-                console.error('❌ Upload failed:', result.message);
-                return false;
             }
             
+            return false;
         } catch (error) {
-            console.error('❌ Upload exception:', error);
+            console.error('Upload error:', error);
             return false;
         }
     }
@@ -747,31 +723,30 @@ closeCreateModal() {
     }
     
     async loadAllData() {
-        console.log('%c🔄🔄🔄 LOAD ALL DATA STARTING! 🔄🔄🔄', 'background: #0000ff; color: #fff; font-size: 18px; padding: 10px;');
-        console.log('🔄 Loading all data...');
+        console.log('🔄 loadAllData() called');
         try {
             // Load full library + all per-member assignments (no signature reuse is enforced server-side)
-            console.log('%c📡 ABOUT TO FETCH /api/signatures/list', 'background: #ff00ff; color: #fff; font-size: 16px; padding: 5px;');
             const response = await fetch('/api/signatures/list?include_thumbnails=true');
-            console.log('%c📡 FETCH COMPLETED!', 'background: #00ff00; color: #000; font-size: 16px; padding: 5px;');
-            console.log('Response status:', response.status, response.statusText);
+            console.log('📡 Response:', response.status, response.statusText);
             
-            // Check HTTP status
+            // CHECK HTTP STATUS FIRST
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error('❌ HTTP Error:', errorText);
                 throw new Error(`Server error (${response.status}): ${errorText || response.statusText}`);
             }
             
             const result = await response.json();
-            console.log('📦 Received data:', result);
+            console.log('📦 Result:', result);
 
+            // CHECK RESULT STATUS
             if (result.status !== 'success') {
+                console.error('❌ Result status not success:', result);
                 throw new Error(result.message || 'Failed to load signatures');
             }
 
             this.signatures = result.signatures || [];
             this.assignmentsByMember = result.assignments_by_member || {};
-            
             console.log(`✅ Loaded ${this.signatures.length} signatures`);
 
             // Ensure we have a selected member
@@ -788,23 +763,21 @@ closeCreateModal() {
                 pg13_verifying_official: null
             };
 
-            console.log('🎨 Rendering UI...');
+            
             this.renderSignatureLibrary();
             this.renderAssignments();
             this.updateAssignmentAlert();
-            console.log('%c✅✅✅ UI UPDATED SUCCESSFULLY! ✅✅✅', 'background: #00ff00; color: #000; font-size: 18px; padding: 10px;');
+            console.log('✅ loadAllData() complete');
             
         } catch (error) {
-            console.error('%c❌❌❌ LOAD ERROR CAUGHT ❌❌❌', 'background: #ff0000; color: #fff; font-size: 18px; padding: 10px;');
-            console.error('❌ Error:', error);
+            console.error('❌ Load error:', error);
             console.error('❌ Error message:', error.message);
             console.error('❌ Error stack:', error.stack);
             
-            // Show VERY visible alert
-            this.showAlert(`❌ LOAD ERROR: ${error.message}`, 'warning');
-            alert(`🚨 DEBUG INFO 🚨\n\nError loading signatures:\n${error.message}\n\nCheck browser console (F12) for details!`);
+            // SHOW ERROR TO USER
+            this.showAlert(`❌ Failed to load signatures: ${error.message}`, 'warning');
             
-            // Initialize empty state so UI still works
+            // INITIALIZE EMPTY STATE SO UI WORKS
             this.signatures = [];
             this.assignmentsByMember = {};
             this.assignments = {
@@ -813,7 +786,7 @@ closeCreateModal() {
                 pg13_verifying_official: null
             };
             
-            // Render empty state
+            // RENDER EMPTY STATE
             this.renderSignatureLibrary();
             this.renderAssignments();
         }
