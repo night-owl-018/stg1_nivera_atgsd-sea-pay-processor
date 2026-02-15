@@ -739,7 +739,19 @@
       margin: 0 auto;
       touch-action: none;
     }
-  </style>
+  
+/* Signature modal input readability (override global dark inputs) */
+#signatureCanvasModal input[type="text"]{
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+#signatureCanvasModal input[type="text"]::placeholder{
+  color: #6b7280 !important;
+  opacity: 1 !important;
+}
+
+</style>
 </head>
 
 <body>
