@@ -60,9 +60,14 @@ class SignatureManager {
         try {
             const resp = await fetch('/api/members');
             const result = await resp.json();
-            if (result.status !== 'success') return;
 
-            this.members = (result.members || []).slice().sort();
+            // Backward-compatible: allow either [..] or {status:'success', members:[..]}
+            const members = Array.isArray(result)
+                ? result
+                : (result && result.status === 'success' ? (result.members || []) : []);
+            if (!members || members.length === 0) return;
+
+            this.members = members.slice().sort();
 
             const sel = document.getElementById('memberSelect');
             if (!sel) return;
@@ -759,14 +764,19 @@ closeCreateModal() {
             const result = await response.json();
             console.log('📦 Result:', result);
 
+            // Backward-compatible: allow array response = signatures list
+            const normalizedResult = Array.isArray(result)
+                ? { status: 'success', signatures: result, assignments_by_member: {} }
+                : result;
+
             // CHECK RESULT STATUS
-            if (result.status !== 'success') {
+            if (normalizedResult.status !== 'success') {
                 console.error('❌ Result status not success:', result);
                 throw new Error(result.message || 'Failed to load signatures');
             }
 
-            this.signatures = result.signatures || [];
-            this.assignmentsByMember = result.assignments_by_member || {};
+            this.signatures = normalizedResult.signatures || [];
+            this.assignmentsByMember = normalizedResult.assignments_by_member || {};
             console.log(`✅ Loaded ${this.signatures.length} signatures`);
 
             // Ensure we have a selected member
