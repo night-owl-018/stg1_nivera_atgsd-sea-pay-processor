@@ -2239,6 +2239,7 @@ function updateCertDatePreview() {
                 <label class="btn btn-outline" style="cursor:pointer;">📥 Import JSON
                   <input type="file" id="modalImportJsonFile" accept="application/json" style="display:none;">
                 </label>
+                <button class="btn btn-danger" id="modalResetAssignmentsBtn">🧹 Reset Assignments</button>
             <button class="btn btn-secondary" id="modalBulkAutoAssignBtn" type="button">⚙️ Auto Assign All</button>
           </div>
 
@@ -2649,6 +2650,53 @@ try {
       alert.textContent = `✅ All 3 signature blocks assigned for ${member}`;
     }
 
+    async resetAssignmentsForSelectedMember() {
+      const sel = document.getElementById('modalMemberSelect');
+      const mk = (this.memberKey || (sel && sel.value) || '').trim();
+      if (!mk) {
+        this.showAlert('⚠️ Select a Member first.', 'warning');
+        return;
+      }
+      this.memberKey = mk;
+
+      const ok = confirm(`Reset ALL signature assignments for:\n\n${mk}\n\nThis clears TORIS + PG-13 blocks for this member.`);
+      if (!ok) return;
+
+      const locations = [
+        'toris_certifying_officer',
+        'pg13_certifying_official',
+        'pg13_verifying_official'
+      ];
+
+      try {
+        for (const loc of locations) {
+          const resp = await fetch('/api/signatures/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              member_key: mk,
+              location: loc,
+              signature_id: null
+            })
+          });
+
+          const result = await resp.json().catch(() => ({}));
+          if (!resp.ok || result.status !== 'success') {
+            const msg = result.message || `Reset failed at ${loc}`;
+            this.showAlert('❌ ' + msg, 'warning');
+            await this.loadAllData();
+            return;
+          }
+        }
+
+        await this.loadAllData();
+        this.showAlert('✅ Assignments reset for ' + mk, 'success');
+      } catch (e) {
+        console.error('Modal reset assignments error:', e);
+        this.showAlert('⚠️ Reset failed', 'warning');
+      }
+    }
+
     downloadJsonFile(filename, obj) {
       try {
         const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
@@ -2738,6 +2786,7 @@ try {
         this.showAlert('⚠️ Import failed (bad JSON?)', 'warning');
       }
     }
+
 
 
     showAlert(message, type) {
