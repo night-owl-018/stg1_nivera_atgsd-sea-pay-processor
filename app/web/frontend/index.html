@@ -2558,6 +2558,49 @@ function updateCertDatePreview() {
       }
     }
     
+    updateModalStatus(serverStatus) {
+      const alert = document.getElementById('modalSignatureStatus');
+      if (!alert) return;
+
+      // If no member selected yet, don't show assignment status
+      const member = this.memberKey || '';
+      if (!member) {
+        alert.style.display = 'none';
+        return;
+      }
+
+      // Compute status based on current assignments (robust even if serverStatus shape changes)
+      const labels = {
+        toris_certifying_officer: 'TORIS Certifying Officer',
+        pg13_certifying_official: 'PG-13 Certifying Official (Top)',
+        pg13_verifying_official: 'PG-13 Verifying Official (Bottom)'
+      };
+
+      const vals = Object.values(this.assignments || {}).filter(v => v);
+      const hasDup = vals.length !== new Set(vals).size;
+      const missing = [];
+      for (const k of Object.keys(labels)) {
+        if (!this.assignments || !this.assignments[k]) missing.push(labels[k]);
+      }
+
+      alert.style.display = 'block';
+
+      if (hasDup) {
+        alert.className = 'alert alert-warning';
+        alert.textContent = `⚠️ Duplicate assignments for ${member}. Each block must use a different signature.`;
+        return;
+      }
+
+      if (missing.length) {
+        alert.className = 'alert alert-warning';
+        alert.textContent = `⚠️ Missing signatures for ${member}: ${missing.join(', ')}`;
+        return;
+      }
+
+      alert.className = 'alert alert-success';
+      alert.textContent = `✅ All 3 signature blocks assigned for ${member}`;
+    }
+
     showAlert(message, type) {
       const alert = document.getElementById('modalSignatureStatus');
       alert.className = `alert alert-${type}`;
