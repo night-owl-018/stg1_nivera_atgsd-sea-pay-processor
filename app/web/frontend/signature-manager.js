@@ -53,19 +53,6 @@ class SignatureManager {
         if (/Mac/.test(ua)) return 'Mac';
         return 'Unknown Device';
     }
-
-    // Added missing escapeHtml to prevent runtime crashes
-    escapeHtml(value) {
-        const s = String(value ?? '');
-        return s
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-
     
 
 
@@ -485,6 +472,11 @@ _strokeEnd() {
             bulkAutoAssignBtn.addEventListener('click', () => this.bulkAutoAssign());
         }
 
+        const resetBtn = document.getElementById('resetAssignmentsBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.resetAssignmentsForCurrentMember());
+        }
+
         const exportAllBtn = document.getElementById('exportAllSignaturesBtn');
         if (exportAllBtn) {
             exportAllBtn.addEventListener('click', () => this.exportAllSignatures());
@@ -691,12 +683,6 @@ closeCreateModal() {
                 body: JSON.stringify(signatureData)
             });
             
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
-            }
-            
             const result = await response.json();
             
             if (result.status === 'success') {
@@ -741,12 +727,6 @@ closeCreateModal() {
                 })
             });
             
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
-            }
-            
             const result = await response.json();
             
             if (result.status === 'success') {
@@ -774,12 +754,6 @@ closeCreateModal() {
                 const errorText = await response.text();
                 console.error('❌ HTTP Error:', errorText);
                 throw new Error(`Server error (${response.status}): ${errorText || response.statusText}`);
-            }
-            
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
             }
             
             const result = await response.json();
@@ -998,12 +972,6 @@ closeCreateModal() {
                 })
             });
             
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
-            }
-            
             const result = await response.json();
             
             if (result.status === 'success') {
@@ -1026,12 +994,6 @@ closeCreateModal() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ member_key: this.currentMemberKey })
             });
-            
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
-            }
             
             const result = await response.json();
             
@@ -1110,12 +1072,6 @@ async deleteSignature(signatureId) {
             const response = await fetch(`/api/signatures/delete/${signatureId}`, {
                 method: 'DELETE'
             });
-            
-            if (!response.ok) {
-                const errorText = await response.text().catch(() => '');
-                console.error('❌ /api/signatures/create HTTP error:', response.status, errorText);
-                return false;
-            }
             
             const result = await response.json();
             
