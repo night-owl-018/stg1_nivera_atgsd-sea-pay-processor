@@ -2159,27 +2159,46 @@ function updateCertDatePreview() {
     async function updateSignatureStatus() {
     const display = document.getElementById('signatureStatusDisplay');
     if (!display) return;
+
+    const unavailable = () => {
+      display.innerHTML = '<div style="text-align:center; padding:4px 0;">Status unavailable</div>';
+    };
+
     try {
       const resp = await fetch('/api/signatures/status');
+      if (!resp.ok) return unavailable();
+
       const data = await resp.json();
-      if (!data || data.status !== 'success') {
-        display.innerHTML = '<div style="text-align:center; padding:4px 0;">Status unavailable</div>';
-        return;
-      }
+      if (!data || data.status !== 'success') return unavailable();
+
+      // Backend schema (app.core.config.get_assignment_status):
+      // {
+      //   total_signatures,
+      //   total_members_with_assignments,
+      //   total_assigned,
+      //   members: [{member_key, assigned:{...}, issues:[...]}]
+      // }
       const s = data.assignment_status || {};
-      const total = s.total_members || 0;
-      const complete = s.complete_members || 0;
-      const incomplete = s.incomplete_members || 0;
+      const members = Array.isArray(s.members) ? s.members : [];
+
+      const total = Number(s.total_members_with_assignments ?? members.length ?? 0) || 0;
+      const complete = members.filter(m => Array.isArray(m.issues) && m.issues.length === 0).length;
+      const incomplete = Math.max(0, total - complete);
+
+      const totalSigs = Number(s.total_signatures ?? 0) || 0;
+      const totalAssigned = Number(s.total_assigned ?? 0) || 0;
+
       display.innerHTML = `
         <div>Members complete: <b>${complete}</b> / ${total}</div>
         <div>Members incomplete: <b>${incomplete}</b></div>
+        <div style="opacity:0.85; margin-top:4px;">Signatures: <b>${totalAssigned}</b> assigned / <b>${totalSigs}</b> total</div>
       `;
     } catch (e) {
-      display.innerHTML = '<div style="text-align:center; padding:4px 0;">Status unavailable</div>';
+      unavailable();
     }
   }
 
-    // Update signature status on page load and periodically
+  // Update signature status on page load and periodically and periodically
     updateSignatureStatus();
     setInterval(updateSignatureStatus, 30000); // Refresh every 30 seconds
 
