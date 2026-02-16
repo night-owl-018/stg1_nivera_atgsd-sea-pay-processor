@@ -2217,8 +2217,8 @@ function updateCertDatePreview() {
           <h3 style="margin-top: 0; color: #333;">Create New Signature</h3>
           <canvas id="signatureCanvasModal" width="600" height="200"></canvas>
           <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-            <button class="btn btn-secondary" onclick="clearModalCanvas()" style="background: #6c757d; color: white; border: 1px solid #5a6268; font-weight: 600;">🗑️ Clear</button>
-            <button class="btn btn-primary" onclick="saveModalSignature()" style="background: #0d6efd; color: white; border: 1px solid #0d6efd; font-weight: 600;">💾 Save</button>
+            <button class="btn btn-secondary" onclick="clearModalCanvas()">Clear</button>
+            <button class="btn btn-primary" onclick="saveModalSignature()">💾 Save</button>
           </div>
           <div style="margin-top: 15px;">
             <input type="text" id="modalSignatureName" placeholder="Name (e.g., Ryan Nivera)" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc;">
@@ -2281,15 +2281,34 @@ function updateCertDatePreview() {
       this.memberKey = null;
       this.members = [];
       this._bound = false;
+      this.dpr = window.devicePixelRatio || 2; // Use device pixel ratio or 2x minimum
       this.setupCanvas();
       setInterval(() => this.loadAllData(), 5000); // Auto-refresh every 5 seconds
     }
     
     setupCanvas() {
-      this.ctx.strokeStyle = '#000';
-      this.ctx.lineWidth = 2;
-      this.ctx.lineCap = 'round';
-      this.ctx.lineJoin = 'round';
+      // HIGH QUALITY: Scale canvas for better resolution
+      const displayWidth = 600;
+      const displayHeight = 200;
+      
+      // Set actual canvas size (scaled by DPR for high quality)
+      this.canvas.width = displayWidth * this.dpr;
+      this.canvas.height = displayHeight * this.dpr;
+      
+      // Set display size (CSS)
+      this.canvas.style.width = displayWidth + 'px';
+      this.canvas.style.height = displayHeight + 'px';
+      
+      // Scale context to match
+      this.ctx.scale(this.dpr, this.dpr);
+      
+      // HIGH QUALITY SETTINGS
+      this.ctx.strokeStyle = '#000000';    // Pure black
+      this.ctx.lineWidth = 3;              // Thicker line for print quality
+      this.ctx.lineCap = 'round';          // Smooth ends
+      this.ctx.lineJoin = 'round';         // Smooth corners
+      this.ctx.imageSmoothingEnabled = true;
+      this.ctx.imageSmoothingQuality = 'high';
       
       this.canvas.onmousedown = (e) => this.startDraw(e);
       this.canvas.onmousemove = (e) => this.draw(e);
