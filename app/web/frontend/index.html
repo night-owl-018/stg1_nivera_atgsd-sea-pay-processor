@@ -2306,39 +2306,40 @@ function updateCertDatePreview() {
       try {
         const resp = await fetch('/api/members');
         const result = await resp.json();
-        if (!result || result.status !== 'success') return;
+        if (result.status !== 'success') return;
 
         this.members = (result.members || []).slice().sort();
 
         const sel = document.getElementById('modalMemberSelect');
         if (!sel) return;
 
-        const prev = sel.value || this.memberKey || '';
-
-        sel.innerHTML = '<option value="">-- Select member --</option>' +
-        // Default selection
+        // Preserve current selection if possible
         const prev = (this.memberKey || sel.value || '').trim();
-        if (prev && this.members.includes(prev)) {
-          sel.value = prev;
-          this.memberKey = prev;
-        } else if (!this.memberKey && this.members.length > 0) {
-          sel.value = this.members[0];
-          this.memberKey = this.members[0];
-        }
+
+        // Render member options
+        sel.innerHTML = '<option value="">-- Select member --</option>' +
           this.members.map(m => `<option value="${this.escapeHtml(m)}">${this.escapeHtml(m)}</option>`).join('');
 
+        // Default selection
         if (prev && this.members.includes(prev)) {
           sel.value = prev;
           this.memberKey = prev;
         } else if (this.members.length > 0) {
           sel.value = this.members[0];
           this.memberKey = this.members[0];
+        } else {
+          this.memberKey = null;
         }
+
+        sel.onchange = () => {
+          this.memberKey = (sel.value || '').trim() || null;
+          this.loadAllData();
+        };
       } catch (e) {
         console.warn('Modal: failed to load members', e);
       }
     }
-    
+
     startDraw(e) {
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
