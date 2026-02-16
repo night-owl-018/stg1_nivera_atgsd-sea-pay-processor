@@ -60,9 +60,14 @@ class SignatureManager {
         try {
             const resp = await fetch('/api/members');
             const result = await resp.json();
-            if (result.status !== 'success') return;
 
-            this.members = (result.members || []).slice().sort();
+            // Backward-compatible: allow either [..] or {status:'success', members:[..]}
+            const members = Array.isArray(result)
+                ? result
+                : (result && result.status === 'success' ? (result.members || []) : []);
+            if (!members || members.length === 0) return;
+
+            this.members = members.slice().sort();
 
             const sel = document.getElementById('memberSelect');
             if (!sel) return;
@@ -472,6 +477,26 @@ _strokeEnd() {
             bulkAutoAssignBtn.addEventListener('click', () => this.bulkAutoAssign());
         }
 
+        const resetBtn = document.getElementById('resetAssignmentsBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.resetAssignmentsForCurrentMember());
+        }
+
+        const exportAllBtn = document.getElementById('exportAllSignaturesBtn');
+        if (exportAllBtn) {
+            exportAllBtn.addEventListener('click', () => this.exportAllSignatures());
+        }
+
+        const importBackupJsonFile = document.getElementById('importBackupJsonFile');
+        if (importBackupJsonFile) {
+            importBackupJsonFile.addEventListener('change', async (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                await this.importBackupJson(f);
+                importBackupJsonFile.value = '';
+            });
+        }
+
         const syncBtn = document.getElementById('syncSignaturesBtn');
         if (syncBtn) {
             syncBtn.addEventListener('click', () => this.syncSignatures());
@@ -739,14 +764,19 @@ closeCreateModal() {
             const result = await response.json();
             console.log('📦 Result:', result);
 
+            // Backward-compatible: allow array response = signatures list
+            const normalizedResult = Array.isArray(result)
+                ? { status: 'success', signatures: result, assignments_by_member: {} }
+                : result;
+
             // CHECK RESULT STATUS
-            if (result.status !== 'success') {
+            if (normalizedResult.status !== 'success') {
                 console.error('❌ Result status not success:', result);
                 throw new Error(result.message || 'Failed to load signatures');
             }
 
-            this.signatures = result.signatures || [];
-            this.assignmentsByMember = result.assignments_by_member || {};
+            this.signatures = normalizedResult.signatures || [];
+            this.assignmentsByMember = normalizedResult.assignments_by_member || {};
             console.log(`✅ Loaded ${this.signatures.length} signatures`);
 
             // Ensure we have a selected member
@@ -817,6 +847,7 @@ closeCreateModal() {
                 <div class="signature-meta">${sig.role || 'No role specified'}</div>
                 <div class="signature-meta">📱 ${sig.device_name}</div>
                 <div class="signature-actions">
+                    <button class="btn btn-secondary" onclick="app.exportOneSignature('${sig.id}')">💾 Export</button>
                     <button class="btn btn-danger" onclick="app.deleteSignature('${sig.id}')">
                         🗑️ Delete
                     </button>
@@ -1104,6 +1135,121 @@ async deleteSignature(signatureId) {
         alert.innerHTML = `<strong>✅ All 3 signature blocks assigned for ${this.escapeHtml(member)}</strong>`;
     }
 
+    downloadJsonFile(filename, obj) {
+        try {
+            const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Download JSON failed', e);
+            this.showAlert('⚠️ Export failed', 'warning');
+        }
+    }
+
+    buildExportPayload(signatures) {
+        return {
+            version: 1,
+            exported_at: new Date().toISOString(),
+            note: "This backup contains thumbnail images (smaller). If you want full-resolution exports later, we can add a backend export endpoint.",
+            signatures: (signatures || []).map(s => ({
+                name: s.name || '',
+                role: s.role || '',
+                signature_base64: s.thumbnail_base64 || s.signature_base64 || '',
+            }))
+        };
+    }
+
+    exportAllSignatures() {
+        if (!this.signatures || this.signatures.length === 0) {
+            this.showAlert('⚠️ No signatures to export', 'warning');
+            return;
+        }
+        const payload = this.buildExportPayload(this.signatures);
+        const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        this.downloadJsonFile(`sea-pay-signatures-backup-${ymd}.json`, payload);
+        this.showAlert('✅ Exported backup file', 'success');
+    }
+
+    exportOneSignature(signatureId) {
+        const sig = (this.signatures || []).find(s => String(s.id) === String(signatureId));
+        if (!sig) {
+            this.showAlert('⚠️ Signature not found', 'warning');
+            return;
+        }
+        const payload = this.buildExportPayload([sig]);
+        const safe = (sig.name || 'signature').replace(/[^a-z0-9]+/gi,'_').slice(0,40) || 'signature';
+        const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        this.downloadJsonFile(`sea-pay-signature-${safe}-${ymd}.json`, payload);
+        this.showAlert('✅ Exported signature file', 'success');
+    }
+
+    async importBackupJson(file) {
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            const sigs = Array.isArray(data?.signatures) ? data.signatures : [];
+            if (sigs.length === 0) {
+                this.showAlert('⚠️ No signatures found in backup', 'warning');
+                return;
+            }
+
+            let imported = 0;
+            for (const s of sigs) {
+                const name = String(s.name || '').trim();
+                if (!name) continue;
+
+                const body = {
+                    local_id: 'import_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                    name,
+                    role: String(s.role || ''),
+                    signature_base64: String(s.signature_base64 || '').split(',').pop(),
+                    device_id: this.deviceId,
+                    device_name: this.deviceName,
+                    created: new Date().toISOString()
+                };
+
+                const resp = await fetch('/api/signatures/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await resp.json().catch(() => ({}));
+                if (resp.ok && result.status === 'success') {
+                    imported += 1;
+                } else {
+                    console.warn('Import failed for', name, result);
+                }
+            }
+
+            await this.loadAllData();
+            this.showAlert(`✅ Imported ${imported} signature(s)`, 'success');
+        } catch (e) {
+            console.error('Import backup failed', e);
+            this.showAlert('⚠️ Import failed (bad JSON?)', 'warning');
+        }
+    }
+
+    escapeHtml(str) {
+        const s = String(str ?? '');
+        return s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+
+
     
     showAlert(message, type) {
         const alert = document.getElementById('assignmentAlert');
@@ -1152,7 +1298,5 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing SignatureManager...');
     app = new SignatureManager();
-    
-    window.app = app;
-console.log('SignatureManager initialized');
+    console.log('SignatureManager initialized');
 });
