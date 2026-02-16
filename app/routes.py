@@ -287,9 +287,47 @@ def _write_review(state: dict) -> None:
 
 @bp.route("/api/members")
 def api_members():
-    return jsonify(sorted(_load_review().keys()))
+    """
+    Return members for Signature Manager.
 
+    Default response:
+      { "status": "success", "members": [ ... ] }
 
+    Backward compatibility:
+      /api/members?format=list  -> returns legacy JSON list [ ... ]
+    """
+    state = _load_review()
+    members = set(state.keys())
+
+    # Also include roster members (config/atgsd_n811.csv) so signatures can be assigned
+    # even before any PDFs are processed.
+    try:
+        if os.path.exists(RATE_FILE):
+            with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
+                reader = csv.DictReader(f)
+                # Normalize headers to lower-case
+                if reader.fieldnames:
+                    reader.fieldnames = [h.lstrip("\ufeff").strip().strip('"').lower() for h in reader.fieldnames]
+
+                for row in reader:
+                    rate = (row.get("rate") or "").strip().upper()
+                    last = (row.get("last") or "").strip().upper()
+                    first = (row.get("first") or "").strip().upper()
+                    if not last or not first:
+                        continue
+                    # Member key format used throughout processing.py
+                    member_key = f"{rate} {last},{first}".strip()
+                    members.add(member_key)
+    except Exception as e:
+        log(f"/api/members roster load error → {e}")
+
+    members_sorted = sorted(members)
+
+    # Legacy list mode for any older callers
+    if (request.args.get("format") or "").lower() == "list":
+        return jsonify(members_sorted)
+
+    return jsonify({"status": "success", "members": members_sorted})
 @bp.route("/api/member/<path:member_key>/sheets")
 def api_member_sheets(member_key):
     state = _load_review()
