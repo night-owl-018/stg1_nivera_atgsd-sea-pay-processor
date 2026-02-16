@@ -483,7 +483,13 @@ _strokeEnd() {
         const bulkAutoAssignBtn = document.getElementById('bulkAutoAssignBtn');
         if (bulkAutoAssignBtn) {
             bulkAutoAssignBtn.addEventListener('click', () => this.bulkAutoAssign());
+        
+        const resetBtn = document.getElementById('resetAssignmentsBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.resetAssignments());
         }
+
+}
 
         const syncBtn = document.getElementById('syncSignaturesBtn');
         if (syncBtn) {
@@ -1032,7 +1038,53 @@ closeCreateModal() {
     }
     
     
-    async bulkAutoAssign() {
+    
+    async resetAssignments() {
+        if (!this.currentMemberKey) {
+            this.showAlert('⚠️ Select a member first.', 'warning');
+            return;
+        }
+
+        const proceed = confirm(`Reset ALL signature assignments for ${this.currentMemberKey}?\n\nThis will set all 3 blocks back to "No Signature".`);
+        if (!proceed) return;
+
+        const locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official'];
+
+        try {
+            for (const location of locations) {
+                const response = await fetch('/api/signatures/assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        member_key: this.currentMemberKey,
+                        location,
+                        signature_id: null
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => '');
+                    console.error('❌ /api/signatures/assign HTTP error:', response.status, errorText);
+                    this.showAlert('⚠️ Reset failed (server error)', 'warning');
+                    return;
+                }
+
+                const result = await response.json().catch(() => null);
+                if (!result || result.status !== 'success') {
+                    this.showAlert('⚠️ Reset failed', 'warning');
+                    return;
+                }
+            }
+
+            await this.loadAllData();
+            this.showAlert('✅ Assignments reset', 'success');
+        } catch (error) {
+            console.error('Reset assignments error:', error);
+            this.showAlert('⚠️ Reset failed', 'warning');
+        }
+    }
+
+async bulkAutoAssign() {
         try {
             if (!this.members || this.members.length === 0) {
                 await this.loadMembers();
