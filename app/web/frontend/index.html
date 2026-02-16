@@ -2311,7 +2311,27 @@ function updateCertDatePreview() {
         };
       }
 
+      // Bind action buttons (these were missing, so Reset/AutoAssign/Export did nothing)
+      const btnAuto = document.getElementById('modalAutoAssignBtn');
+      if (btnAuto) btnAuto.onclick = () => this.autoAssignSelectedMember();
 
+      const btnBulk = document.getElementById('modalBulkAutoAssignBtn');
+      if (btnBulk) btnBulk.onclick = () => this.autoAssignAllMembers();
+
+      const btnReset = document.getElementById('modalResetAssignmentsBtn');
+      if (btnReset) btnReset.onclick = () => this.resetAssignmentsForSelectedMember();
+
+      const btnExport = document.getElementById('modalExportAllBtn');
+      if (btnExport) btnExport.onclick = () => this.exportAllSignatures();
+
+      const inputImport = document.getElementById('modalImportJsonFile');
+      if (inputImport) {
+        inputImport.onchange = async () => {
+          const file = inputImport.files && inputImport.files[0];
+          await this.importBackupJson(file);
+          inputImport.value = '';
+        };
+      }
     }
 
     // Escape HTML for safe innerHTML usage (prevents crashes and bad markup)
@@ -2784,6 +2804,38 @@ try {
       } catch (e) {
         console.error('Modal import backup failed', e);
         this.showAlert('⚠️ Import failed (bad JSON?)', 'warning');
+      }
+    }
+
+
+    async autoAssignSelectedMember() {
+      const sel = document.getElementById('modalMemberSelect');
+      const mk = (this.memberKey || (sel && sel.value) || '').trim();
+      if (!mk) {
+        this.showAlert('⚠️ Select a Member first.', 'warning');
+        return;
+      }
+      this.memberKey = mk;
+
+      try {
+        const resp = await fetch('/api/signatures/auto-assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_key: mk })
+        });
+        const result = await resp.json().catch(() => ({}));
+
+        if (resp.ok && result.status === 'success') {
+          this.showAlert('✅ ' + (result.message || 'Auto-assigned'), 'success');
+        } else {
+          this.showAlert('❌ ' + (result.message || 'Auto-assign failed'), 'warning');
+        }
+
+        await this.loadAllData();
+        if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+      } catch (e) {
+        console.error('Modal autoAssignSelectedMember error', e);
+        this.showAlert('⚠️ Auto-assign failed', 'warning');
       }
     }
 
