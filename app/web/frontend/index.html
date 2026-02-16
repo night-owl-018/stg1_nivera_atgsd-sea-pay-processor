@@ -2261,6 +2261,17 @@ function updateCertDatePreview() {
       this.canvas.ontouchend = () => this.stopDraw();
     }
     
+    bindUI() {
+      // Bind member select dropdown
+      const sel = document.getElementById('modalMemberSelect');
+      if (sel) {
+        sel.onchange = () => {
+          this.memberKey = sel.value || null;
+          this.loadAllData();
+        };
+      }
+    }
+    
     startDraw(e) {
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -2371,6 +2382,12 @@ function updateCertDatePreview() {
         // Fetch signatures + assignments for this member
         const url = this.memberKey ? `/api/signatures/list?include_thumbnails=true&member_key=${encodeURIComponent(this.memberKey)}` : `/api/signatures/list?include_thumbnails=true`;
         const response = await fetch(url);
+        
+        // Check HTTP status
+        if (!response.ok) {
+          throw new Error(`Server error (${response.status})`);
+        }
+        
         const result = await response.json();
 
         if (result.status === 'success') {
@@ -2383,8 +2400,13 @@ function updateCertDatePreview() {
           this.showAlert('❌ ' + (result.message || 'Failed to load signatures'), 'error');
         }
       } catch (err) {
-        console.error(err);
-        this.showAlert('❌ Failed to load signatures', 'error');
+        console.error('Modal load error:', err);
+        this.showAlert('❌ Failed to load signatures: ' + err.message, 'error');
+        // Initialize empty state
+        this.signatures = [];
+        this.assignments = {};
+        this.renderLibrary();
+        this.renderAssignments();
       }
     }
     
