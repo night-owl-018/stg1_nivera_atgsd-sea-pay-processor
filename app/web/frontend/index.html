@@ -2235,10 +2235,16 @@ function updateCertDatePreview() {
     modalSigApp.loadAllData();
   }
 
+  window.openSignatureModal = openSignatureModal;
+
+
   function closeSignatureModal() {
     document.getElementById('signatureModal').classList.remove('show');
     if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
   }
+
+  window.closeSignatureModal = closeSignatureModal;
+
 
   class ModalSignatureManager {
     constructor() {
@@ -2632,9 +2638,15 @@ try {
     if (modalSigApp) modalSigApp.clearCanvas();
   }
 
+  window.clearModalCanvas = clearModalCanvas;
+
+
   function saveModalSignature() {
     if (modalSigApp) modalSigApp.saveModalSignature();
   }
+
+  window.saveModalSignature = saveModalSignature;
+
   </script>
 
 </body>
