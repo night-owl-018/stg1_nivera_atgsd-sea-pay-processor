@@ -978,12 +978,17 @@ closeCreateModal() {
             return;
         }
 
-        // Group signatures by base name (strip trailing digits)
+        // Group by Signature Name base — strip the auto-appended number suffix
+        // The auto-number is always 3+ digits appended to the base name (e.g. NIVERA001 → NIVERA)
+        // For names that are ALL digits (e.g. 0032001), keep the full name as the group
         const groups = {};
         this.signatures.forEach(sig => {
-            const base = sig.name.replace(/\d+$/, '').trim() || sig.name;
-            if (!groups[base]) groups[base] = [];
-            groups[base].push(sig);
+            // Strip trailing digits ONLY if there are non-digit characters before them
+            const match = sig.name.match(/^(.*[^0-9])(\d+)$/);
+            const base = match ? match[1].trim() : sig.name;
+            const groupKey = base || sig.name;
+            if (!groups[groupKey]) groups[groupKey] = [];
+            groups[groupKey].push(sig);
         });
 
         const groupKeys = Object.keys(groups).sort();
