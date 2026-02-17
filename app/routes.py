@@ -1031,20 +1031,21 @@ def list_signatures():
 
     Query params:
       - include_thumbnails=true|false
+      - include_full_res=true|false  (for export — returns full image_base64)
       - member_key=<member_key> (optional; returns assignments for that member)
     """
     try:
         from app.core.config import load_signatures, get_all_signatures, get_assignment_status
 
         include_thumbnails = request.args.get("include_thumbnails", "false").lower() == "true"
+        include_full_res = request.args.get("include_full_res", "false").lower() == "true"
         member_key = (request.args.get("member_key") or "").strip() or None
 
         data = load_signatures()
-        signatures = get_all_signatures(include_thumbnails=include_thumbnails)
+        signatures = get_all_signatures(include_thumbnails=include_thumbnails, include_full_res=include_full_res)
 
         assignments_by_member = data.get("assignments_by_member", {}) or {}
         if member_key and member_key not in assignments_by_member:
-            # Return an empty assignment set for new members (UI can still assign)
             assignments_for_member = {
                 "toris_certifying_officer": None,
                 "pg13_certifying_official": None,
@@ -1328,6 +1329,92 @@ def import_signature_png():
 
     except Exception as e:
         log(f"❌ IMPORT SIGNATURE ERROR → {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@bp.route("/api/signatures/import-multi", methods=["POST"])
+def import_signatures_multi():
+    """
+    Import multiple signature PNGs at once.
+
+    multipart/form-data:
+      - files[]: one or more PNG files
+      - base_name: base name prefix (e.g. "NIVERA") — auto-numbered if multiple
+      - role: string (optional)
+      - device_id: string (optional)
+      - device_name: string (optional)
+
+    Returns: { status, imported, skipped, failed, results: [...] }
+    """
+    try:
+        from app.core.config import save_signature, load_signatures
+        import base64 as b64_mod
+
+        files = request.files.getlist("files[]")
+        if not files:
+            return jsonify({"status": "error", "message": "No files provided"}), 400
+
+        base_name = (request.form.get("base_name") or "").strip()
+        role = (request.form.get("role") or "").strip()
+        device_id = request.form.get("device_id") or "import"
+        device_name = request.form.get("device_name") or "Multi-Import"
+
+        if not base_name:
+            return jsonify({"status": "error", "message": "base_name is required"}), 400
+
+        # Collect existing names for duplicate detection
+        data = load_signatures()
+        existing_names = {s.get("name", "").lower() for s in data.get("signatures", [])}
+
+        results = []
+        imported = 0
+        skipped = 0
+        failed = 0
+
+        for idx, f in enumerate(files, start=1):
+            # Build final name: base_name + zero-padded number
+            num_str = str(idx).zfill(3)
+            final_name = f"{base_name}{num_str}" if len(files) > 1 else base_name
+
+            # Duplicate detection — auto-rename by appending _import
+            if final_name.lower() in existing_names:
+                # Try incrementing suffix until unique
+                suffix = 2
+                candidate = f"{final_name}_import{suffix}"
+                while candidate.lower() in existing_names:
+                    suffix += 1
+                    candidate = f"{final_name}_import{suffix}"
+                final_name = candidate
+                log(f"⚠️ Duplicate name — renamed to {final_name}")
+
+            content = f.read()
+            if not content:
+                results.append({"file": f.filename, "name": final_name, "status": "failed", "reason": "empty file"})
+                failed += 1
+                continue
+
+            sig_b64 = b64_mod.b64encode(content).decode("utf-8")
+            sig_id = save_signature(final_name, role, sig_b64, device_id=device_id, device_name=device_name)
+
+            if sig_id:
+                existing_names.add(final_name.lower())  # track within this import batch
+                imported += 1
+                results.append({"file": f.filename, "name": final_name, "status": "imported", "id": sig_id})
+                log(f"✅ MULTI-IMPORT → {final_name} (ID: {sig_id})")
+            else:
+                failed += 1
+                results.append({"file": f.filename, "name": final_name, "status": "failed", "reason": "save error"})
+
+        return jsonify({
+            "status": "success",
+            "imported": imported,
+            "skipped": skipped,
+            "failed": failed,
+            "results": results
+        })
+
+    except Exception as e:
+        log(f"❌ MULTI-IMPORT ERROR → {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @bp.route("/api/signatures/delete/<signature_id>", methods=["DELETE"])
