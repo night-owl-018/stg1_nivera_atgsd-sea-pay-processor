@@ -33,6 +33,68 @@ class SignatureManager {
         this.loadMembers();
         this.loadAllData();
         this.loadLocalSignatures();
+        this.loadPersistedFormData(); // Load persisted signature data
+    }
+    
+    loadPersistedFormData() {
+        // Load persisted signature name, role, and number from localStorage
+        const savedName = localStorage.getItem('signature_base_name') || '';
+        const savedRole = localStorage.getItem('signature_role') || '';
+        const savedNumber = localStorage.getItem('signature_next_number') || '001';
+        
+        const nameField = document.getElementById('signatureName');
+        const roleField = document.getElementById('signatureRole');
+        const numberField = document.getElementById('signatureNumber');
+        
+        if (nameField) nameField.value = savedName;
+        if (roleField) roleField.value = savedRole;
+        if (numberField) {
+            numberField.value = savedNumber;
+            
+            // Add number field validation
+            numberField.addEventListener('blur', () => this.formatNumberField());
+            numberField.addEventListener('input', (e) => {
+                // Only allow digits
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+        }
+    }
+    
+    formatNumberField() {
+        const numberField = document.getElementById('signatureNumber');
+        if (!numberField) return;
+        
+        let value = numberField.value.trim();
+        
+        // If empty or invalid, revert to last saved or 001
+        if (!value || isNaN(value)) {
+            value = localStorage.getItem('signature_next_number') || '001';
+        }
+        
+        // Convert to number and format with padding
+        const num = parseInt(value);
+        if (num > 999) {
+            numberField.value = num.toString();
+        } else {
+            numberField.value = num.toString().padStart(3, '0');
+        }
+    }
+    
+    incrementNumber() {
+        const numberField = document.getElementById('signatureNumber');
+        if (!numberField) return;
+        
+        const currentNum = parseInt(numberField.value) || 1;
+        const nextNum = currentNum + 1;
+        
+        if (nextNum > 999) {
+            numberField.value = nextNum.toString();
+        } else {
+            numberField.value = nextNum.toString().padStart(3, '0');
+        }
+        
+        // Persist the new number
+        localStorage.setItem('signature_next_number', numberField.value);
     }
     
     getOrCreateDeviceId() {
@@ -462,6 +524,11 @@ _strokeEnd() {
             clearBtn.addEventListener('click', () => this.clearCanvas());
         }
         
+        const newSigBtn = document.getElementById('newSignatureBtn');
+        if (newSigBtn) {
+            newSigBtn.addEventListener('click', () => this.newSignature());
+        }
+        
         const form = document.getElementById('createSignatureForm');
         if (form) {
             form.addEventListener('submit', (e) => this.saveSignature(e));
@@ -593,12 +660,29 @@ clearCanvas() {
             }
         }, 100); // Small delay to ensure modal is rendered
         
-        // Clear form inputs
-        const nameInput = document.getElementById('signatureName');
-        const roleInput = document.getElementById('signatureRole');
+        // Load persisted form values (don't clear them)
+        this.loadPersistedFormData();
+    }
+    
+    newSignature() {
+        // Clear all form fields
+        const nameField = document.getElementById('signatureName');
+        const roleField = document.getElementById('signatureRole');
+        const numberField = document.getElementById('signatureNumber');
         
-        if (nameInput) nameInput.value = '';
-        if (roleInput) roleInput.value = '';
+        if (nameField) nameField.value = '';
+        if (roleField) roleField.value = '';
+        if (numberField) numberField.value = '001';
+        
+        // Clear canvas
+        this.clearCanvas();
+        
+        // Reset persisted values in localStorage
+        localStorage.setItem('signature_base_name', '');
+        localStorage.setItem('signature_role', '');
+        localStorage.setItem('signature_next_number', '001');
+        
+        this.showAlert('✨ Ready for new signature series', 'success');
     }
     
 closeCreateModal() {
@@ -623,11 +707,17 @@ closeCreateModal() {
     async saveSignature(e) {
         e.preventDefault();
         
-        const name = document.getElementById('signatureName').value.trim();
+        const baseName = document.getElementById('signatureName').value.trim();
+        const number = document.getElementById('signatureNumber') ? document.getElementById('signatureNumber').value.trim() : '';
         const role = document.getElementById('signatureRole').value.trim();
         
-        if (!name) {
+        if (!baseName) {
             alert('Please enter a signature name');
+            return;
+        }
+        
+        if (number && isNaN(number)) {
+            alert('Invalid signature number');
             return;
         }
         
@@ -636,11 +726,14 @@ closeCreateModal() {
             return;
         }
         
+        // Build final name: BaseName + Number (if number field exists)
+        const finalName = number ? baseName + number : baseName;
+        
         const base64 = this.canvas.toDataURL('image/png').split(',')[1];
         
         const signatureData = {
             local_id: 'local_' + Date.now(),
-            name: name,
+            name: finalName,  // Use final name with number appended
             role: role,
             signature_base64: base64,
             device_id: this.deviceId,
@@ -653,12 +746,23 @@ closeCreateModal() {
         if (navigator.onLine) {
             const saved = await this.uploadSignature(signatureData);
             if (saved) {
-                this.closeCreateModal();
+                // Don't close modal - keep it open for next signature
+                // Don't clear name and role - keep them
+                // Clear canvas only
+                this.clearCanvas();
+                
+                // Auto-increment the number if field exists
+                if (number) {
+                    this.incrementNumber();
+                    // Persist base name and role
+                    localStorage.setItem('signature_base_name', baseName);
+                    localStorage.setItem('signature_role', role);
+                }
+                
                 await this.loadAllData();
-                this.showAlert('✅ Signature saved successfully!', 'success');
+                this.showAlert(`✅ Signature saved as ${finalName}!`, 'success');
             } else {
                 this.showAlert('⚠️ Signature saved locally. Will sync when online.', 'warning');
-                this.closeCreateModal();
             }
         } else {
             this.showAlert('📱 Signature saved to your phone. Will sync when online.', 'info');
