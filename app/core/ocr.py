@@ -121,11 +121,91 @@ def ocr_pdf(path):
 
 
 # ------------------------------------------------
-# NAME EXTRACTION
+# NAME EXTRACTION  (patched: multi-pattern + filename fallback)
 # ------------------------------------------------
 
-def extract_member_name(text):
-    m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
-    if not m:
-        raise RuntimeError("NAME NOT FOUND")
-    return " ".join(m.group(1).split())
+def extract_member_name(text: str, filename: str = "") -> str:
+    """
+    Try multiple OCR patterns to find the member name.
+    If all OCR attempts fail, fall back to deriving the name from the filename.
+    Raises RuntimeError only if every strategy fails.
+    """
+    # --- Strategy 1: standard "NAME: ... SSN" pattern ---
+    m = re.search(r"NAME:\s*([A-Z][A-Z\s'.,-]+?)\s+SSN", text, re.IGNORECASE)
+    if m:
+        name = " ".join(m.group(1).split())
+        if len(name) >= 3:
+            return name
+
+    # --- Strategy 2: "NAME: ... (line break)" without requiring SSN ---
+    m = re.search(
+        r"(?:LAST|FIRST|MEMBER|MEMBER'?S?)?\s*NAME[:\s]+([A-Z][A-Z\s'.,-]{2,}?)(?:\n|SOCIAL|SSN|RATE|RANK|\d{3})",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        name = " ".join(m.group(1).split()).strip(" ,")
+        if len(name) >= 3:
+            return name
+
+    # --- Strategy 3: "FIRST, LAST" or "LAST, FIRST" after common labels ---
+    m = re.search(r"(?:SOCIAL\s+SECURITY\s+NUMBER|SSN)[:.\s]*(?:FIRST,?\s*\(?LAST)?\s*([A-Z][A-Z\s'.,]{3,30})", text, re.IGNORECASE)
+    if m:
+        name = " ".join(m.group(1).split()).strip(" ,")
+        if len(name) >= 3:
+            return name
+
+    # --- Strategy 4: filename-based derivation ---
+    if filename:
+        name = _name_from_filename(filename)
+        if name:
+            import app.core.logger as _lgr
+            try:
+                _lgr.log(f"NAME FALLBACK FROM FILENAME → '{filename}' → '{name}'")
+            except Exception:
+                pass
+            return name
+
+    raise RuntimeError("NAME NOT FOUND")
+
+
+def _name_from_filename(filename: str) -> str:
+    """
+    Derive a member name from common filename patterns:
+      - "RATE LAST, FIRST.pdf"  → "FIRST LAST"
+      - "LAST Sea Pay ...pdf"   → "LAST"
+      - "LAST_Sea_Pay ...pdf"   → "LAST"
+    Returns empty string if no pattern matches.
+    """
+    base = re.sub(r"\.pdf$", "", filename, flags=re.IGNORECASE).strip()
+
+    # Pattern A: "RATE LAST, FIRST" e.g. "GM1 BELL, RICHARD"
+    m = re.match(
+        r"^[A-Z0-9]{1,6}\s+([A-Z][A-Z']+),\s*([A-Z][A-Z']+)",
+        base,
+        re.IGNORECASE,
+    )
+    if m:
+        return f"{m.group(2).upper()} {m.group(1).upper()}"
+
+    # Pattern B: "RATE LAST, FIRST MIDDLE"
+    m = re.match(
+        r"^[A-Z0-9]{1,6}\s+([A-Z][A-Z']+),\s*([A-Z][A-Z'\s]+)",
+        base,
+        re.IGNORECASE,
+    )
+    if m:
+        first_parts = m.group(2).strip().split()
+        first = first_parts[0] if first_parts else m.group(2).strip()
+        return f"{first.upper()} {m.group(1).upper()}"
+
+    # Pattern C: "LASTNAME Sea Pay ..." or "LASTNAME_Sea_Pay_..."
+    m = re.match(r"^([A-Z][A-Z']{1,})\s+Sea\s*Pay", base, re.IGNORECASE)
+    if m:
+        return m.group(1).upper()
+
+    m = re.match(r"^([A-Z][A-Z']{1,})_Sea_Pay", base, re.IGNORECASE)
+    if m:
+        return m.group(1).upper()
+
+    return ""
