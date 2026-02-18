@@ -4,6 +4,33 @@ from datetime import datetime, timedelta
 from app.core.ships import match_ship
 
 
+# ----------------------------------------------------------
+# SAFE DATE PARSING  (fix: prevents batch crash on bad OCR dates)
+# ----------------------------------------------------------
+def _safe_strptime(date_str: str, fmt: str = "%m/%d/%Y", *, context: str = "") -> "datetime | None":
+    """
+    Wrapper around datetime.strptime that validates before parsing.
+    Returns None instead of raising for malformed / out-of-range values so
+    one bad OCR read like '42/01/2026' never kills the whole batch.
+    Accepted range: year 2000-2100.
+    """
+    if not date_str:
+        return None
+    try:
+        dt = datetime.strptime(date_str, fmt)
+        if not (2000 <= dt.year <= 2100):
+            raise ValueError(f"Year {dt.year} out of accepted range 2000-2100")
+        return dt
+    except Exception as exc:
+        if context:
+            try:
+                from app.core.logger import log
+                log(f"SKIP INVALID DATE → '{date_str}' context={context} reason={exc}")
+            except Exception:
+                pass
+        return None
+
+
 def extract_year_from_filename(fn):
     """Extract 4-digit year from filename (uses LAST year found) or fallback to current year."""
     matches = re.findall(r"(20\d{2})", fn)
@@ -356,7 +383,9 @@ def group_by_ship(rows):
     grouped = {}
 
     for r in rows:
-        dt = datetime.strptime(r["date"], "%m/%d/%Y")
+        dt = _safe_strptime(r["date"], "%m/%d/%Y", context=f"group_by_ship row={r.get('date')}")
+        if dt is None:
+            continue  # skip rows with bad dates rather than crashing
         grouped.setdefault(r["ship"], []).append(dt)
 
     output = []
